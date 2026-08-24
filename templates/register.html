@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}注册 - 人情礼金记账系统{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white text-center py-3">
+                <h4 class="mb-0"><i class="fa-solid fa-user-plus me-2"></i>新用户注册</h4>
+            </div>
+            <div class="card-body p-4">
+                {% if invalid_token %}
+                    <div class="alert alert-danger text-center my-3">
+                        <i class="fa-solid fa-triangle-exclamation fa-2x mb-2 d-block"></i>
+                        <h5>无法发起注册</h5>
+                        <p class="mb-0 text-muted">系统已开启受邀注册模式。您访问的注册链接无效、已过期或已被使用。</p>
+                        <p class="mb-0 text-muted">请联系系统超级管理员生成并提供有效的专属注册邀请链接。</p>
+                    </div>
+                {% else %}
+                <form method="POST" action="{{ url_for('register') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="token" value="{{ token }}">
+                    
+                    <div class="mb-3">
+                        <label for="username" class="form-label">用户名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="username" name="username" placeholder="3-20位字符（汉字/字母/数字/下划线）" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="password" name="password" placeholder="至少6位，须包含字母和数字" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">确认密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="请再次输入密码" required>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h6 class="text-muted mb-3"><i class="fa-solid fa-shield-halved me-1"></i>密保设置（用于找回密码）</h6>
+                    
+                    <div class="mb-3">
+                        <label for="security_question" class="form-label">密保问题 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="security_question" name="security_question" required>
+                            <option value="" disabled selected>选择密保问题...</option>
+                            <option value="您母亲的姓名是？">您母亲的姓名是？</option>
+                            <option value="您第一所小学的名字是？">您第一所小学的名字是？</option>
+                            <option value="您拥有的第一辆汽车品牌是？">您拥有的第一辆汽车品牌是？</option>
+                            <option value="您出生的城市是？">您出生的城市是？</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="security_answer" class="form-label">密保答案 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="security_answer" name="security_answer" placeholder="请输入密保答案" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-danger w-100 py-2 fw-bold mt-2"><i class="fa-solid fa-check me-1"></i>提交注册</button>
+                </form>
+                {% endif %}
+            </div>
+            <div class="card-footer text-center bg-light py-3">
+                <span class="text-muted">已有账号？</span>
+                <a href="{{ url_for('login') }}" class="fw-bold text-danger text-decoration-none">直接登录</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

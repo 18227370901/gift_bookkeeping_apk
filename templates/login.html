@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+
+{% block title %}登录 - 人情礼金记账系统{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5 col-lg-4">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white text-center py-3">
+                <h4 class="mb-0"><i class="fa-solid fa-right-to-bracket me-2"></i>账号登录</h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('login') }}" id="loginForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">用户名</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
+                            <input type="text" class="form-control" id="username" name="username" placeholder="请输入用户名" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">密码</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
+                            <input type="password" class="form-control" id="password" name="password" placeholder="请输入密码" required>
+                        </div>
+                    </div>
+                    <div class="mb-3" id="captchaContainer" style="{% if not require_captcha %}display: none;{% endif %}">
+                        <label for="captcha" class="form-label text-danger fw-bold"><i class="fa-solid fa-shield-halved me-1"></i>安全验证码</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="captcha" name="captcha" placeholder="计算右侧算式结果" {% if require_captcha %}required{% endif %} autocomplete="off">
+                            <span class="input-group-text bg-light fw-bold text-primary" id="captchaExpr" style="cursor: pointer; min-width: 100px; justify-content: center;" title="点击刷新验证码">加载中...</span>
+                            <button class="btn btn-outline-secondary" type="button" onclick="refreshCaptcha()" title="刷新验证码"><i class="fa-solid fa-rotate-right"></i></button>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                            <label class="form-check-label text-muted" for="remember">记住登录</label>
+                        </div>
+                        <a href="{{ url_for('forgot_password') }}" class="text-decoration-none small text-danger">忘记密码？</a>
+                    </div>
+                    <button type="submit" class="btn btn-danger w-100 py-2 fw-bold"><i class="fa-solid fa-paper-plane me-1"></i>登录系统</button>
+                </form>
+                
+                <div class="alert alert-info mt-4 mb-0 small">
+                    <i class="fa-solid fa-circle-info me-1"></i> 首次使用？点击下方“立即注册”创建您的记账账号。
+                </div>
+            </div>
+            <div class="card-footer text-center bg-light py-3">
+                <span class="text-muted">还没有账号？</span>
+                <a href="{{ url_for('register') }}" class="fw-bold text-danger text-decoration-none">立即注册</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshCaptcha() {
+    var exprSpan = document.getElementById("captchaExpr");
+    if (exprSpan) {
+        fetch("{{ url_for('login_captcha') }}", {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("HTTP error " + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data && data.expr) {
+                    exprSpan.textContent = data.expr;
+                } else {
+                    exprSpan.textContent = "点击刷新";
+                }
+            })
+            .catch(err => {
+                console.error("刷新验证码出错:", err);
+                exprSpan.textContent = "点击重试";
+            });
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    var usernameInput = document.getElementById("username");
+    var passwordInput = document.getElementById("password");
+    var rememberCheckbox = document.getElementById("remember");
+    var loginForm = document.getElementById("loginForm");
+    var captchaContainer = document.getElementById("captchaContainer");
+    var captchaInput = document.getElementById("captcha");
+    var exprSpan = document.getElementById("captchaExpr");
+    var submitBtn = loginForm.querySelector("button[type='submit']");
+    var lockTimer = null;
+
+    if (exprSpan) {
+        exprSpan.addEventListener("click", refreshCaptcha);
+    }
+
+    function checkUserRisk(uname) {
+        if (!uname) {
+            if (captchaContainer) captchaContainer.style.display = "none";
+            if (captchaInput) captchaInput.removeAttribute("required");
+            if (lockTimer) clearInterval(lockTimer);
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i>登录系统';
+            }
+            return;
+        }
+        fetch("{{ url_for('login_check_risk') }}?username=" + encodeURIComponent(uname))
+            .then(res => res.json())
+            .then(data => {
+                if (data.require_captcha) {
+                    if (captchaContainer) captchaContainer.style.display = "block";
+                    if (captchaInput) captchaInput.setAttribute("required", "required");
+                    refreshCaptcha();
+                } else {
+                    if (captchaContainer) captchaContainer.style.display = "none";
+                    if (captchaInput) captchaInput.removeAttribute("required");
+                }
+
+                if (data.is_locked && data.lock_wait > 0) {
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        var lockWait = data.lock_wait;
+                        var originalBtnText = '<i class="fa-solid fa-paper-plane me-1"></i>登录系统';
+                        if (lockTimer) clearInterval(lockTimer);
+                        lockTimer = setInterval(function() {
+                            if (lockWait <= 0) {
+                                clearInterval(lockTimer);
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = originalBtnText;
+                            } else {
+                                submitBtn.innerHTML = '<i class="fa-solid fa-lock me-1"></i>请等待 (' + lockWait + 's)';
+                                lockWait--;
+                            }
+                        }, 1000);
+                    }
+                } else {
+                    if (lockTimer) clearInterval(lockTimer);
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i>登录系统';
+                    }
+                }
+            })
+            .catch(err => console.error("检查风控状态出错:", err));
+    }
+
+    var checkTimeout = null;
+    if (usernameInput) {
+        usernameInput.addEventListener("blur", function() {
+            checkUserRisk(this.value.trim());
+        });
+        usernameInput.addEventListener("input", function() {
+            clearTimeout(checkTimeout);
+            var val = this.value.trim();
+            checkTimeout = setTimeout(function() {
+                checkUserRisk(val);
+            }, 500);
+        });
+    }
+
+    {% if username %}
+    if (usernameInput) {
+        usernameInput.value = {{ username|tojson }};
+        checkUserRisk({{ username|tojson }});
+    }
+    {% else %}
+    var savedUsername = localStorage.getItem("remember_username");
+    var savedPassword = localStorage.getItem("remember_password");
+    if (savedUsername) {
+        usernameInput.value = savedUsername;
+        if (savedPassword) {
+            passwordInput.value = savedPassword;
+        }
+        rememberCheckbox.checked = true;
+        checkUserRisk(savedUsername);
+    }
+    {% endif %}
+
+    loginForm.addEventListener("submit", function() {
+        if (rememberCheckbox.checked) {
+            localStorage.setItem("remember_username", usernameInput.value);
+            localStorage.setItem("remember_password", passwordInput.value);
+        } else {
+            localStorage.removeItem("remember_username");
+            localStorage.removeItem("remember_password");
+        }
+    });
+});
+</script>
+{% endblock %}

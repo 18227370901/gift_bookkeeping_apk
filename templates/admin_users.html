@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}后台用户管理 - 随礼记账簿{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="fw-bold text-dark mb-1">
+      <i class="fa-solid fa-users me-2 text-danger"></i>系统用户管理
+    </h3>
+    <p class="text-muted mb-0">作为超级管理员，您可以管理系统中的所有注册账号及相关权限</p>
+  </div>
+  <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+    <i class="fa-solid fa-arrow-left me-1"></i>返回主页
+  </a>
+</div>
+<!-- 系统配置与生成注册邀请链接卡片 -->
+<div class="card card-custom border-0 mb-4 shadow-sm">
+  <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+    <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-gear me-2 text-primary"></i>系统安全与登录设置</h5>
+  </div>
+  <div class="card-body">
+    <form action="{{ url_for('update_session_timeout') }}" method="POST" class="row g-3 align-items-center">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      
+      <div class="col-md-4">
+        <label for="session_timeout_minutes" class="form-label fw-bold text-muted">登录无操作超时：</label>
+        <div class="input-group">
+          <input type="number" name="session_timeout_minutes" id="session_timeout_minutes" class="form-control" value="{{ session_timeout_minutes }}" min="1" max="10080" required>
+          <span class="input-group-text">分钟</span>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <label for="max_login_attempts" class="form-label fw-bold text-muted">密码允许连续错误：</label>
+        <div class="input-group">
+          <input type="number" name="max_login_attempts" id="max_login_attempts" class="form-control" value="{{ max_login_attempts }}" min="1" max="20" required>
+          <span class="input-group-text">次</span>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <label for="login_lockout_seconds" class="form-label fw-bold text-muted">触发风控锁定等待：</label>
+        <div class="input-group">
+          <input type="number" name="login_lockout_seconds" id="login_lockout_seconds" class="form-control" value="{{ login_lockout_seconds }}" min="0" max="86400" required>
+          <span class="input-group-text">秒</span>
+        </div>
+      </div>
+
+      <div class="col-12 text-end mt-3">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="fa-solid fa-floppy-disk me-1"></i>保存系统设置
+        </button>
+      </div>
+
+      <div class="col-12 mt-1">
+        <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>说明：到达错误次数后将自动开启验证码；锁定等待时长为触发风险后的禁止再次尝试的冷却倒计时。</small>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 生成注册邀请链接卡片 -->
+<div class="card card-custom border-0 mb-4 shadow-sm">
+  <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+    <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-link me-2 text-danger"></i>生成注册邀请链接</h5>
+  </div>
+  <div class="card-body">
+    <form action="{{ url_for('generate_invite_link') }}" method="POST" class="row g-3 align-items-center">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="col-auto">
+        <label for="expire_hours" class="col-form-label fw-bold text-muted">链接有效时长：</label>
+      </div>
+      <div class="col-auto">
+        <select name="expire_hours" id="expire_hours" class="form-select">
+          <option value="1">1 小时</option>
+          <option value="6">6 小时</option>
+          <option value="24" selected>24 小时 (1天)</option>
+          <option value="72">72 小时 (3天)</option>
+          <option value="168">168 小时 (7天)</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label for="max_uses" class="col-form-label fw-bold text-muted">最大可使用次数：</label>
+      </div>
+      <div class="col-auto">
+        <select name="max_uses" id="max_uses" class="form-select">
+          <option value="1" selected>1 次（单次有效）</option>
+          <option value="3">3 次</option>
+          <option value="5">5 次</option>
+          <option value="10">10 次</option>
+          <option value="50">50 次</option>
+          <option value="100">100 次</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-danger"><i class="fa-solid fa-plus me-1"></i>生成新链接</button>
+      </div>
+    </form>
+
+    {% if tokens %}
+    <div class="table-responsive mt-3">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>邀请注册链接</th>
+            <th>创建时间</th>
+            <th>到期时间</th>
+            <th>使用次数</th>
+            <th>状态</th>
+            <th class="text-end">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tokens %}
+          <tr>
+            <td>
+              <div class="input-group input-group-sm" style="max-width: 450px;">
+                <input type="text" class="form-control" id="inviteLink{{ t.id }}" value="{{ request.host_url.rstrip('/') }}{{ url_for('register') }}?token={{ t.token }}" readonly>
+                <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('inviteLink{{ t.id }}').value); alert('链接已复制到剪贴板！');">
+                  <i class="fa-regular fa-copy me-1"></i>复制
+                </button>
+              </div>
+            </td>
+            <td><small class="text-muted">{{ t.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+            <td><small class="text-muted">{{ t.expires_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+            <td><small class="text-muted">{{ t.use_count or 0 }} / {{ t.max_uses or 1 }}</small></td>
+            <td>
+              {% if t.used or (t.max_uses and t.use_count >= t.max_uses) %}
+                <span class="badge bg-secondary">已用完</span>
+              {% elif t.expires_at < now %}
+                <span class="badge bg-danger">已失效</span>
+              {% else %}
+                <span class="badge bg-success">有效</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <form action="{{ url_for('admin_delete_invite_link', token_id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('确定要删除此注册邀请链接吗？');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="删除链接">
+                  <i class="fa-solid fa-trash me-1"></i>删除
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card card-custom border-0 mb-4">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-4">ID</th>
+            <th>用户名</th>
+            <th>角色身份</th>
+            <th>账号状态</th>
+            <th>密保问题</th>
+            <th>注册时间</th>
+            <th class="text-end pe-4">操作选项</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td class="ps-4 text-muted fw-bold">#{{ u.id }}</td>
+            <td class="fw-bold text-dark">
+              {{ u.username }}
+              {% if u.id == current_user.id %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill ms-1 fs-xs">当前账号</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.is_admin %}
+              <span class="badge bg-danger text-white rounded-pill"><i class="fa-solid fa-user-shield me-1"></i>超级管理员</span>
+              {% else %}
+              <span class="badge bg-secondary-subtle text-secondary rounded-pill">普通用户</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.is_active %}
+              <span class="badge bg-success rounded-pill"><i class="fa-solid fa-check me-1"></i>正常</span>
+              {% else %}
+              <span class="badge bg-danger rounded-pill"><i class="fa-solid fa-ban me-1"></i>已禁用</span>
+              {% endif %}
+            </td>
+            <td class="text-muted"><small>{{ u.security_question }}</small></td>
+            <td class="text-muted"><small>{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '-' }}</small></td>
+            <td class="text-end pe-4">
+              <div class="btn-group btn-group-sm">
+                {% if u.id != current_user.id %}
+                <form action="{{ url_for('admin_toggle_user_status', user_id=u.id) }}" method="POST" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  {% if u.is_active %}
+                  <button type="submit" class="btn btn-outline-warning" onclick="return confirm('确定要禁用该用户吗？禁用后该用户将无法登录并强制下线。');">
+                    <i class="fa-solid fa-ban me-1"></i>禁用
+                  </button>
+                  {% else %}
+                  <button type="submit" class="btn btn-outline-success" onclick="return confirm('确定要启用该用户吗？');">
+                    <i class="fa-solid fa-check me-1"></i>启用
+                  </button>
+                  {% endif %}
+                </form>
+                {% endif %}
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#resetPassModal{{ u.id }}">
+                  <i class="fa-solid fa-key me-1"></i>重置密码
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#resetSecModal{{ u.id }}">
+                  <i class="fa-solid fa-shield-halved me-1"></i>重置密保
+                </button>
+                {% if u.id != current_user.id %}
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal{{ u.id }}">
+                  <i class="fa-solid fa-trash me-1"></i>删除
+                </button>
+                {% endif %}
+              </div>
+
+              <!-- 重置密码 Modal -->
+              <div class="modal fade text-start" id="resetPassModal{{ u.id }}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-sm">
+                  <div class="modal-content">
+                    <form action="{{ url_for('admin_reset_user_pass', user_id=u.id) }}" method="POST">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <div class="modal-header border-0 pb-0">
+                        <h6 class="modal-title fw-bold text-danger">重置 [{{ u.username }}] 的密码</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body py-3">
+                        <div class="mb-3">
+                          <label class="form-label small text-muted">请输入新密码：</label>
+                          <input type="password" name="new_password" class="form-control" placeholder="设置新密码" required>
+                        </div>
+                      </div>
+                      <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-danger btn-sm">确认重置密码</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 重置密保 Modal -->
+              <div class="modal fade text-start" id="resetSecModal{{ u.id }}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                  <div class="modal-content">
+                    <form action="{{ url_for('admin_reset_user_security', user_id=u.id) }}" method="POST">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <div class="modal-header border-0 pb-0">
+                        <h6 class="modal-title fw-bold text-warning">重置 [{{ u.username }}] 的密保问题</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body py-3">
+                        <div class="mb-3">
+                          <label class="form-label small text-muted">新密保问题：</label>
+                          <input type="text" name="security_question" class="form-control" placeholder="例如：我的高中母校名称？" value="{{ u.security_question }}" required>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label small text-muted">新密保答案：</label>
+                          <input type="text" name="security_answer" class="form-control" placeholder="请输入新密保问题的答案" required>
+                        </div>
+                      </div>
+                      <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-warning btn-sm text-white">确认重置密保</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 删除用户 Modal -->
+              {% if u.id != current_user.id %}
+              <div class="modal fade text-start" id="deleteUserModal{{ u.id }}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-sm">
+                  <div class="modal-content">
+                    <form action="{{ url_for('admin_delete_user', user_id=u.id) }}" method="POST">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <div class="modal-header border-0 pb-0">
+                        <h6 class="modal-title fw-bold text-danger">确认删除用户？</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body py-3 text-muted small">
+                        警告：删除用户 <strong>{{ u.username }}</strong> 将同时删除该用户下的所有礼金记录，且不可恢复！
+                      </div>
+                      <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-danger btn-sm">删除用户及记录</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

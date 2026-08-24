@@ -1,0 +1,565 @@
+{% extends 'base.html' %}
+
+{% block title %}礼金明细大薄 - 礼金人情记账系统{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="fa-solid fa-book-bookmark text-danger me-2"></i>礼金收支明细大薄</h3>
+        <p class="text-muted mb-0 small">轻松记录与查阅所有人情礼金往来数据</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-danger shadow-sm d-none btn-sm" id="batchDeleteBtn" onclick="submitBatchDelete()">
+            <i class="fa-solid fa-trash me-1"></i> 批量删除 (<span id="selectedCount">0</span>)
+        </button>
+        <button type="button" class="btn btn-danger shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#deleteAllModal">
+            <i class="fa-solid fa-dumpster me-1"></i> 清空所有数据
+        </button>
+        <button type="button" class="btn btn-outline-success shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#importCsvModal">
+            <i class="fa-solid fa-file-import me-1"></i> 批量导入
+        </button>
+        <a href="{{ url_for('export_csv') }}" class="btn btn-outline-secondary shadow-sm btn-sm">
+            <i class="fa-solid fa-file-export me-1"></i> 导出 CSV
+        </a>
+        <button type="button" class="btn btn-danger shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#addRecordModal">
+            <i class="fa-solid fa-plus me-1"></i> 新增礼金记录
+        </button>
+    </div>
+</div>
+
+<!-- 统计卡片区 -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm bg-white border-start border-4 border-danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">礼金记录总笔数</div>
+                        <div class="h3 fw-bold mb-0 text-dark mt-1">{{ total_count }} <span class="fs-6 fw-normal text-muted">笔</span></div>
+                    </div>
+                    <div class="bg-danger bg-opacity-10 p-3 rounded-circle text-danger">
+                        <i class="fa-solid fa-list-check fa-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm bg-white border-start border-4 border-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">收到礼金总金额</div>
+                        <div class="h3 fw-bold mb-0 text-success mt-1">¥ {{ "%.2f"|format(total_amount) }}</div>
+                    </div>
+                    <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success">
+                        <i class="fa-solid fa-sack-dollar fa-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm bg-white border-start border-4 border-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">平均单笔礼金</div>
+                        <div class="h3 fw-bold mb-0 text-info mt-1">¥ {{ "%.2f"|format(avg_amount) }}</div>
+                    </div>
+                    <div class="bg-info bg-opacity-10 p-3 rounded-circle text-info">
+                        <i class="fa-solid fa-calculator fa-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 筛选与搜索 Bar -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-3">
+        <form method="GET" action="{{ url_for('index') }}" class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group shadow-sm border rounded-3 overflow-hidden">
+                    <span class="input-group-text bg-white text-muted border-0 pe-2"><i class="fa-solid fa-magnifying-glass text-danger"></i></span>
+                    <input type="text" name="search" class="form-control border-0 ps-1 py-2 shadow-none" placeholder="搜索姓名、电话、地址、金额、事由、备注..." value="{{ query_str }}" aria-label="搜索">
+                    {% if query_str %}
+                    <a href="{{ url_for('index', reason=reason_filter, sort=sort_by, per_page=per_page) }}" class="btn btn-light border-0 d-flex align-items-center text-secondary px-3" title="清空搜索">
+                        <i class="fa-solid fa-xmark"></i>
+                    </a>
+                    {% endif %}
+                    <button type="submit" class="btn btn-danger px-4 border-0">
+                        <i class="fa-solid fa-magnifying-glass me-1"></i> 搜索
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select shadow-sm py-2" name="reason" onchange="this.form.submit()">
+                    <option value="">所有办席原因 (全部)</option>
+                    {% for r in reasons_list %}
+                    <option value="{{ r }}" {% if reason_filter == r %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select shadow-sm py-2" name="sort" onchange="this.form.submit()">
+                    <option value="created_at_desc" {% if sort_by == 'created_at_desc' %}selected{% endif %}>按时间倒序 (最新优先)</option>
+                    <option value="created_at_asc" {% if sort_by == 'created_at_asc' %}selected{% endif %}>按时间正序 (最早优先)</option>
+                    <option value="amount_desc" {% if sort_by == 'amount_desc' %}selected{% endif %}>金额从高到低</option>
+                    <option value="amount_asc" {% if sort_by == 'amount_asc' %}selected{% endif %}>金额从低到高</option>
+                </select>
+            </div>
+            <div class="col-md-1 text-end">
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary w-100 py-2 shadow-sm" title="重置所有筛选">
+                    <i class="fa-solid fa-rotate-left me-1"></i> 重置
+                </a>
+            </div>
+<!-- 礼金记录列表 -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <form id="batchDeleteForm" action="{{ url_for('batch_delete_records') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-nowrap">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3" style="width: 40px;">
+                            <input class="form-check-input" type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)">
+                        </th>
+                        <th>#</th>
+                        <th>客人姓名</th>
+                        <th>年龄</th>
+                        <th>联系电话</th>
+                        <th class="text-end">礼金金额(元)</th>
+                        <th>大写金额</th>
+                        <th>办席原因</th>
+                        <th>联系地址</th>
+                        <th>备注说明</th>
+                        <th>登记时间</th>
+                        {% if current_user.is_admin %}
+                        <th>录入用户</th>
+                        {% endif %}
+                        <th class="text-end pe-3">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if records %}
+                    {% for record in records %}
+                    <tr>
+                        <td class="ps-3">
+                            <input class="form-check-input record-checkbox" type="checkbox" name="record_ids" value="{{ record.id }}" onchange="updateBatchDeleteBtn()">
+                        </td>
+                        <td class="text-muted">{{ loop.index }}</td>
+                        <td class="fw-bold text-dark">{{ record.name }}</td>
+                        <td>{{ record.age if record.age else '-' }}</td>
+                        <td>{{ record.phone if record.phone else '-' }}</td>
+                        <td class="text-end fw-bold text-danger">¥ {{ "%.2f"|format(record.amount) }}</td>
+                        <td class="text-muted small fw-bold">{{ num2cn(record.amount) }}</td>
+                        <td><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">{{ record.event_reason }}</span></td>
+                        <td class="text-truncate" style="max-width: 140px;" title="{{ record.address }}">{{ record.address if record.address else '-' }}</td>
+                        <td class="text-truncate" style="max-width: 140px;" title="{{ record.notes }}">{{ record.notes if record.notes else '-' }}</td>
+                        <td class="small text-muted">{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        {% if current_user.is_admin %}
+                        <td><span class="badge bg-light border text-dark">{{ record.owner.username if record.owner else '未知' }}</span></td>
+                        {% endif %}
+                        <td class="text-end pe-3">
+                            <button type="button" class="btn btn-sm btn-outline-primary me-1" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#editRecordModal"
+                                    data-id="{{ record.id }}"
+                                    data-name="{{ record.name }}"
+                                    data-age="{{ record.age or '' }}"
+                                    data-address="{{ record.address or '' }}"
+                                    data-phone="{{ record.phone or '' }}"
+                                    data-amount="{{ record.amount }}"
+                                    data-reason="{{ record.event_reason }}"
+                                    data-notes="{{ record.notes or '' }}">
+                                <i class="fa-solid fa-pen-to-square"></i> 编辑
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteSingleRecord({{ record.id }}, '{{ record.name }}')">
+                                <i class="fa-solid fa-trash"></i> 删除
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="{% if current_user.is_admin %}13{% else %}12{% endif %}" class="text-center py-5 text-muted">
+                            <i class="fa-solid fa-folder-open fa-3x mb-3 text-secondary d-block"></i>
+                            暂无符合条件的礼金记录
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        </form>
+
+        <!-- 分页控件 -->
+        {% if pagination and pagination.pages > 0 %}
+        <div class="card-footer bg-white border-top py-3 d-flex flex-column flex-md-row align-items-center justify-content-between gap-2">
+            <div class="d-flex align-items-center gap-2 text-muted small">
+                <span>显示第 {{ (pagination.page - 1) * per_page + 1 if total_count > 0 else 0 }} 到 {{ [pagination.page * per_page, total_count]|min }} 条，共 {{ total_count }} 条记录</span>
+                <span class="ms-2">| 每页显示:</span>
+                <select class="form-select form-select-sm style-select" style="width: 80px;" onchange="changePerPage(this.value)">
+                    <option value="5" {% if per_page == 5 %}selected{% endif %}>5 条</option>
+                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10 条</option>
+                    <option value="20" {% if per_page == 20 %}selected{% endif %}>20 条</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50 条</option>
+                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100 条</option>
+                </select>
+            </div>
+            
+            <nav aria-label="Page navigation">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('index', page=pagination.prev_num, per_page=per_page, q=query_str, reason=reason_filter, sort=sort_by) if pagination.has_prev else '#' }}">上一页</a>
+                    </li>
+                    
+                    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if p %}
+                            {% if p == pagination.page %}
+                                <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                            {% else %}
+                                <li class="page-item"><a class="page-link" href="{{ url_for('index', page=p, per_page=per_page, q=query_str, reason=reason_filter, sort=sort_by) }}">{{ p }}</a></li>
+                            {% endif %}
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('index', page=pagination.next_num, per_page=per_page, q=query_str, reason=reason_filter, sort=sort_by) if pagination.has_next else '#' }}">下一页</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal 1: 新增记录 Modal -->
+<div class="modal fade" id="addRecordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-plus-circle me-2"></i>添加新礼金记录</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('add_record') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">客人姓名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="name" placeholder="请输入送礼人姓名" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">礼金金额 (元) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" step="0.01" min="0" class="form-control" name="amount" placeholder="0.00" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">办席原因 <span class="text-danger">*</span></label>
+                            <select class="form-select" name="event_reason" id="add_event_reason" required onchange="toggleCustomReason('add')">
+                                <option value="婚宴">婚宴</option>
+                                <option value="满月酒">满月酒</option>
+                                <option value="周岁宴">周岁宴</option>
+                                <option value="寿宴">寿宴</option>
+                                <option value="升学宴">升学宴</option>
+                                <option value="乔迁宴">乔迁宴</option>
+                                <option value="白事人情">白事人情</option>
+                                <option value="其它">其它 (手动输入)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-none" id="add_custom_reason_box">
+                            <label class="form-label fw-bold">自定义办席原因 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="custom_reason" id="add_custom_reason" placeholder="例如：公司开业大吉">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">年龄</label>
+                            <input type="number" class="form-control" name="age" placeholder="选填，例如：35">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">联系电话</label>
+                            <input type="text" class="form-control" name="phone" placeholder="选填，手机或电话号码">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">联系地址</label>
+                            <input type="text" class="form-control" name="address" placeholder="选填，详细居住或工作地址">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">备注说明</label>
+                            <textarea class="form-control" name="notes" rows="2" placeholder="选填，其他补充事项..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-danger"><i class="fa-solid fa-check me-1"></i>保存记录</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 2: 编辑记录 Modal -->
+<div class="modal fade" id="editRecordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-pen-to-square me-2"></i>编辑礼金记录</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editRecordForm" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">客人姓名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="name" id="edit_name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">礼金金额 (元) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" step="0.01" min="0" class="form-control" name="amount" id="edit_amount" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">办席原因 <span class="text-danger">*</span></label>
+                            <select class="form-select" name="event_reason" id="edit_event_reason" required onchange="toggleCustomReason('edit')">
+                                <option value="婚宴">婚宴</option>
+                                <option value="满月酒">满月酒</option>
+                                <option value="周岁宴">周岁宴</option>
+                                <option value="寿宴">寿宴</option>
+                                <option value="升学宴">升学宴</option>
+                                <option value="乔迁宴">乔迁宴</option>
+                                <option value="白事人情">白事人情</option>
+                                <option value="其它">其它 (手动输入)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-none" id="edit_custom_reason_box">
+                            <label class="form-label fw-bold">自定义办席原因 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="custom_reason" id="edit_custom_reason">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">年龄</label>
+                            <input type="number" class="form-control" name="age" id="edit_age">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">联系电话</label>
+                            <input type="text" class="form-control" name="phone" id="edit_phone">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">联系地址</label>
+                            <input type="text" class="form-control" name="address" id="edit_address">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">备注说明</label>
+                            <textarea class="form-control" name="notes" id="edit_notes" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check me-1"></i>保存更新</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- 一次性清空所有数据 Modal -->
+<div class="modal fade" id="deleteAllModal" tabindex="-1" aria-labelledby="deleteAllModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold" id="deleteAllModalLabel"><i class="fa-solid fa-triangle-exclamation me-2"></i>警告：一次性清空所有数据</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('delete_all_records') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body text-center py-4">
+                    <i class="fa-solid fa-trash-can-arrow-up text-danger fa-4x mb-3"></i>
+                    <h5 class="fw-bold text-danger">确定要彻底清空所有礼金数据吗？</h5>
+                    <p class="text-muted small mb-0">此操作将一次性清除所有礼金明细记录，且<strong class="text-danger">无法恢复</strong>！请谨慎操作。</p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-danger px-4 fw-bold"><i class="fa-solid fa-trash me-1"></i>确认清空所有数据</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="importCsvModal" tabindex="-1" aria-labelledby="importCsvModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="importCsvModalLabel"><i class="fa-solid fa-file-csv me-2 text-success"></i>批量导入礼金记录 (CSV)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('import_csv') }}" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="mb-3 text-end">
+                        <a href="{{ url_for('download_import_template') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fa-solid fa-file-excel me-1"></i>下载导入样例模版 (.csv)
+                        </a>
+                    </div>
+                    <div class="mb-3">
+                        <label for="csv_file" class="form-label fw-bold">选择 CSV 文件</label>
+                        <input class="form-control" type="file" id="csv_file" name="file" accept=".csv" required>
+                    </div>
+                    <div class="alert alert-info small mb-0">
+                        <h6 class="fw-bold mb-2"><i class="fa-solid fa-circle-info me-1"></i>填写规则与说明：</h6>
+                        <ul class="mb-1 ps-3">
+                            <li><strong class="text-danger">* 客人姓名</strong>（必填）：送礼人姓名</li>
+                            <li><strong class="text-danger">* 礼金金额</strong>（必填）：必须为正数值，如 <code>500</code></li>
+                            <li><strong class="text-danger">* 办席原因</strong>（必填）：如 <code>婚礼</code>、<code>满月酒</code>、<code>寿宴</code>、<code>乔迁</code>、<code>升学</code>、<code>其它</code></li>
+                            <li><strong>年龄</strong>（选填）：数值，如 <code>30</code></li>
+                            <li><strong>联系电话</strong>（选填）：手机或固话号码</li>
+                            <li><strong>联系地址</strong>（选填）：居住或联系地址</li>
+                            <li><strong>备注说明</strong>（选填）：额外记录信息</li>
+                        </ul>
+                        <div class="mt-2 text-muted" style="font-size: 0.83rem;">
+                            <i class="fa-solid fa-lightbulb me-1 text-warning"></i>提示：推荐点击右上角按钮下载样例模版，按格式填入数据后再选择文件导入。
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-success"><i class="fa-solid fa-upload me-1"></i>开始导入</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<script>
+function toggleSelectAll(selectAllCheckbox) {
+    var checkboxes = document.querySelectorAll('.record-checkbox');
+    checkboxes.forEach(function(cb) {
+        cb.checked = selectAllCheckbox.checked;
+    });
+    updateBatchDeleteBtn();
+}
+
+function updateBatchDeleteBtn() {
+    var checkedBoxes = document.querySelectorAll('.record-checkbox:checked');
+    var batchBtn = document.getElementById('batchDeleteBtn');
+    var countSpan = document.getElementById('selectedCount');
+    var selectAll = document.getElementById('selectAllCheckbox');
+    var totalBoxes = document.querySelectorAll('.record-checkbox');
+
+    if (checkedBoxes.length > 0) {
+        batchBtn.classList.remove('d-none');
+        countSpan.textContent = checkedBoxes.length;
+    } else {
+        batchBtn.classList.add('d-none');
+        countSpan.textContent = '0';
+    }
+
+    if (selectAll) {
+        if (totalBoxes.length > 0 && checkedBoxes.length === totalBoxes.length) {
+            selectAll.checked = true;
+            selectAll.indeterminate = false;
+        } else if (checkedBoxes.length > 0) {
+            selectAll.checked = false;
+            selectAll.indeterminate = true;
+        } else {
+            selectAll.checked = false;
+            selectAll.indeterminate = false;
+        }
+    }
+}
+
+function submitBatchDelete() {
+    var checkedBoxes = document.querySelectorAll('.record-checkbox:checked');
+    if (checkedBoxes.length === 0) return;
+    if (confirm('确定要删除选中的 ' + checkedBoxes.length + ' 条礼金记录吗？此操作不可撤销！')) {
+        document.getElementById('batchDeleteForm').submit();
+    }
+}
+
+function changePerPage(val) {
+    var urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('per_page', val);
+    urlParams.set('page', '1');
+    window.location.search = urlParams.toString();
+}
+
+function deleteSingleRecord(recordId, recordName) {
+    if (confirm('确定要删除客人 [' + recordName + '] 的这笔礼金记录吗？')) {
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/record/delete/' + recordId;
+        var csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = '{{ csrf_token }}';
+        form.appendChild(csrfInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function toggleCustomReason(prefix) {
+    var select = document.getElementById(prefix + '_event_reason');
+    var customBox = document.getElementById(prefix + '_custom_reason_box');
+    var customInput = document.getElementById(prefix + '_custom_reason');
+    if (select.value === '其它') {
+        customBox.classList.remove('d-none');
+        customInput.setAttribute('required', 'required');
+    } else {
+        customBox.classList.add('d-none');
+        customInput.removeAttribute('required');
+    }
+}
+
+var editModal = document.getElementById('editRecordModal');
+if (editModal) {
+    editModal.addEventListener('show.bs.modal', function (event) {
+        var button = event.relatedTarget;
+        var id = button.getAttribute('data-id');
+        var name = button.getAttribute('data-name');
+        var age = button.getAttribute('data-age');
+        var address = button.getAttribute('data-address');
+        var phone = button.getAttribute('data-phone');
+        var amount = button.getAttribute('data-amount');
+        var reason = button.getAttribute('data-reason');
+        var notes = button.getAttribute('data-notes');
+
+        document.getElementById('editRecordForm').action = '/record/edit/' + id;
+        document.getElementById('edit_name').value = name;
+        document.getElementById('edit_age').value = age;
+        document.getElementById('edit_address').value = address;
+        document.getElementById('edit_phone').value = phone;
+        document.getElementById('edit_amount').value = amount;
+        document.getElementById('edit_notes').value = notes;
+
+        var reasonSelect = document.getElementById('edit_event_reason');
+        var customBox = document.getElementById('edit_custom_reason_box');
+        var customInput = document.getElementById('edit_custom_reason');
+
+        var presetReasons = ['婚宴', '满月酒', '周岁宴', '寿宴', '升学宴', '乔迁宴', '白事人情'];
+        if (presetReasons.includes(reason)) {
+            reasonSelect.value = reason;
+            customBox.classList.add('d-none');
+            customInput.removeAttribute('required');
+            customInput.value = '';
+        } else {
+            reasonSelect.value = '其它';
+            customBox.classList.remove('d-none');
+            customInput.setAttribute('required', 'required');
+            customInput.value = reason;
+        }
+    });
+}
+</script>
+{% endblock %}
+
