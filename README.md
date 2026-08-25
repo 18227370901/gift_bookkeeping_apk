@@ -50,10 +50,15 @@ gift_bookkeeping_apk/
 
 ## 🚀 如何获取与安装 APK
 
-### 方式一：GitHub Actions 自动构建下载（推荐）
+### 方式一：GitHub Releases 页面直接下载（最推荐）
+1. 访问本仓库的 **[Releases 页面](../../releases)**。
+2. 找到 **Latest** 正式版发布。
+3. 在 **Assets** 列表中点击 `.apk` 文件直接下载并安装到安卓手机上。
+
+### 方式二：GitHub Actions 运行构建产物下载
 1. 访问本仓库的 GitHub 页面中的 **Actions** 标签页。
-2. 点击最新的运行记录，在 **Artifacts** 中下载打包好的 `gift-bookkeeping-apk.zip`。
-3. 解压后将 `app-debug.apk` 传输到 Android 手机上点击安装即可。
+2. 点击最新的运行记录，在 **Artifacts** 中下载打包好的 `GiftBookkeeping-APK`。
+3. 解压后将 `.apk` 传输到 Android 手机上点击安装即可。
 
 ### 方式二：本地使用 Buildozer 打包（Linux / WSL2 环境）
 ```bash

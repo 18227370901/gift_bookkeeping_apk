@@ -3,7 +3,12 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
+    tags:
+      - 'v*'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -67,5 +72,27 @@ jobs:
           name: GiftBookkeeping-APK
           path: bin/*.apk
           if-no-files-found: error
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Gift Bookkeeping App v1.0.0 (Latest Release)"
+          body: |
+            ### 📱 随礼记账安卓客户端 (Android APK)
+            
+            本版本由 GitHub Actions 自动化编译打包生成。
+            
+            - **文件格式**：`.apk`
+            - **更新时间**：${{ github.event.head_commit.timestamp || 'Latest' }}
+            - **提交信息**：${{ github.event.head_commit.message || 'Manual build' }}
+            
+            直接下载下方的 `.apk` 文件并在安卓手机上安装即可使用。
+          files: bin/*.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
 
