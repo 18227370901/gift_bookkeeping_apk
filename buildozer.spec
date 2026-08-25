@@ -6,7 +6,7 @@ title = 礼金记账簿
 # (str) Package name
 package.name = gift_bookkeeping_apk
 
-# (str) Package domain (needed for android/ios packaging)
+# (str) Package domain (needed for android packaging)
 package.domain = org.giftbookkeeping.app
 
 # (str) Source code where the main.py lives
@@ -28,8 +28,8 @@ source.exclude_exts = spec, pyc, pyd, pyo
 version = 1.0.0
 
 # (list) Application requirements
-# comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,hostpython3,sqlite3,flask,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,jinja2,markupsafe,itsdangerous,click,pyjnius,kivy
+# SQLite and Flask stack
+requirements = python3,hostpython3,sqlite3,openssl,libffi,setuptools,flask,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,jinja2,markupsafe,itsdangerous,click,pyjnius,kivy
 
 # (str) Supported orientation (one of landscape, sensorLandscape, portrait or all)
 orientation = portrait
@@ -55,18 +55,11 @@ android.ndk = 25b
 # (bool) Use --private data storage (True) or --dir public storage (False)
 android.private_storage = True
 
-# (bool) If True, then skip trying to update the Android SDK
-# This can be useful to avoid excess Internet downloads or save time
-# when an update is due and you just want to test/build your package
-android.skip_update = False
-
 # (bool) If True, then automatically accept SDK license
-# agreements. This is intended for automation only. If set to False,
-# the default, you will be shown the license when building.
 android.accept_sdk_license = True
 
 # (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
-android.archs = arm64-v8a, armeabi-v7a
+android.archs = arm64-v8a
 
 # (bool) enables Android auto backup feature (Android API >=23)
 android.allow_backup = True
@@ -84,3 +77,4 @@ log_level = 2
 
 # (int) Display warning if buildozer is run as root (0 = False, 1 = True)
 warn_on_root = 1
+
