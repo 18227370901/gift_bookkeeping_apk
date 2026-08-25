@@ -29,7 +29,8 @@ version = 1.0.0
 
 # (list) Application requirements
 # SQLite and Flask stack
-requirements = python3,hostpython3,sqlite3,openssl,libffi,setuptools,flask,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,jinja2,markupsafe,itsdangerous,click,pyjnius,kivy
+requirements = python3,hostpython3,openssl,pyjnius,kivy
+
 
 # (str) Supported orientation (one of landscape, sensorLandscape, portrait or all)
 orientation = portrait
