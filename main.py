@@ -1,138 +1,144 @@
 import os
 import sys
-import time
 
-# Target Web Application URL
 TARGET_URL = "https://ljp.loveyy.indevs.in:15001/"
 
-def is_android_env():
-    return 'ANDROID_ARGUMENT' in os.environ or hasattr(sys, 'getandroidapilevel')
+try:
+    from kivy.app import App
+    from kivy.uix.widget import Widget
+    from kivy.clock import Clock
+    from kivy.core.window import Window
+    from kivy.utils import platform
+    IS_KIVY = True
+except ImportError:
+    IS_KIVY = False
 
-def main():
-    if is_android_env():
-        # Android environment - Run Android native WebView
+
+class GiftBookkeepingApp(App if IS_KIVY else object):
+    def build(self):
+        Window.clearcolor = (0.96, 0.96, 0.98, 1)
+        root = Widget()
+        if platform == 'android':
+            Clock.schedule_once(self.init_android_webview, 0.1)
+        else:
+            Clock.schedule_once(self.open_desktop_browser, 0.5)
+        return root
+
+    def init_android_webview(self, *args):
         try:
-            from jnius import autoclass
-            from android.runnable import run_on_ui_thread
+            from jnius import autoclass, PythonJavaClass, java_method
 
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            WebView = autoclass('android.webkit.WebView')
-            WebViewClient = autoclass('android.webkit.WebViewClient')
-            WebChromeClient = autoclass('android.webkit.WebChromeClient')
-            LinearLayout = autoclass('android.widget.LinearLayout')
-            LayoutParams = autoclass('android.widget.LinearLayout$LayoutParams')
-            Color = autoclass('android.graphics.Color')
-
-            # Create a custom WebViewClient subclass to handle SSL & URL loading
-            try:
-                from jnius import PythonJavaClass, java_method
-
-                class CustomWebViewClient(PythonJavaClass):
-                    __javainterfaces__ = ['android/webkit/WebViewClient']
-                    __javacontext__ = 'app'
-
-                    def __init__(self):
-                        super().__init__()
-
-                    @java_method('(Landroid/webkit/WebView;Ljava/lang/String;)Z')
-                    def shouldOverrideUrlLoading(self, view, url):
-                        view.loadUrl(url)
-                        return True
-
-                    @java_method('(Landroid/webkit/WebView;Landroid/webkit/SslErrorHandler;Landroid/net/http/SslError;)V')
-                    def onReceivedSslError(self, view, handler, error):
-                        handler.proceed()
-                
-                custom_client = CustomWebViewClient()
-            except Exception as client_err:
-                print(f"Fallback to default WebViewClient: {client_err}")
-                custom_client = WebViewClient()
-
             activity = PythonActivity.mActivity
+            WebView = autoclass('android.webkit.WebView')
+            WebSettings = autoclass('android.webkit.WebSettings')
+            View = autoclass('android.view.View')
+            LayoutParams = autoclass('android.view.ViewGroup$LayoutParams')
+            CookieManager = autoclass('android.webkit.CookieManager')
 
-            @run_on_ui_thread
-            def create_webview():
-                try:
-                    webview = WebView(activity)
-                    settings = webview.getSettings()
-                    
-                    settings.setJavaScriptEnabled(True)
-                    settings.setDomStorageEnabled(True)
-                    settings.setDatabaseEnabled(True)
-                    settings.setAllowFileAccess(True)
-                    settings.setAllowContentAccess(True)
-                    settings.setLoadWithOverviewMode(True)
-                    settings.setUseWideViewPort(True)
-                    settings.setBuiltInZoomControls(True)
-                    settings.setDisplayZoomControls(False)
-                    settings.setSupportZoom(True)
-                    settings.setJavaScriptCanOpenWindowsAutomatically(True)
+            class SafeWebClient(PythonJavaClass):
+                __javainterfaces__ = ['android/webkit/WebViewClient']
+                __javacontext__ = 'app'
 
-                    webview.setWebViewClient(custom_client)
-                    webview.setWebChromeClient(WebChromeClient())
-                    webview.setBackgroundColor(Color.WHITE)
+                def __init__(self, target_url):
+                    super(SafeWebClient, self).__init__()
+                    self.target_url = target_url
 
-                    layout = LinearLayout(activity)
-                    layout.setOrientation(LinearLayout.VERTICAL)
-                    layout_params = LayoutParams(
-                        LayoutParams.MATCH_PARENT,
-                        LayoutParams.MATCH_PARENT
-                    )
-                    layout.addView(webview, layout_params)
-                    activity.setContentView(layout)
+                @java_method('(Landroid/webkit/WebView;Ljava/lang/String;)Z')
+                def shouldOverrideUrlLoading(self, view, url):
+                    view.loadUrl(url)
+                    return True
 
-                    webview.loadUrl(TARGET_URL)
-                except Exception as inner_e:
-                    print(f"Error inside UI Thread: {inner_e}")
+                @java_method('(Landroid/webkit/WebView;Landroid/webkit/SslErrorHandler;Landroid/net/http/SslError;)V')
+                def onReceivedSslError(self, view, handler, error):
+                    handler.proceed()
 
-            create_webview()
+                @java_method('(Landroid/webkit/WebView;ILjava/lang/String;Ljava/lang/String;)V')
+                def onReceivedError(self, view, errorCode, description, failingUrl):
+                    pass
 
-            while True:
-                time.sleep(1)
+            class CustomChromeClient(PythonJavaClass):
+                __javainterfaces__ = ['android/webkit/WebChromeClient']
+                __javacontext__ = 'app'
+
+                def __init__(self):
+                    super(CustomChromeClient, self).__init__()
+
+                @java_method('(Landroid/webkit/WebView;I)V')
+                def onProgressChanged(self, view, newProgress):
+                    pass
+
+                @java_method('(Landroid/webkit/ConsoleMessage;)Z')
+                def onConsoleMessage(self, consoleMessage):
+                    return True
+
+            class WebViewInitRunnable(PythonJavaClass):
+                __javainterfaces__ = ['java/lang/Runnable']
+                __javacontext__ = 'app'
+
+                def __init__(self, activity, url):
+                    super(WebViewInitRunnable, self).__init__()
+                    self.activity = activity
+                    self.url = url
+
+                @java_method('()V')
+                def run(self):
+                    try:
+                        webview = WebView(self.activity)
+                        settings = webview.getSettings()
+
+                        settings.setJavaScriptEnabled(True)
+                        settings.setDomStorageEnabled(True)
+                        settings.setDatabaseEnabled(True)
+                        settings.setAllowFileAccess(True)
+                        settings.setAllowContentAccess(True)
+                        settings.setUseWideViewPort(True)
+                        settings.setLoadWithOverviewMode(True)
+                        settings.setSupportZoom(True)
+                        settings.setBuiltInZoomControls(False)
+                        settings.setDisplayZoomControls(False)
+                        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW)
+                        settings.setCacheMode(WebSettings.LOAD_DEFAULT)
+
+                        try:
+                            cookie_manager = CookieManager.getInstance()
+                            cookie_manager.setAcceptCookie(True)
+                            cookie_manager.setAcceptThirdPartyCookies(webview, True)
+                        except Exception:
+                            pass
+
+                        webview.setWebViewClient(SafeWebClient(self.url))
+                        webview.setWebChromeClient(CustomChromeClient())
+                        webview.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY)
+                        webview.setFocusable(True)
+                        webview.setFocusableInTouchMode(True)
+
+                        params = LayoutParams(
+                            LayoutParams.MATCH_PARENT,
+                            LayoutParams.MATCH_PARENT
+                        )
+                        self.activity.addContentView(webview, params)
+                        webview.loadUrl(self.url)
+                        webview.requestFocus()
+                    except Exception as ex:
+                        print("Error creating webview:", ex)
+
+            activity.runOnUiThread(WebViewInitRunnable(activity, TARGET_URL))
 
         except Exception as e:
-            print(f"Android Native WebView Init Failed: {e}")
-            launch_kivy_fallback(TARGET_URL)
-    else:
-        # Running on desktop (Windows / macOS / Linux) for local testing
+            print("Android WebView Exception:", e)
+
+    def open_desktop_browser(self, *args):
         try:
-            import webview
-            webview.create_window('礼金记账簿', TARGET_URL, width=450, height=820, resizable=True)
-            webview.start()
-        except ImportError:
             import webbrowser
-            print(f"桌面环境正在打开浏览器: {TARGET_URL}")
             webbrowser.open(TARGET_URL)
-            try:
-                while True:
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                print("Exiting...")
+        except Exception:
+            pass
 
-def launch_kivy_fallback(url):
-    try:
-        from kivy.app import App
-        from kivy.uix.label import Label
-        from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.button import Button
-        import webbrowser
-
-        class GiftBookApp(App):
-            def build(self):
-                layout = BoxLayout(orientation='vertical', padding=30, spacing=20)
-                layout.add_widget(Label(text="礼金记账系统 (移动端)", font_size='22sp', size_hint=(1, 0.4)))
-                btn = Button(text="点击进入系统", font_size='18sp', size_hint=(1, 0.3), background_color=(0.18, 0.53, 0.94, 1))
-                btn.bind(on_release=lambda x: webbrowser.open(url))
-                layout.add_widget(btn)
-                return layout
-
-        GiftBookApp().run()
-    except Exception as e:
-        print(f"Kivy fallback failed: {e}")
-        import webbrowser
-        webbrowser.open(url)
-        while True:
-            time.sleep(1)
 
 if __name__ == '__main__':
-    main()
+    if IS_KIVY:
+        GiftBookkeepingApp().run()
+    else:
+        import webbrowser
+        webbrowser.open(TARGET_URL)
