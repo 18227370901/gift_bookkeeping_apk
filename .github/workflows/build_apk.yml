@@ -3,39 +3,29 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
-    tags:
-      - 'v*'
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build Android APK with Buildozer
+    name: Build APK Package
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build with Buildozer Action
+      - name: Build APK with Buildozer Action
         uses: ArtemSBulgakov/buildozer-action@v1
         id: buildozer
         with:
-          workdir: .
-          buildozer_version: stable
+          workdir: '.'
+          buildozer_version: 'stable'
+          command: 'buildozer android debug'
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gift-bookkeeping-apk
+          name: GiftBookkeeping-APK
           path: ${{ steps.buildozer.outputs.filename }}
 
-      - name: Release APK (on tag push)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ steps.buildozer.outputs.filename }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

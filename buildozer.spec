@@ -1,10 +1,10 @@
 [app]
 
 # (str) Title of your application
-title = 礼金记账簿
+title = GiftBookkeeping
 
 # (str) Package name
-package.name = gift_bookkeeping_apk
+package.name = giftbookkeeping
 
 # (str) Package domain (needed for android packaging)
 package.domain = org.giftbookkeeping.app
