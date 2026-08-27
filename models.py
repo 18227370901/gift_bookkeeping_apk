@@ -15,7 +15,11 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), default='user')  # 'admin' or 'user'
     security_question = db.Column(db.String(200), nullable=True)
     security_answer_hash = db.Column(db.String(256), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    can_view_others = db.Column(db.Boolean, default=False)
+    can_edit_others = db.Column(db.Boolean, default=False)
+    can_delete_others = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
     
     # Relationship
     # records = db.relationship('GiftRecord', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -51,7 +55,7 @@ class GiftRecord(db.Model):
     amount = db.Column(db.Float, nullable=False)               # 礼金数额 - 必填
     event_reason = db.Column(db.String(128), nullable=False)   # 办席原因 - 必填
     notes = db.Column(db.Text, nullable=True)                  # 备注 - 可选
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
     
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     user = db.relationship('User', backref=db.backref('gift_records', lazy=True))

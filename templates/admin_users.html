@@ -23,7 +23,7 @@
     <form action="{{ url_for('update_session_timeout') }}" method="POST" class="row g-3 align-items-center">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       
-      <div class="col-md-4">
+      <div class="col-md-3">
         <label for="session_timeout_minutes" class="form-label fw-bold text-muted">登录无操作超时：</label>
         <div class="input-group">
           <input type="number" name="session_timeout_minutes" id="session_timeout_minutes" class="form-control" value="{{ session_timeout_minutes }}" min="1" max="10080" required>
@@ -31,7 +31,7 @@
         </div>
       </div>
 
-      <div class="col-md-4">
+      <div class="col-md-3">
         <label for="max_login_attempts" class="form-label fw-bold text-muted">密码允许连续错误：</label>
         <div class="input-group">
           <input type="number" name="max_login_attempts" id="max_login_attempts" class="form-control" value="{{ max_login_attempts }}" min="1" max="20" required>
@@ -39,7 +39,15 @@
         </div>
       </div>
 
-      <div class="col-md-4">
+      <div class="col-md-3">
+        <label for="max_security_attempts" class="form-label fw-bold text-muted">密保允许连续错误：</label>
+        <div class="input-group">
+          <input type="number" name="max_security_attempts" id="max_security_attempts" class="form-control" value="{{ max_security_attempts }}" min="1" max="20" required>
+          <span class="input-group-text">次</span>
+        </div>
+      </div>
+
+      <div class="col-md-3">
         <label for="login_lockout_seconds" class="form-label fw-bold text-muted">触发风控锁定等待：</label>
         <div class="input-group">
           <input type="number" name="login_lockout_seconds" id="login_lockout_seconds" class="form-control" value="{{ login_lockout_seconds }}" min="0" max="86400" required>
@@ -99,10 +107,28 @@
     </form>
 
     {% if tokens %}
-    <div class="table-responsive mt-3">
+    <form id="batchDeleteTokensForm" action="{{ url_for('admin_batch_delete_invite_links') }}" method="POST" style="display: none;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    </form>
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-2 px-1">
+      <div class="d-flex align-items-center gap-2">
+        <div class="form-check m-0">
+          <input class="form-check-input" type="checkbox" id="selectAllTokens" style="cursor: pointer;">
+          <label class="form-check-label text-muted small fw-bold" for="selectAllTokens" style="cursor: pointer;">全选链接</label>
+        </div>
+        <button type="button" id="batchDeleteTokensBtn" class="btn btn-outline-danger btn-sm" disabled onclick="submitBatchDeleteTokens()">
+          <i class="fa-solid fa-trash-can me-1"></i>批量删除 (<span id="checkedTokensCount">0</span>)
+        </button>
+      </div>
+      <div>
+        <small class="text-muted">共 {{ tokens|length }} 条邀请链接</small>
+      </div>
+    </div>
+    <div class="table-responsive">
       <table class="table table-sm table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
+            <th style="width: 40px;" class="text-center">#</th>
             <th>邀请注册链接</th>
             <th>创建时间</th>
             <th>到期时间</th>
@@ -114,6 +140,9 @@
         <tbody>
           {% for t in tokens %}
           <tr>
+            <td class="text-center">
+              <input type="checkbox" name="token_ids" value="{{ t.id }}" class="form-check-input token-checkbox" style="cursor: pointer;">
+            </td>
             <td>
               <div class="input-group input-group-sm" style="max-width: 450px;">
                 <input type="text" class="form-control" id="inviteLink{{ t.id }}" value="{{ request.host_url.rstrip('/') }}{{ url_for('register') }}?token={{ t.token }}" readonly>
@@ -135,12 +164,9 @@
               {% endif %}
             </td>
             <td class="text-end">
-              <form action="{{ url_for('admin_delete_invite_link', token_id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('确定要删除此注册邀请链接吗？');">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-sm btn-outline-danger" title="删除链接">
-                  <i class="fa-solid fa-trash me-1"></i>删除
-                </button>
-              </form>
+              <button type="button" class="btn btn-sm btn-outline-danger" title="删除链接" onclick="if(confirm('确定要删除此注册邀请链接吗？')) { var form = document.createElement('form'); form.method='POST'; form.action='{{ url_for('admin_delete_invite_link', token_id=t.id) }}'; var input = document.createElement('input'); input.type='hidden'; input.name='csrf_token'; input.value='{{ csrf_token }}'; form.appendChild(input); document.body.appendChild(form); form.submit(); }">
+                <i class="fa-solid fa-trash me-1"></i>删除
+              </button>
             </td>
           </tr>
           {% endfor %}
@@ -152,14 +178,32 @@
 </div>
 
 <div class="card card-custom border-0 mb-4">
+  <form id="batchDeleteUsersForm" action="{{ url_for('admin_batch_delete_users') }}" method="POST" style="display: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  </form>
+  <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-users me-2 text-danger"></i>用户列表</h5>
+      <button type="button" id="batchDeleteUsersBtn" class="btn btn-outline-danger btn-sm" disabled onclick="submitBatchDeleteUsers()">
+        <i class="fa-solid fa-trash-can me-1"></i>批量删除 (<span id="checkedUsersCount">0</span>)
+      </button>
+    </div>
+    <div>
+      <small class="text-muted">共 {{ users|length }} 位注册用户</small>
+    </div>
+  </div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th class="ps-4">ID</th>
+            <th style="width: 40px;" class="ps-3 text-center">
+              <input class="form-check-input" type="checkbox" id="selectAllUsers" style="cursor: pointer;" title="全选/取消全选普通用户">
+            </th>
+            <th class="ps-2">ID</th>
             <th>用户名</th>
             <th>角色身份</th>
+            <th>跨用户数据权限</th>
             <th>账号状态</th>
             <th>密保问题</th>
             <th>注册时间</th>
@@ -169,7 +213,14 @@
         <tbody>
           {% for u in users %}
           <tr>
-            <td class="ps-4 text-muted fw-bold">#{{ u.id }}</td>
+            <td class="ps-3 text-center">
+              {% if not u.is_admin and u.id != current_user.id %}
+              <input type="checkbox" name="user_ids" value="{{ u.id }}" class="form-check-input user-checkbox" style="cursor: pointer;">
+              {% else %}
+              <input type="checkbox" class="form-check-input" disabled title="管理员或当前账号受保护，禁止批量删除">
+              {% endif %}
+            </td>
+              <td class="ps-2 text-muted fw-bold">#{{ u.id }}</td>
             <td class="fw-bold text-dark">
               {{ u.username }}
               {% if u.id == current_user.id %}
@@ -184,6 +235,23 @@
               {% endif %}
             </td>
             <td>
+              {% if u.is_admin %}
+              <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill"><i class="fa-solid fa-crown me-1"></i>全局完全权限</span>
+              {% else %}
+              <div class="d-flex gap-1 flex-wrap align-items-center">
+                <span class="badge {{ 'bg-primary' if u.can_view_others else 'bg-light text-muted border' }}" title="查看他人数据">
+                  <i class="fa-solid fa-eye me-1"></i>查他人: {{ '允许' if u.can_view_others else '禁止' }}
+                </span>
+                <span class="badge {{ 'bg-warning text-dark' if u.can_edit_others else 'bg-light text-muted border' }}" title="编辑他人数据">
+                  <i class="fa-solid fa-pen-to-square me-1"></i>改他人: {{ '允许' if u.can_edit_others else '禁止' }}
+                </span>
+                <span class="badge {{ 'bg-danger' if u.can_delete_others else 'bg-light text-muted border' }}" title="删除他人数据">
+                  <i class="fa-solid fa-trash me-1"></i>删他人: {{ '允许' if u.can_delete_others else '禁止' }}
+                </span>
+              </div>
+              {% endif %}
+            </td>
+            <td>
               {% if u.is_active %}
               <span class="badge bg-success rounded-pill"><i class="fa-solid fa-check me-1"></i>正常</span>
               {% else %}
@@ -194,6 +262,11 @@
             <td class="text-muted"><small>{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '-' }}</small></td>
             <td class="text-end pe-4">
               <div class="btn-group btn-group-sm">
+                {% if not u.is_admin and u.id != current_user.id %}
+                <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#permModal{{ u.id }}" title="配置权限">
+                  <i class="fa-solid fa-user-gear me-1"></i>权限
+                </button>
+                {% endif %}
                 {% if u.id != current_user.id %}
                 <form action="{{ url_for('admin_toggle_user_status', user_id=u.id) }}" method="POST" class="d-inline">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -228,13 +301,27 @@
                     <form action="{{ url_for('admin_reset_user_pass', user_id=u.id) }}" method="POST">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                       <div class="modal-header border-0 pb-0">
-                        <h6 class="modal-title fw-bold text-danger">重置 [{{ u.username }}] 的密码</h6>
+                        <h6 class="modal-title fw-bold text-danger"><i class="fa-solid fa-key me-1"></i>重置 [{{ u.username }}] 的密码</h6>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                       </div>
                       <div class="modal-body py-3">
                         <div class="mb-3">
                           <label class="form-label small text-muted">请输入新密码：</label>
-                          <input type="password" name="new_password" class="form-control" placeholder="设置新密码" required>
+                          <div class="input-group">
+                            <input type="password" name="new_password" id="reset_pwd_{{ u.id }}" class="form-control" placeholder="设置新密码" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassVisibility('reset_pwd_{{ u.id }}', this)">
+                              <i class="fa-regular fa-eye"></i>
+                            </button>
+                          </div>
+                        </div>
+                        <div class="mb-2">
+                          <label class="form-label small text-muted">请确认新密码：</label>
+                          <div class="input-group">
+                            <input type="password" name="confirm_password" id="reset_pwd_confirm_{{ u.id }}" class="form-control" placeholder="再次输入新密码" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassVisibility('reset_pwd_confirm_{{ u.id }}', this)">
+                              <i class="fa-regular fa-eye"></i>
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <div class="modal-footer border-0 pt-0">
@@ -245,6 +332,66 @@
                   </div>
                 </div>
               </div>
+
+              <!-- 配置数据权限 Modal -->
+              {% if not u.is_admin and u.id != current_user.id %}
+              <div class="modal fade text-start" id="permModal{{ u.id }}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                  <div class="modal-content">
+                    <form action="{{ url_for('admin_update_user_permissions', user_id=u.id) }}" method="POST">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <div class="modal-header border-0 pb-0">
+                        <h6 class="modal-title fw-bold text-primary"><i class="fa-solid fa-user-gear me-1"></i>配置用户 [{{ u.username }}] 的跨用户数据权限</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body py-3">
+                        <div class="alert alert-info py-2 px-3 small mb-3">
+                          <i class="fa-solid fa-circle-info me-1"></i>
+                          权限遵循阶梯等级原则：<strong>删除他人</strong> 包含 <strong>修改他人</strong> 与 <strong>查看他人</strong>；<strong>修改他人</strong> 包含 <strong>查看他人</strong>。
+                          <br><strong class="text-danger"><i class="fa-solid fa-shield-halved me-1"></i>安全限制：</strong>普通用户无论获得何种跨用户权限，均<strong>无法修改或删除管理员</strong>创建的数据。
+                        </div>
+
+                        {% set cur_level = '3' if u.can_delete_others else ('2' if u.can_edit_others else ('1' if u.can_view_others else '0')) %}
+                        <div class="list-group">
+                          <label class="list-group-item list-group-item-action d-flex gap-3 align-items-center py-2">
+                            <input class="form-check-input flex-shrink-0" type="radio" name="perm_level" value="0" {{ 'checked' if cur_level == '0' else '' }}>
+                            <div>
+                              <strong class="d-block text-secondary"><i class="fa-solid fa-lock me-1"></i>仅管理自身数据（默认）</strong>
+                              <small class="text-muted">该用户只能查看、修改和删除自己录入的礼金数据，无权访问其他用户的数据。</small>
+                            </div>
+                          </label>
+                          <label class="list-group-item list-group-item-action d-flex gap-3 align-items-center py-2">
+                            <input class="form-check-input flex-shrink-0" type="radio" name="perm_level" value="1" {{ 'checked' if cur_level == '1' else '' }}>
+                            <div>
+                              <strong class="d-block text-primary"><i class="fa-solid fa-eye me-1"></i>仅查看他人数据（只读）</strong>
+                              <small class="text-muted">该用户可查看和导出其他用户的数据，但无权修改或删除任何其他用户的数据。</small>
+                            </div>
+                          </label>
+                          <label class="list-group-item list-group-item-action d-flex gap-3 align-items-center py-2">
+                            <input class="form-check-input flex-shrink-0" type="radio" name="perm_level" value="2" {{ 'checked' if cur_level == '2' else '' }}>
+                            <div>
+                              <strong class="d-block text-warning"><i class="fa-solid fa-pen-to-square me-1"></i>查看 + 修改他人数据</strong>
+                              <small class="text-muted">该用户可查看并编辑其他普通用户的数据，但无权删除他人数据，亦不能修改管理员数据。</small>
+                            </div>
+                          </label>
+                          <label class="list-group-item list-group-item-action d-flex gap-3 align-items-center py-2">
+                            <input class="form-check-input flex-shrink-0" type="radio" name="perm_level" value="3" {{ 'checked' if cur_level == '3' else '' }}>
+                            <div>
+                              <strong class="d-block text-danger"><i class="fa-solid fa-trash me-1"></i>查看 + 修改 + 删除他人数据（完全协作）</strong>
+                              <small class="text-muted">该用户可查看、编辑和删除其他普通用户的数据（受安全限制保护，无法修改或删除管理员数据）。</small>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary btn-sm">保存权限设置</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
 
               <!-- 重置密保 Modal -->
               <div class="modal fade text-start" id="resetSecModal{{ u.id }}" tabindex="-1">
@@ -307,4 +454,125 @@
     </div>
   </div>
 </div>
+
+<script>
+function togglePassVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const icon = btn.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) {
+      icon.classList.remove('fa-eye');
+      icon.classList.add('fa-eye-slash');
+    }
+  } else {
+    input.type = 'password';
+    if (icon) {
+      icon.classList.remove('fa-eye-slash');
+      icon.classList.add('fa-eye');
+    }
+  }
+}
+
+// 批量提交邀请链接删除
+function submitBatchDeleteTokens() {
+  const checked = document.querySelectorAll('.token-checkbox:checked');
+  if (!checked.length) return;
+  if (confirm('确定要批量删除所选中的 ' + checked.length + ' 条邀请链接吗？')) {
+    const form = document.getElementById('batchDeleteTokensForm');
+    // 清除旧动态输入项（如果有）
+    form.querySelectorAll('input[name="token_ids"]').forEach(el => el.remove());
+    checked.forEach(cb => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'token_ids';
+      input.value = cb.value;
+      form.appendChild(input);
+    });
+    form.submit();
+  }
+}
+
+// 批量提交用户删除
+function submitBatchDeleteUsers() {
+  const checked = document.querySelectorAll('.user-checkbox:checked');
+  if (!checked.length) return;
+  if (confirm('确定要批量删除选中的 ' + checked.length + ' 位用户吗？\n\n警告：删除用户将同时彻底删除其名下的所有礼金记录！管理员账号及当前账号受保护不会被删除。')) {
+    const form = document.getElementById('batchDeleteUsersForm');
+    // 清除旧动态输入项（如果有）
+    form.querySelectorAll('input[name="user_ids"]').forEach(el => el.remove());
+    checked.forEach(cb => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'user_ids';
+      input.value = cb.value;
+      form.appendChild(input);
+    });
+    form.submit();
+  }
+}
+
+// 批量操作相关脚本
+document.addEventListener('DOMContentLoaded', function() {
+  // 1. 邀请链接批量勾选与全选
+  const selectAllTokens = document.getElementById('selectAllTokens');
+  const tokenCheckboxes = document.querySelectorAll('.token-checkbox');
+  const batchDeleteTokensBtn = document.getElementById('batchDeleteTokensBtn');
+  const checkedTokensCount = document.getElementById('checkedTokensCount');
+
+  function updateTokenBatchUI() {
+    if (!tokenCheckboxes.length) return;
+    const checked = document.querySelectorAll('.token-checkbox:checked');
+    if (checkedTokensCount) checkedTokensCount.textContent = checked.length;
+    if (batchDeleteTokensBtn) batchDeleteTokensBtn.disabled = checked.length === 0;
+    if (selectAllTokens) {
+      selectAllTokens.checked = checked.length > 0 && checked.length === tokenCheckboxes.length;
+      selectAllTokens.indeterminate = checked.length > 0 && checked.length < tokenCheckboxes.length;
+    }
+  }
+
+  if (selectAllTokens) {
+    selectAllTokens.addEventListener('change', function() {
+      tokenCheckboxes.forEach(cb => { cb.checked = selectAllTokens.checked; });
+      updateTokenBatchUI();
+    });
+  }
+
+  tokenCheckboxes.forEach(cb => {
+    cb.addEventListener('change', updateTokenBatchUI);
+  });
+
+  // 2. 用户管理批量勾选与全选
+  const selectAllUsers = document.getElementById('selectAllUsers');
+  const userCheckboxes = document.querySelectorAll('.user-checkbox');
+  const batchDeleteUsersBtn = document.getElementById('batchDeleteUsersBtn');
+  const checkedUsersCount = document.getElementById('checkedUsersCount');
+
+  function updateUserBatchUI() {
+    if (!userCheckboxes.length) {
+      if (selectAllUsers) selectAllUsers.disabled = true;
+      return;
+    }
+    const checked = document.querySelectorAll('.user-checkbox:checked');
+    if (checkedUsersCount) checkedUsersCount.textContent = checked.length;
+    if (batchDeleteUsersBtn) batchDeleteUsersBtn.disabled = checked.length === 0;
+    if (selectAllUsers) {
+      selectAllUsers.checked = checked.length > 0 && checked.length === userCheckboxes.length;
+      selectAllUsers.indeterminate = checked.length > 0 && checked.length < userCheckboxes.length;
+    }
+  }
+
+  if (selectAllUsers) {
+    selectAllUsers.addEventListener('change', function() {
+      userCheckboxes.forEach(cb => { cb.checked = selectAllUsers.checked; });
+      updateUserBatchUI();
+    });
+  }
+
+  userCheckboxes.forEach(cb => {
+    cb.addEventListener('change', updateUserBatchUI);
+  });
+});
+</script>
 {% endblock %}

@@ -81,7 +81,10 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     session_token = db.Column(db.String(64), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    can_view_others = db.Column(db.Boolean, default=False, nullable=False)
+    can_edit_others = db.Column(db.Boolean, default=False, nullable=False)
+    can_delete_others = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
 
     records = db.relationship('GiftRecord', backref='owner', lazy=True, cascade='all, delete-orphan')
@@ -141,7 +144,7 @@ class OperationLog(db.Model):
     action = db.Column(db.String(50), nullable=False)
     detail = db.Column(db.String(500), nullable=True)
     ip_address = db.Column(db.String(50), nullable=True)
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     user = db.relationship('User', backref=db.backref('operation_logs', lazy=True))
 
@@ -169,6 +172,30 @@ def get_login_lockout_seconds():
         return max(0, int(val))
     except (ValueError, TypeError):
         return 60
+
+def get_max_security_attempts():
+    """获取当前设置的找回密码密保问题最大错误尝试次数（触发锁定），默认3次"""
+    try:
+        val = SystemSetting.get_val('max_security_attempts', '3')
+        return max(1, int(val))
+    except (ValueError, TypeError):
+        return 3
+
+def get_forgot_security_risk_status(username):
+    """获取指定用户名找回密码密保验证的风控状态：(cur_fail_count, is_locked, lock_wait_seconds)"""
+    if not username:
+        return 0, False, 0
+    now = datetime.now().timestamp()
+    cur_fail_count = FORGOT_SECURITY_FAIL_COUNTS.get(username, 0)
+    target_lock_until = FORGOT_SECURITY_LOCK_UNTILS.get(username, 0)
+
+    is_locked = False
+    lock_wait = 0
+    if now < target_lock_until:
+        is_locked = True
+        lock_wait = int(target_lock_until - now)
+
+    return cur_fail_count, is_locked, lock_wait
 
 @app.before_request
 def check_session_timeout():
@@ -217,10 +244,14 @@ def handle_403(e):
     return redirect(url_for('login'))
 
 @app.context_processor
-def inject_csrf_token():
+def inject_globals():
     if 'csrf_token' not in session:
         session['csrf_token'] = secrets.token_hex(32)
-    return dict(csrf_token=session['csrf_token'])
+    return dict(
+        csrf_token=session['csrf_token'],
+        can_user_edit_record=can_user_edit_record,
+        can_user_delete_record=can_user_delete_record
+    )
 
 def purge_expired_logs(days=90):
     """自动批量清理超过保存时效（默认3个月/90天）的操作日志"""
@@ -279,7 +310,7 @@ class GiftRecord(db.Model):
     amount = db.Column(db.Float, nullable=False)
     event_reason = db.Column(db.String(100), nullable=False)
     notes = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    created_at = db.Column(db.DateTime, default=datetime.now)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
 @login_manager.user_loader
@@ -335,6 +366,59 @@ def cn2num(s):
                 number = 0
     total += section + number
     return float(total) if has_digit else 0.0
+
+
+def is_record_owner_admin(record):
+    """判断记录创建者是否为管理员"""
+    if not record:
+        return False
+    if record.owner:
+        return bool(getattr(record.owner, 'is_admin', False))
+    if getattr(record, 'user_id', None):
+        owner = db.session.get(User, record.user_id)
+        return bool(getattr(owner, 'is_admin', False)) if owner else False
+    return False
+
+
+def can_user_view_record(user, record):
+    """判断用户是否有权查看指定记录"""
+    if not user or not user.is_authenticated:
+        return False
+    if getattr(user, 'is_admin', False):
+        return True
+    if record.user_id == user.id:
+        return True
+    return bool(getattr(user, 'can_view_others', False))
+
+
+def can_user_edit_record(user, record):
+    """判断用户是否有权修改指定记录（普通用户不得修改管理员创建的记录）"""
+    if not user or not user.is_authenticated:
+        return False
+    if getattr(user, 'is_admin', False):
+        return True
+    if record.user_id == user.id:
+        return True
+    if getattr(user, 'can_edit_others', False):
+        if is_record_owner_admin(record):
+            return False
+        return True
+    return False
+
+
+def can_user_delete_record(user, record):
+    """判断用户是否有权删除指定记录（普通用户不得删除管理员创建的记录）"""
+    if not user or not user.is_authenticated:
+        return False
+    if getattr(user, 'is_admin', False):
+        return True
+    if record.user_id == user.id:
+        return True
+    if getattr(user, 'can_delete_others', False):
+        if is_record_owner_admin(record):
+            return False
+        return True
+    return False
 
 def num2cn(num):
     if num is None:
@@ -413,6 +497,33 @@ def init_database():
             with db.engine.connect() as conn:
                 conn.execute(db.text("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE"))
                 conn.commit()
+        except Exception:
+            pass
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(db.text("ALTER TABLE users ADD COLUMN can_view_others BOOLEAN DEFAULT 0"))
+                conn.commit()
+        except Exception:
+            pass
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(db.text("ALTER TABLE users ADD COLUMN can_edit_others BOOLEAN DEFAULT 0"))
+                conn.commit()
+        except Exception:
+            pass
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(db.text("ALTER TABLE users ADD COLUMN can_delete_others BOOLEAN DEFAULT 0"))
+                conn.commit()
+        except Exception:
+            pass
+
+        # 容器/服务重启时重置登录与密保风控限制记录（清除锁定及失败计数）
+        try:
+            LOGIN_FAIL_COUNTS.clear()
+            LOGIN_LOCK_UNTILS.clear()
+            FORGOT_SECURITY_FAIL_COUNTS.clear()
+            FORGOT_SECURITY_LOCK_UNTILS.clear()
         except Exception:
             pass
         admin = User.query.filter_by(is_admin=True).first()
@@ -554,6 +665,34 @@ def index():
 # 全局账号登录失败与风控锁定字典 (服务端内存维护)
 LOGIN_FAIL_COUNTS = {}   # {username: fail_count}
 LOGIN_LOCK_UNTILS = {}   # {username: lock_until_timestamp}
+
+# 全局找回密码密保尝试失败与锁定字典 (服务端内存维护)
+FORGOT_SECURITY_FAIL_COUNTS = {}   # {username: fail_count}
+FORGOT_SECURITY_LOCK_UNTILS = {}   # {username: lock_until_timestamp}
+
+def get_max_security_attempts():
+    """获取当前设置的找回密码密保问题最大错误尝试次数（触发锁定），默认3次"""
+    try:
+        val = SystemSetting.get_val('max_security_attempts', '3')
+        return max(1, int(val))
+    except (ValueError, TypeError):
+        return 3
+
+def get_forgot_security_risk_status(username):
+    """获取指定用户名找回密码密保验证的风控状态：(cur_fail_count, is_locked, lock_wait_seconds)"""
+    if not username:
+        return 0, False, 0
+    now = datetime.now().timestamp()
+    cur_fail_count = FORGOT_SECURITY_FAIL_COUNTS.get(username, 0)
+    target_lock_until = FORGOT_SECURITY_LOCK_UNTILS.get(username, 0)
+
+    is_locked = False
+    lock_wait = 0
+    if now < target_lock_until:
+        is_locked = True
+        lock_wait = int(target_lock_until - now)
+
+    return cur_fail_count, is_locked, lock_wait
 
 def get_user_risk_status(username):
     """获取指定用户名的风控状态：(cur_fail_count, is_locked, lock_wait_seconds, require_captcha)"""
@@ -761,7 +900,10 @@ def forgot_password():
             username = request.form.get('username', '').strip()
             user = User.query.filter_by(username=username).first()
             if user:
-                return render_template('forgot_password.html', user=user, step='answer_question')
+                cur_fail_count, is_locked, lock_wait = get_forgot_security_risk_status(username)
+                return render_template('forgot_password.html', user=user, step='answer_question',
+                                       cur_fail_count=cur_fail_count, is_locked=is_locked, lock_wait=lock_wait,
+                                       max_security_attempts=get_max_security_attempts())
             else:
                 flash('找不到该用户名对应的账号！', 'danger')
                 return render_template('forgot_password.html', step='find_user')
@@ -777,13 +919,52 @@ def forgot_password():
                 flash('用户不存在！', 'danger')
                 return redirect(url_for('forgot_password'))
 
+            now = datetime.now().timestamp()
+            max_security_attempts = get_max_security_attempts()
+            lockout_seconds = get_login_lockout_seconds()
+            cur_fail_count, is_locked, lock_wait = get_forgot_security_risk_status(username)
+
+            if is_locked:
+                flash(f'账号 [{username}] 密保验证错误过多，已被锁定！请等待 {lock_wait} 秒后再试。', 'danger')
+                return render_template('forgot_password.html', user=user, step='answer_question',
+                                       cur_fail_count=cur_fail_count, is_locked=True, lock_wait=lock_wait,
+                                       max_security_attempts=max_security_attempts)
+
             if not user.check_security_answer(security_answer):
-                flash('密保问题答案验证错误！', 'danger')
-                return render_template('forgot_password.html', user=user, step='answer_question')
+                new_fail_count = cur_fail_count + 1
+                FORGOT_SECURITY_FAIL_COUNTS[username] = new_fail_count
+                log_action('找回密码失败', f'尝试找回用户名 [{username}] 密保答案验证错误（连续错误{new_fail_count}次）')
+
+                if new_fail_count >= max_security_attempts:
+                    lock_duration = lockout_seconds
+                    if lock_duration > 0:
+                        FORGOT_SECURITY_LOCK_UNTILS[username] = now + lock_duration
+                        lock_desc = f"{lock_duration // 60} 分钟" if lock_duration >= 60 and lock_duration % 60 == 0 else f"{lock_duration} 秒"
+                        flash(f'密保答案错误次数达到 {new_fail_count} 次，账号已被锁定，请等待 {lock_desc} 后再试！', 'danger')
+                        return render_template('forgot_password.html', user=user, step='answer_question',
+                                               cur_fail_count=new_fail_count, is_locked=True, lock_wait=lock_duration,
+                                               max_security_attempts=max_security_attempts)
+                    else:
+                        flash(f'密保答案错误次数达到 {new_fail_count} 次！', 'danger')
+                        return render_template('forgot_password.html', user=user, step='answer_question',
+                                               cur_fail_count=new_fail_count, is_locked=False, lock_wait=0,
+                                               max_security_attempts=max_security_attempts)
+                else:
+                    remaining = max_security_attempts - new_fail_count
+                    flash(f'密保问题答案验证错误！您还剩 {remaining} 次尝试机会。', 'danger')
+                    return render_template('forgot_password.html', user=user, step='answer_question',
+                                           cur_fail_count=new_fail_count, is_locked=False, lock_wait=0,
+                                           max_security_attempts=max_security_attempts)
 
             if new_password != confirm_password:
                 flash('两次输入的强密码不一致！', 'danger')
-                return render_template('forgot_password.html', user=user, step='answer_question')
+                return render_template('forgot_password.html', user=user, step='answer_question',
+                                       cur_fail_count=cur_fail_count, is_locked=False, lock_wait=0,
+                                       max_security_attempts=max_security_attempts)
+
+            # 密保校验成功，清除该账号在找回密码服务端的失败计数与锁定状态
+            FORGOT_SECURITY_FAIL_COUNTS.pop(username, None)
+            FORGOT_SECURITY_LOCK_UNTILS.pop(username, None)
 
             user.set_password(new_password)
             db.session.commit()
@@ -939,10 +1120,9 @@ def batch_delete_records():
         except ValueError:
             continue
         record = db.session.get(GiftRecord, record_id)
-        if record:
-            if current_user.is_admin or record.user_id == current_user.id:
-                db.session.delete(record)
-                deleted_count += 1
+        if record and can_user_delete_record(current_user, record):
+            db.session.delete(record)
+            deleted_count += 1
 
     db.session.commit()
     log_action('批量删除记录', f'成功批量删除了 {deleted_count} 条礼金记录')
@@ -954,6 +1134,13 @@ def batch_delete_records():
 def delete_all_records():
     if current_user.is_admin:
         deleted_count = db.session.query(GiftRecord).delete()
+    elif getattr(current_user, 'can_delete_others', False):
+        # 普通用户即使拥有删除他人权限，也绝不能删除管理员创建的数据
+        admin_user_ids = [u.id for u in User.query.filter_by(is_admin=True).all()]
+        if admin_user_ids:
+            deleted_count = db.session.query(GiftRecord).filter(~GiftRecord.user_id.in_(admin_user_ids)).delete(synchronize_session=False)
+        else:
+            deleted_count = db.session.query(GiftRecord).delete()
     else:
         deleted_count = db.session.query(GiftRecord).filter_by(user_id=current_user.id).delete()
     
@@ -999,6 +1186,7 @@ def admin_users():
     tokens = RegistrationToken.query.order_by(RegistrationToken.created_at.desc()).all()
     session_timeout_minutes = get_session_timeout_minutes()
     max_login_attempts = get_max_login_attempts()
+    max_security_attempts = get_max_security_attempts()
     login_lockout_seconds = get_login_lockout_seconds()
     return render_template(
         'admin_users.html',
@@ -1006,6 +1194,7 @@ def admin_users():
         tokens=tokens,
         session_timeout_minutes=session_timeout_minutes,
         max_login_attempts=max_login_attempts,
+        max_security_attempts=max_security_attempts,
         login_lockout_seconds=login_lockout_seconds,
         now=datetime.now()
     )
@@ -1020,19 +1209,23 @@ def update_session_timeout():
     try:
         minutes = int(request.form.get('session_timeout_minutes', '60'))
         attempts = int(request.form.get('max_login_attempts', '5'))
+        sec_attempts = int(request.form.get('max_security_attempts', '3'))
         lockout_sec = int(request.form.get('login_lockout_seconds', '60'))
 
         if minutes < 1 or minutes > 10080:
             flash('超时时间必须在 1 到 10080 分钟之间！', 'danger')
         elif attempts < 1 or attempts > 20:
             flash('允许最大尝试次数必须在 1 到 20 次之间！', 'danger')
+        elif sec_attempts < 1 or sec_attempts > 20:
+            flash('允许密保最大尝试次数必须在 1 到 20 次之间！', 'danger')
         elif lockout_sec < 0 or lockout_sec > 86400:
             flash('锁定时长必须在 0 到 86400 秒之间！', 'danger')
         else:
             SystemSetting.set_val('session_timeout_minutes', minutes)
             SystemSetting.set_val('max_login_attempts', attempts)
+            SystemSetting.set_val('max_security_attempts', sec_attempts)
             SystemSetting.set_val('login_lockout_seconds', lockout_sec)
-            log_action('更新系统配置', f'设置超时时间为 {minutes} 分钟，最大尝试次数为 {attempts} 次，锁定时长为 {lockout_sec} 秒')
+            log_action('更新系统配置', f'设置超时时间为 {minutes} 分钟，密码最大尝试次数为 {attempts} 次，密保最大尝试次数为 {sec_attempts} 次，锁定时长为 {lockout_sec} 秒')
             flash('系统安全与登录设置修改成功！', 'success')
     except (ValueError, TypeError):
         flash('无效的配置参数！', 'danger')
@@ -1162,6 +1355,33 @@ def admin_delete_invite_link(token_id):
     flash('邀请链接已成功删除！', 'success')
     return redirect(url_for('admin_users'))
 
+@app.route('/admin/invite_link/batch_delete', methods=['POST'])
+@login_required
+def admin_batch_delete_invite_links():
+    if not current_user.is_admin:
+        flash('权限不足！', 'danger')
+        return redirect(url_for('index'))
+
+    token_ids = request.form.getlist('token_ids')
+    if not token_ids:
+        flash('请先勾选需要删除的注册邀请链接！', 'warning')
+        return redirect(url_for('admin_users'))
+
+    try:
+        token_ids_int = [int(i) for i in token_ids]
+        tokens = RegistrationToken.query.filter(RegistrationToken.id.in_(token_ids_int)).all()
+        deleted_count = len(tokens)
+        for t in tokens:
+            db.session.delete(t)
+        db.session.commit()
+        log_action('批量删除注册邀请链接', f'管理员批量删除了 {deleted_count} 个注册邀请链接')
+        flash(f'成功批量删除 {deleted_count} 个注册邀请链接！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'批量删除注册邀请链接失败: {str(e)}', 'danger')
+
+    return redirect(url_for('admin_users'))
+
 @app.route('/admin/log/delete/<int:log_id>', methods=['POST'])
 @login_required
 def admin_delete_log(log_id):
@@ -1191,6 +1411,69 @@ def admin_clear_logs():
     log_action('清空日志', f'管理员清空了所有操作日志（共删除 {deleted_count} 条）')
     flash(f'已成功清空所有审计日志（共 {deleted_count} 条）！', 'success')
     return redirect(url_for('admin_logs'))
+
+@app.route('/admin/user/permissions/<int:user_id>', methods=['POST'])
+@login_required
+def admin_update_user_permissions(user_id):
+    if not current_user.is_admin:
+        flash('权限不足！', 'danger')
+        return redirect(url_for('index'))
+
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash('无需为当前管理员账号设置数据权限！', 'warning')
+        return redirect(url_for('admin_users'))
+
+    perm_level = request.form.get('perm_level')
+    if perm_level is not None:
+        # 基于等级更新（0: 仅自己, 1: 查看他人, 2: 查看+编辑他人, 3: 查看+编辑+删除他人）
+        if perm_level == '3':
+            user.can_view_others = True
+            user.can_edit_others = True
+            user.can_delete_others = True
+        elif perm_level == '2':
+            user.can_view_others = True
+            user.can_edit_others = True
+            user.can_delete_others = False
+        elif perm_level == '1':
+            user.can_view_others = True
+            user.can_edit_others = False
+            user.can_delete_others = False
+        else:
+            user.can_view_others = False
+            user.can_edit_others = False
+            user.can_delete_others = False
+    else:
+        # 兼容传统勾选框提交，并严格保证等级层级向下包含（删除 -> 编辑 -> 查看）
+        can_view = bool(request.form.get('can_view_others'))
+        can_edit = bool(request.form.get('can_edit_others'))
+        can_delete = bool(request.form.get('can_delete_others'))
+
+        if can_delete:
+            can_edit = True
+            can_view = True
+        elif can_edit:
+            can_view = True
+
+        user.can_view_others = can_view
+        user.can_edit_others = can_edit
+        user.can_delete_others = can_delete
+
+    db.session.commit()
+
+    perm_desc = []
+    if user.can_view_others:
+        perm_desc.append("查看他人")
+    if user.can_edit_others:
+        perm_desc.append("编辑他人")
+    if user.can_delete_others:
+        perm_desc.append("删除他人")
+    perm_str = "、".join(perm_desc) if perm_desc else "仅管理自身数据"
+
+    log_action('修改用户权限', f'管理员修改了用户 [{user.username}] 的跨用户数据权限: {perm_str}')
+    flash(f'用户 [{user.username}] 的数据操作权限已更新为：{perm_str}', 'success')
+    return redirect(url_for('admin_users'))
+
 
 @app.route('/admin/user/reset_security/<int:user_id>', methods=['POST'])
 @login_required
@@ -1272,6 +1555,46 @@ def admin_delete_user(user_id):
     db.session.commit()
     log_action('删除用户', f'管理员删除了用户账号 [{deleted_username}]')
     flash(f'用户 [{deleted_username}] 及其关联数据已成功删除！', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/batch_delete', methods=['POST'])
+@login_required
+def admin_batch_delete_users():
+    if not current_user.is_admin:
+        flash('权限不足！', 'danger')
+        return redirect(url_for('index'))
+
+    user_ids = request.form.getlist('user_ids')
+    if not user_ids:
+        flash('请先勾选需要批量删除的用户！', 'warning')
+        return redirect(url_for('admin_users'))
+
+    try:
+        user_ids_int = [int(i) for i in user_ids]
+        # 严格过滤：禁止删除当前登录用户，且禁止删除管理员账号
+        eligible_users = User.query.filter(
+            User.id.in_(user_ids_int),
+            User.id != current_user.id,
+            User.is_admin.is_(False)
+        ).all()
+
+        if not eligible_users:
+            flash('没有符合删除条件的普通用户（已保护管理员账号及当前登录账号）！', 'warning')
+            return redirect(url_for('admin_users'))
+
+        deleted_usernames = [u.username for u in eligible_users]
+        deleted_count = len(eligible_users)
+
+        for u in eligible_users:
+            db.session.delete(u)
+        db.session.commit()
+
+        log_action('批量删除用户', f'管理员批量删除了 {deleted_count} 个用户: {", ".join(deleted_usernames)}')
+        flash(f'成功批量删除 {deleted_count} 个用户及其关联数据：{", ".join(deleted_usernames)}', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'批量删除用户失败: {str(e)}', 'danger')
+
     return redirect(url_for('admin_users'))
 import csv
 import io

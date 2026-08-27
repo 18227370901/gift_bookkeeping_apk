@@ -137,7 +137,7 @@
                         <th>联系地址</th>
                         <th>备注说明</th>
                         <th>登记时间</th>
-                        {% if current_user.is_admin %}
+                        {% if current_user.is_admin or current_user.can_view_others %}
                         <th>录入用户</th>
                         {% endif %}
                         <th class="text-end pe-3">操作</th>
@@ -148,7 +148,11 @@
                     {% for record in records %}
                     <tr>
                         <td class="ps-3">
+                            {% if can_user_delete_record(current_user, record) %}
                             <input class="form-check-input record-checkbox" type="checkbox" name="record_ids" value="{{ record.id }}" onchange="updateBatchDeleteBtn()">
+                            {% else %}
+                            <input class="form-check-input" type="checkbox" disabled title="无删除权限">
+                            {% endif %}
                         </td>
                         <td class="text-muted">{{ loop.index }}</td>
                         <td class="fw-bold text-dark">{{ record.name }}</td>
@@ -160,10 +164,11 @@
                         <td class="text-truncate" style="max-width: 140px;" title="{{ record.address }}">{{ record.address if record.address else '-' }}</td>
                         <td class="text-truncate" style="max-width: 140px;" title="{{ record.notes }}">{{ record.notes if record.notes else '-' }}</td>
                         <td class="small text-muted">{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                        {% if current_user.is_admin %}
+                        {% if current_user.is_admin or current_user.can_view_others %}
                         <td><span class="badge bg-light border text-dark">{{ record.owner.username if record.owner else '未知' }}</span></td>
                         {% endif %}
                         <td class="text-end pe-3">
+                            {% if can_user_edit_record(current_user, record) %}
                             <button type="button" class="btn btn-sm btn-outline-primary me-1" 
                                     data-bs-toggle="modal" 
                                     data-bs-target="#editRecordModal"
@@ -177,15 +182,21 @@
                                     data-notes="{{ record.notes or '' }}">
                                 <i class="fa-solid fa-pen-to-square"></i> 编辑
                             </button>
+                            {% endif %}
+                            {% if can_user_delete_record(current_user, record) %}
                             <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteSingleRecord({{ record.id }}, '{{ record.name }}')">
                                 <i class="fa-solid fa-trash"></i> 删除
                             </button>
+                            {% endif %}
+                            {% if not can_user_edit_record(current_user, record) and not can_user_delete_record(current_user, record) %}
+                            <span class="badge bg-secondary text-white small">只读</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
                     {% else %}
                     <tr>
-                        <td colspan="{% if current_user.is_admin %}13{% else %}12{% endif %}" class="text-center py-5 text-muted">
+                        <td colspan="{% if current_user.is_admin or current_user.can_view_others %}13{% else %}12{% endif %}" class="text-center py-5 text-muted">
                             <i class="fa-solid fa-folder-open fa-3x mb-3 text-secondary d-block"></i>
                             暂无符合条件的礼金记录
                         </td>
