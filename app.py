@@ -864,9 +864,9 @@ def register():
             flash('所有必填字段均不能为空！', 'danger')
             return render_template('register.html', token=token_str, invalid_token=False)
 
-        # 1. Username Format Validation (3-20 chars)
-        if not re.match(r'^[a-zA-Z0-9_\u4e00-\u9fa5]{3,20}$', username):
-            flash('用户名格式不符合要求！长度须为 3-20 位，仅允许汉字、字母、数字及下划线。', 'danger')
+        # 1. Username Format Validation (2-20 chars)
+        if not re.match(r'^[a-zA-Z0-9_\u4e00-\u9fa5]{2,20}$', username):
+            flash('用户名格式不符合要求！长度须为 2-20 位，仅允许汉字、字母、数字及下划线。', 'danger')
             return render_template('register.html', token=token_str, invalid_token=False)
 
         # 2. Password Strength Validation (min 6 chars, containing both letters and numbers)
