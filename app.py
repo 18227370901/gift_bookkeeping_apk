@@ -197,6 +197,15 @@ def get_forgot_security_risk_status(username):
 
     return cur_fail_count, is_locked, lock_wait
 
+def check_password_complexity(password):
+    """检查密码复杂度：至少6位，且同时包含字母和数字"""
+    if not password or len(password) < 6:
+        return False, '密码长度至少为6位！'
+    if not (re.search(r'[a-zA-Z]', password) and re.search(r'\d', password)):
+        return False, '密码必须同时包含字母和数字！'
+    return True, ''
+
+
 @app.before_request
 def check_session_timeout():
     if request.endpoint in ('static', 'logout', 'login'):
