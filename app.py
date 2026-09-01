@@ -535,8 +535,9 @@ def init_database():
         if not admin:
             admin = User(
                 username=initial_user,
-                security_question='管理员安全密保问题',
-                is_admin=True
+                security_question='系统默认安全问题：您的默认备用验证码是？',
+                is_admin=True,
+                is_active=True
             )
             admin.set_password(initial_pass)
             admin.set_security_answer('admin')
@@ -544,12 +545,13 @@ def init_database():
             db.session.commit()
             print(f"[Init] 已创建初始管理员账号: {initial_user}")
         else:
-            # 每次重启应用时，同步确保管理员用户名与密码更新为最新配置
+            # 每次重启应用时，同步确保管理员用户名、密码与激活状态更新为最新配置
             admin.username = initial_user
             admin.set_password(initial_pass)
             admin.is_admin = True
+            admin.is_active = True
             db.session.commit()
-            print(f"[Init] 已同步更新管理员账号 [{initial_user}] 密码为最新配置")
+            print(f"[Init] 已同步更新管理员账号 [{initial_user}] 密码为最新配置并确保处于激活状态")
 
 # 应用加载时自动执行数据库初始化与版本迁移（支持 Gunicorn / WSGI / App 启动）
 try:
@@ -891,6 +893,21 @@ def register():
 
     return render_template('register.html', token=token_str, invalid_token=False)
 
+@app.route('/forgot-password/captcha')
+def forgot_password_captcha():
+    num1 = random.randint(1, 20)
+    num2 = random.randint(1, 20)
+    op = random.choice(['+', '-'])
+    if op == '-':
+        if num1 < num2:
+            num1, num2 = num2, num1
+        ans = num1 - num2
+    else:
+        ans = num1 + num2
+    session['forgot_captcha_ans'] = str(ans)
+    expr = f"{num1} {op} {num2} = ?"
+    return jsonify({'expr': expr})
+
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -899,14 +916,23 @@ def forgot_password():
         if step == 'find_user':
             username = request.form.get('username', '').strip()
             user = User.query.filter_by(username=username).first()
-            if user:
-                cur_fail_count, is_locked, lock_wait = get_forgot_security_risk_status(username)
-                return render_template('forgot_password.html', user=user, step='answer_question',
-                                       cur_fail_count=cur_fail_count, is_locked=is_locked, lock_wait=lock_wait,
-                                       max_security_attempts=get_max_security_attempts())
-            else:
+            if not user:
                 flash('找不到该用户名对应的账号！', 'danger')
                 return render_template('forgot_password.html', step='find_user')
+
+            if not user.is_active:
+                flash('该账号已被锁定或禁用，无法找回密码！请联系系统管理员解锁账号。', 'danger')
+                return render_template('forgot_password.html', step='find_user', account_locked=True, locked_username=username)
+
+            cur_fail_count, is_locked, lock_wait = get_forgot_security_risk_status(username)
+            max_security_attempts = get_max_security_attempts()
+            remaining_attempts = max(0, max_security_attempts - cur_fail_count)
+            require_captcha = getattr(user, 'is_admin', False) and (cur_fail_count >= max_security_attempts or is_locked)
+            return render_template('forgot_password.html', user=user, step='answer_question',
+                                   cur_fail_count=cur_fail_count, is_locked=is_locked, lock_wait=lock_wait,
+                                   max_security_attempts=max_security_attempts,
+                                   remaining_attempts=remaining_attempts,
+                                   require_captcha=require_captcha)
 
         elif step == 'reset_pass':
             username = request.form.get('username', '').strip()
@@ -919,48 +945,92 @@ def forgot_password():
                 flash('用户不存在！', 'danger')
                 return redirect(url_for('forgot_password'))
 
-            now = datetime.now().timestamp()
+            if not user.is_active:
+                flash('该账号已被锁定或禁用，无法重置密码！请联系系统管理员解锁账号。', 'danger')
+                return render_template('forgot_password.html', step='find_user', account_locked=True, locked_username=username)
+
             max_security_attempts = get_max_security_attempts()
             lockout_seconds = get_login_lockout_seconds()
             cur_fail_count, is_locked, lock_wait = get_forgot_security_risk_status(username)
+            user_captcha = request.form.get('captcha', '').strip()
+            require_captcha = getattr(user, 'is_admin', False) and (cur_fail_count >= max_security_attempts or is_locked)
 
-            if is_locked:
-                flash(f'账号 [{username}] 密保验证错误过多，已被锁定！请等待 {lock_wait} 秒后再试。', 'danger')
+            # 1. 检查锁定状态（针对管理员用户防爆破锁定）
+            if is_locked and lock_wait > 0:
+                lock_desc = f"{lock_wait // 60} 分钟" if lock_wait >= 60 and lock_wait % 60 == 0 else f"{lock_wait} 秒"
+                flash(f'该账号处于锁定保护中，请等待 {lock_desc} 后再重试。', 'danger')
                 return render_template('forgot_password.html', user=user, step='answer_question',
                                        cur_fail_count=cur_fail_count, is_locked=True, lock_wait=lock_wait,
-                                       max_security_attempts=max_security_attempts)
+                                       max_security_attempts=max_security_attempts,
+                                       remaining_attempts=0,
+                                       require_captcha=require_captcha)
+
+            # 2. 检查验证码
+            if require_captcha:
+                real_captcha = session.get('forgot_captcha_ans')
+                if not user_captcha or user_captcha != real_captcha:
+                    flash('验证码错误或未输入，请重新计算并输入！', 'danger')
+                    return render_template('forgot_password.html', user=user, step='answer_question',
+                                           cur_fail_count=cur_fail_count, is_locked=is_locked, lock_wait=lock_wait,
+                                           max_security_attempts=max_security_attempts,
+                                           remaining_attempts=max(0, max_security_attempts - cur_fail_count),
+                                           require_captcha=True)
 
             if not user.check_security_answer(security_answer):
-                new_fail_count = cur_fail_count + 1
+                new_fail_count = FORGOT_SECURITY_FAIL_COUNTS.get(username, 0) + 1
                 FORGOT_SECURITY_FAIL_COUNTS[username] = new_fail_count
                 log_action('找回密码失败', f'尝试找回用户名 [{username}] 密保答案验证错误（连续错误{new_fail_count}次）')
 
-                if new_fail_count >= max_security_attempts:
+                if not getattr(user, 'is_admin', False) and new_fail_count >= max_security_attempts:
+                    user.is_active = False
+                    user.session_token = None
+                    db.session.commit()
+                    FORGOT_SECURITY_FAIL_COUNTS.pop(username, None)
+                    FORGOT_SECURITY_LOCK_UNTILS.pop(username, None)
+                    log_action('账号自动锁定', f'用户 [{username}] 密保验证错误达到上限（{new_fail_count}次），账号已被系统自动锁定')
+                    flash(f'密保答案连续错误达到 {max_security_attempts} 次上限，该账号已被系统锁定！请联系系统管理员解锁账号。', 'danger')
+                    return render_template('forgot_password.html', step='find_user', account_locked=True, locked_username=username)
+                elif getattr(user, 'is_admin', False) and new_fail_count >= max_security_attempts:
+                    now = datetime.now().timestamp()
                     lock_duration = lockout_seconds
                     if lock_duration > 0:
                         FORGOT_SECURITY_LOCK_UNTILS[username] = now + lock_duration
-                        lock_desc = f"{lock_duration // 60} 分钟" if lock_duration >= 60 and lock_duration % 60 == 0 else f"{lock_duration} 秒"
-                        flash(f'密保答案错误次数达到 {new_fail_count} 次，账号已被锁定，请等待 {lock_desc} 后再试！', 'danger')
-                        return render_template('forgot_password.html', user=user, step='answer_question',
-                                               cur_fail_count=new_fail_count, is_locked=True, lock_wait=lock_duration,
-                                               max_security_attempts=max_security_attempts)
-                    else:
-                        flash(f'密保答案错误次数达到 {new_fail_count} 次！', 'danger')
-                        return render_template('forgot_password.html', user=user, step='answer_question',
-                                               cur_fail_count=new_fail_count, is_locked=False, lock_wait=0,
-                                               max_security_attempts=max_security_attempts)
+                    lock_desc = f"{lock_duration // 60} 分钟" if lock_duration >= 60 and lock_duration % 60 == 0 else f"{lock_duration} 秒"
+                    flash(f'密保答案验证错误！管理员账号错误已达 {new_fail_count} 次，需要验证码且必须等待 {lock_desc} 后方可重试。', 'danger')
+                    return render_template('forgot_password.html', user=user, step='answer_question',
+                                           cur_fail_count=new_fail_count, is_locked=True if lock_duration > 0 else False,
+                                           lock_wait=lock_duration,
+                                           max_security_attempts=max_security_attempts,
+                                           remaining_attempts=0,
+                                           require_captcha=True)
                 else:
-                    remaining = max_security_attempts - new_fail_count
+                    remaining = max(0, max_security_attempts - new_fail_count)
                     flash(f'密保问题答案验证错误！您还剩 {remaining} 次尝试机会。', 'danger')
                     return render_template('forgot_password.html', user=user, step='answer_question',
                                            cur_fail_count=new_fail_count, is_locked=False, lock_wait=0,
-                                           max_security_attempts=max_security_attempts)
+                                           max_security_attempts=max_security_attempts,
+                                           remaining_attempts=remaining,
+                                           require_captcha=False)
 
             if new_password != confirm_password:
-                flash('两次输入的强密码不一致！', 'danger')
+                remaining = 0 if getattr(user, 'is_admin', False) and cur_fail_count >= max_security_attempts else max(0, max_security_attempts - cur_fail_count)
+                flash('两次输入的新密码不一致！', 'danger')
                 return render_template('forgot_password.html', user=user, step='answer_question',
                                        cur_fail_count=cur_fail_count, is_locked=False, lock_wait=0,
-                                       max_security_attempts=max_security_attempts)
+                                       max_security_attempts=max_security_attempts,
+                                       remaining_attempts=remaining,
+                                       require_captcha=require_captcha)
+
+            # 验证新密码强度
+            is_valid, msg = check_password_complexity(new_password)
+            if not is_valid:
+                remaining = 0 if getattr(user, 'is_admin', False) and cur_fail_count >= max_security_attempts else max(0, max_security_attempts - cur_fail_count)
+                flash(msg, 'danger')
+                return render_template('forgot_password.html', user=user, step='answer_question',
+                                       cur_fail_count=cur_fail_count, is_locked=False, lock_wait=0,
+                                       max_security_attempts=max_security_attempts,
+                                       remaining_attempts=remaining,
+                                       require_captcha=require_captcha)
 
             # 密保校验成功，清除该账号在找回密码服务端的失败计数与锁定状态
             FORGOT_SECURITY_FAIL_COUNTS.pop(username, None)
@@ -1489,6 +1559,9 @@ def admin_reset_user_security(user_id):
     if security_question and security_answer:
         user.security_question = security_question
         user.set_security_answer(security_answer)
+        # 管理员重置密保时清空找回密码风控计数
+        FORGOT_SECURITY_FAIL_COUNTS.pop(user.username, None)
+        FORGOT_SECURITY_LOCK_UNTILS.pop(user.username, None)
         db.session.commit()
         log_action('重置密保问题', f'管理员重置了用户 [{user.username}] 的密保问题与答案')
         flash(f'用户 [{user.username}] 的密保问题与答案已重置成功！', 'success')
@@ -1512,6 +1585,13 @@ def admin_toggle_user_status(user_id):
     user.is_active = not user.is_active
     if not user.is_active:
         user.session_token = None  # 禁用时清空 session_token 强行踢下线
+    else:
+        # 解锁/启用账号时清除所有失败计数与锁定状态
+        LOGIN_FAIL_COUNTS.pop(user.username, None)
+        LOGIN_LOCK_UNTILS.pop(user.username, None)
+        FORGOT_SECURITY_FAIL_COUNTS.pop(user.username, None)
+        FORGOT_SECURITY_LOCK_UNTILS.pop(user.username, None)
+
     db.session.commit()
 
     status_str = "启用" if user.is_active else "禁用"
@@ -1530,6 +1610,9 @@ def admin_reset_user_pass(user_id):
     new_password = request.form.get('new_password', '').strip()
     if new_password:
         user.set_password(new_password)
+        # 管理员重置密码时清空登录风控计数
+        LOGIN_FAIL_COUNTS.pop(user.username, None)
+        LOGIN_LOCK_UNTILS.pop(user.username, None)
         db.session.commit()
         log_action('重置用户密码', f'管理员重置了用户 [{user.username}] 的密码')
         flash(f'用户 [{user.username}] 的密码已重置成功！', 'success')
