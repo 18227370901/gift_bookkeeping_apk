@@ -114,3 +114,16 @@ python app.py
 ## 📄 开源许可证
 
 MIT License
+
+
+---
+
+## 🌐 项目多形态交付与仓库矩阵 (Ecosystem)
+
+本套人情礼金记账系统提供三种产品部署与交付形态，源码均已同步发布至 GitHub：
+
+| 形态 | GitHub 仓库地址 | 适用场景 |
+|:---|:---|:---|
+| 🖥️ **Web 原生部署版** | [gift-bookkeeping-app](https://github.com/18227370901/gift-bookkeeping-app.git) | 适合本地 Python 环境、虚拟主机、轻量 VPS 单机运行 |
+| 🐳 **Docker Compose 版** | [gift-bookkeeping-app-docker](https://github.com/18227370901/gift-bookkeeping-app-docker.git) | 适合企业生产服务器、一键容器编排、Nginx 反代与 SSL 自动化管理 |
+| 📱 **Android 原生 APK 版** | [gift-bookkeeping-apk](https://github.com/18227370901/gift-bookkeeping-apk.git) | 适合安卓手机与平板脱机随身离线使用 |
