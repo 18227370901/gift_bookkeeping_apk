@@ -1,8 +1,20 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'f4856425-abc5-41c7-b4f0-b67d2dca82f9'
+  PropagateID: 'f4856425-abc5-41c7-b4f0-b67d2dca82f9'
+  ReservedCode1: 'ad0ff146-710e-468b-ae60-e9000b05680a'
+  ReservedCode2: 'ad0ff146-710e-468b-ae60-e9000b05680a'
+---
+
 # 礼金记账簿 Android APK (Gift Bookkeeping APK)
 
 本项目是将【礼金记账簿】(Gift Bookkeeping App) 完整移植为 Android 手机端原生可安装运行的 APK 应用。通过轻量嵌入式本地服务 + 原生 Android WebView 容器技术，用户可以在 Android 手机/平板上脱机离线使用完整的礼金记账、亲友管理、统计分析、导入导出等所有功能。
 
 > **最新更新说明**：
+> - 🔗 **生态仓库地址修正（2026-09-20）**：修正「项目多形态交付与仓库矩阵」中 Android APK 版仓库链接为实际地址 `gift_bookkeeping_apk`（下划线命名），与 GitHub 真实仓库保持一致；Web 原生部署版与 Docker Compose 版已同步发布 V10.10.2 样例数据体系扩充（151 条收礼+随礼双向样例，两版样例库字节级统一），本 APK 版为独立精简移动形态，样例数据维持 100 条收礼记录不变。
 > - 🛡️ **密保找回密码算术验证码与动态刷新**：找回密码流程全面接入算术验证码防护机制（支持 `/forgot-password/captcha` 接口无感拉取与动态点击刷新），有效防御针对密保答案的自动化暴力破解与脚本探测。
 > - ⏳ **管理员/普通用户找回密码防爆破与倒计时临时锁定**：密保答案错误触发递增计数与错误上限预警；达到上限后自动进入临时冷却锁定状态（支持毫秒级动态倒计时实时解锁），阻断高频撞库风险。
 > - 🔑 **密码复杂度校验机制与函数修复**：重置密码与修改密码全面接入强口令复杂度验证规则（长度至少6位且同时包含字母与数字），严控弱口令风险，修复缺失复杂度校验函数引发的 500 异常。
@@ -126,4 +138,4 @@ MIT License
 |:---|:---|:---|
 | 🖥️ **Web 原生部署版** | [gift-bookkeeping-app](https://github.com/18227370901/gift-bookkeeping-app.git) | 适合本地 Python 环境、虚拟主机、轻量 VPS 单机运行 |
 | 🐳 **Docker Compose 版** | [gift-bookkeeping-app-docker](https://github.com/18227370901/gift-bookkeeping-app-docker.git) | 适合企业生产服务器、一键容器编排、Nginx 反代与 SSL 自动化管理 |
-| 📱 **Android 原生 APK 版** | [gift-bookkeeping-apk](https://github.com/18227370901/gift-bookkeeping-apk.git) | 适合安卓手机与平板脱机随身离线使用 |
+| 📱 **Android 原生 APK 版** | [gift_bookkeeping_apk](https://github.com/18227370901/gift_bookkeeping_apk.git) | 适合安卓手机与平板脱机随身离线使用 |
