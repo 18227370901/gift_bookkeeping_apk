@@ -3,6 +3,7 @@ import sys
 import time
 import threading
 import socket
+import traceback
 
 # ==================== 本地 Flask 服务启动 ====================
 # 移动端架构：Flask 后端在设备本地运行（127.0.0.1），WebView 加载本地页面
@@ -22,26 +23,76 @@ def find_free_port(start=8765, end=9999):
             continue
     return start
 
+def _get_android_storage_dir():
+    """获取 Android 可写存储目录"""
+    try:
+        from jnius import autoclass
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        activity = PythonActivity.mActivity
+        # Android 11+ getFilesDir() 返回 /data/data/<package>/files
+        files_dir = activity.getFilesDir()
+        storage_path = str(files_dir.getAbsolutePath())
+        if storage_path and os.path.isdir(storage_path):
+            return storage_path
+    except Exception:
+        pass
+    # 回退方案
+    try:
+        # p4a 默认私有存储路径
+        app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return app_root
+    except Exception:
+        return os.path.dirname(os.path.abspath(__file__))
+
 def start_flask_server(port):
     """在后台线程中启动 Flask 服务器"""
     try:
         # 设置环境变量，确保使用本地 SQLite
-        os.environ.setdefault('DATABASE_URL', '')  # 空值降级为 SQLite
+        os.environ.setdefault('DATABASE_URL', '')
         os.environ.setdefault('ADMIN_USER', 'admin')
         os.environ.setdefault('ADMIN_PASS', 'admin123')
 
+        # Android 环境下设置可写数据目录
+        try:
+            from kivy.utils import platform
+            if platform == 'android':
+                storage_dir = _get_android_storage_dir()
+                data_dir = os.path.join(storage_dir, 'data')
+                os.makedirs(data_dir, exist_ok=True)
+                os.environ['GIFT_DATA_DIR'] = data_dir
+                print(f"[Main] Android 数据目录: {data_dir}")
+        except Exception:
+            pass
+
         # 导入 Flask 应用（此时会自动执行 init_database 初始化数据库）
+        print("[Main] 正在导入 Flask 应用...")
         from app import app
+
+        # 设置 Flask 静态资源路径（确保在 Android 打包后能找到 static 目录）
+        try:
+            bundle_dir = os.path.dirname(os.path.abspath(__file__))
+            static_dir = os.path.join(bundle_dir, 'static')
+            if os.path.isdir(static_dir):
+                app.static_folder = static_dir
+                print(f"[Main] 静态资源路径: {static_dir}")
+        except Exception as e:
+            print(f"[Main] 设置静态资源路径失败: {e}")
+
+        print("[Main] Flask 应用导入成功，正在启动服务...")
 
         # 在后台线程中运行 Flask
         def _run():
-            app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False, threaded=True)
+            try:
+                app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False, threaded=True)
+            except Exception as e:
+                print(f"[Main] Flask 运行异常: {e}")
+                traceback.print_exc()
 
         flask_thread = threading.Thread(target=_run, daemon=True)
         flask_thread.start()
 
         # 等待 Flask 服务器就绪
-        for _ in range(30):
+        for _ in range(60):  # 增加等待次数到 60（最多 18 秒）
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(1)
@@ -54,10 +105,11 @@ def start_flask_server(port):
                 pass
             time.sleep(0.3)
 
-        print("[Main] Flask 服务启动超时")
+        print("[Main] Flask 服务启动超时（18秒）")
         return False
     except Exception as e:
         print(f"[Main] Flask 服务启动异常: {e}")
+        traceback.print_exc()
         return False
 
 # ==================== Kivy + Android WebView 容器 ====================
@@ -78,23 +130,61 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
         Window.clearcolor = (0.96, 0.96, 0.98, 1)
         root = Widget()
 
-        # 先启动 Flask 服务
+        # 异步启动 Flask 服务（不阻塞 Kivy 主线程）
         global FLASK_PORT
         FLASK_PORT = find_free_port(FLASK_PORT)
-        flask_ok = start_flask_server(FLASK_PORT)
         self.target_url = f"http://127.0.0.1:{FLASK_PORT}/"
+        self.flask_ready = False
+        self.webview_created = False
 
-        if not flask_ok:
-            print("[Main] Flask 启动失败，将尝试加载备用页面")
-            self.target_url = f"http://127.0.0.1:{FLASK_PORT}/"
+        # 在后台线程启动 Flask，避免阻塞 Kivy 事件循环
+        def _start_flask_async():
+            self.flask_ready = start_flask_server(FLASK_PORT)
+            if not self.flask_ready:
+                print("[Main] Flask 启动失败，将延迟重试...")
+                # 延迟 3 秒后重试一次
+                time.sleep(3)
+                self.flask_ready = start_flask_server(FLASK_PORT)
+
+        flask_init_thread = threading.Thread(target=_start_flask_async, daemon=True)
+        flask_init_thread.start()
 
         if platform == 'android':
-            Clock.schedule_once(self.init_android_webview, 1.0)
+            # 延迟 3 秒创建 WebView，给 Flask 充足的启动时间
+            Clock.schedule_once(self.init_android_webview, 3.0)
+            # 5 秒后检查 WebView 是否创建成功，如果 Flask 还没好则再等
+            Clock.schedule_once(self._check_webview, 5.0)
         elif IS_KIVY:
-            Clock.schedule_once(self.open_desktop_browser, 1.5)
+            Clock.schedule_once(self.open_desktop_browser, 5.0)
         else:
             self.open_desktop_browser()
         return root
+
+    def _check_webview(self, *args):
+        """检查 WebView 状态，如果 Flask 还没就绪则重新加载"""
+        if not self.flask_ready:
+            print("[Main] WebView 检查：Flask 尚未就绪，延迟重试...")
+            Clock.schedule_once(self._retry_webview, 5.0)
+
+    def _retry_webview(self, *args):
+        """重试加载 WebView"""
+        if self.flask_ready:
+            print("[Main] Flask 已就绪，重新加载 WebView...")
+            # 这里不再重新创建 WebView，而是让 WebView 自动刷新
+            # 如果 WebView 已创建，通过 Java 层重新加载 URL
+            try:
+                from jnius import autoclass
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                activity = PythonActivity.mActivity
+                # 查找已添加的 WebView 并重新加载
+                webview = activity.findViewById(0x12345)  # 自定义 ID
+                if webview:
+                    webview.loadUrl(self.target_url)
+            except Exception:
+                pass
+        else:
+            print("[Main] Flask 仍未就绪，10 秒后再试...")
+            Clock.schedule_once(self._retry_webview, 10.0)
 
     def init_android_webview(self, *args):
         try:
@@ -112,9 +202,10 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
                 __javainterfaces__ = ['android/webkit/WebViewClient']
                 __javacontext__ = 'app'
 
-                def __init__(self, target_url):
+                def __init__(self, target_url, flask_ready_callback=None):
                     super(SafeWebClient, self).__init__()
                     self.target_url = target_url
+                    self.flask_ready_callback = flask_ready_callback
 
                 @java_method('(Landroid/webkit/WebView;Ljava/lang/String;)Z')
                 def shouldOverrideUrlLoading(self, view, url):
@@ -131,7 +222,18 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
 
                 @java_method('(Landroid/webkit/WebView;ILjava/lang/String;Ljava/lang/String;)V')
                 def onReceivedError(self, view, errorCode, description, failingUrl):
-                    pass
+                    print(f"[WebView] 加载错误: code={errorCode}, desc={description}, url={failingUrl}")
+                    # 延迟 2 秒后重试
+                    Clock.schedule_once(lambda dt: view.loadUrl(self.target_url), 2.0)
+
+                # Android 6+ 新版错误回调
+                @java_method('(Landroid/webkit/WebView;Landroid/webkit/WebResourceRequest;Landroid/webkit/WebResourceError;)V')
+                def onReceivedError(self, view, request, error):
+                    try:
+                        desc = str(error.getDescription()) if error else 'unknown'
+                        print(f"[WebView] 资源加载错误: {desc}")
+                    except Exception:
+                        pass
 
             class CustomChromeClient(PythonJavaClass):
                 __javainterfaces__ = ['android/webkit/WebChromeClient']
@@ -142,10 +244,15 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
 
                 @java_method('(Landroid/webkit/WebView;I)V')
                 def onProgressChanged(self, view, newProgress):
-                    pass
+                    print(f"[WebView] 加载进度: {newProgress}%")
 
                 @java_method('(Landroid/webkit/ConsoleMessage;)Z')
                 def onConsoleMessage(self, consoleMessage):
+                    try:
+                        msg = str(consoleMessage.message()) if consoleMessage else ''
+                        print(f"[WebView Console] {msg}")
+                    except Exception:
+                        pass
                     return True
 
             class WebViewInitRunnable(PythonJavaClass):
@@ -161,6 +268,7 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
                 def run(self):
                     try:
                         webview = WebView(self.activity)
+                        webview.setId(0x12345)  # 设置固定 ID 便于后续查找
                         settings = webview.getSettings()
 
                         settings.setJavaScriptEnabled(True)
@@ -201,13 +309,16 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
                         self.activity.addContentView(webview, params)
                         webview.loadUrl(self.url)
                         webview.requestFocus()
+                        print(f"[WebView] WebView 已创建，加载 URL: {self.url}")
                     except Exception as ex:
-                        print("Error creating webview:", ex)
+                        print(f"[WebView] 创建 WebView 异常: {ex}")
+                        traceback.print_exc()
 
             activity.runOnUiThread(WebViewInitRunnable(activity, self.target_url))
 
         except Exception as e:
-            print("Android WebView Exception:", e)
+            print(f"[WebView] Android WebView 初始化异常: {e}")
+            traceback.print_exc()
 
     def open_desktop_browser(self, *args):
         try:

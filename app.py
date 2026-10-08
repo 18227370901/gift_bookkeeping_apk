@@ -8,7 +8,11 @@ import time
 import uuid
 import secrets
 from datetime import datetime, timedelta
-import webbrowser
+# webbrowser 在 Android 上可能不可用，延迟导入
+try:
+    import webbrowser
+except ImportError:
+    webbrowser = None
 from threading import Timer
 from flask import Flask, render_template, request, redirect, url_for, flash, session, current_app, abort, make_response, jsonify
 from flask_wtf.csrf import CSRFProtect
@@ -33,14 +37,15 @@ from webdav_utils import (
 )
 from routes_ext import register_routes_ext
 
-# Determine bundle directory for PyInstaller / PyBuild
+# Determine bundle directory for PyInstaller / PyBuild / Buildozer(p4a)
 if getattr(sys, 'frozen', False):
     BUNDLE_DIR = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
 else:
     BUNDLE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 template_folder = os.path.join(BUNDLE_DIR, 'templates')
-app = Flask(__name__, template_folder=template_folder)
+static_folder = os.path.join(BUNDLE_DIR, 'static')
+app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'gift-bookkeeping-secret-key-2026-prod-secure'
 
 # 服务/容器启动时间戳：用于在服务重启时强制失效所有旧用户会话
@@ -58,7 +63,15 @@ if os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() in ('true', '1'):
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
 # Handle Database Location (If frozen, write to user-writable directory or local directory)
-if getattr(sys, 'frozen', False):
+# Android (p4a/Kivy) 环境下，BUNDLE_DIR 是 APK 内只读路径，不能写数据库。
+# 优先使用环境变量 GIFT_DATA_DIR（由 main.py 在 Android 上设置），
+# 其次 sys.frozen（PyInstaller），最后回退到项目目录下的 data/
+custom_data_dir = os.environ.get('GIFT_DATA_DIR', '').strip()
+if custom_data_dir and os.path.isdir(custom_data_dir):
+    data_dir = custom_data_dir
+    os.makedirs(data_dir, exist_ok=True)
+    db_path = os.path.join(data_dir, 'gift_bookkeeping.db')
+elif getattr(sys, 'frozen', False):
     USER_DATA_DIR = os.path.join(os.path.expanduser('~'), '.gift_bookkeeping')
     os.makedirs(USER_DATA_DIR, exist_ok=True)
     db_path = os.path.join(USER_DATA_DIR, 'gift_bookkeeping.db')

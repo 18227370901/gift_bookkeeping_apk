@@ -49,20 +49,21 @@ pre code{background:none;color:inherit;padding:0}
 
 <h1>礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档</h1>
 <p class="meta">项目路径：<code>gift_bookkeeping_apk/</code> &nbsp;|&nbsp; 文档版本：V3.0 &nbsp;|&nbsp; 生成日期：2026-10-08</p>
-<p class="meta">架构基线：本地嵌入式 Flask 服务 + 原生 WebView 容器 &nbsp;|&nbsp; 12个Python文件 + 25个HTML模板 + 181条路由</p>
+<p class="meta">文档版本：V3.0.1（全量同步 + 构建修复 + 空白页面修复）</p>
 
 <div class="toc">
 <h3>目录</h3>
 <ol>
 <li><b>项目全局概览</b> — 业务定位 · 技术栈 · 架构拓扑</li>
 <li><b>V3.0 核心变更</b> — 构建修复 · 版本区分 · 全量同步</li>
+<li><b>V3.0.1 空白页面修复</b> — 6根因分析 · 异步启动 · 静态资源 · 数据库路径</li>
 <li><b>功能模块全量清单</b> — 25页面 · 181条路由 · 22+数据模型</li>
 <li><b>技术栈全景</b> — 后端 · 前端 · 移动端 · CI/CD</li>
 <li><b>数据持久化设计</b> — ER关系 · 加密策略 · 迁移</li>
 <li><b>移动端适配设计</b> — 响应式 · 安全区域 · 触控优化</li>
 <li><b>构建与CI/CD</b> — Buildozer · GitHub Actions · 双平台</li>
 <li><b>工程与安全保障</b> — 环境变量 · 认证鉴权 · 安全清单</li>
-<li><b>版本演进路线图</b> — V1.0 → V2.0 → V3.0</li>
+<li><b>版本演进路线图</b> — V1.0 → V2.0 → V3.0 → V3.0.1</li>
 </ol>
 </div>
 
@@ -125,7 +126,53 @@ android.archs = arm64-v8a</code></pre>
 </ul>
 </div>
 
-<h2><span class="num">3</span>功能模块全量清单</h2>
+<h2><span class="num">3</span>V3.0.1 空白页面修复</h2>
+
+<h3>3.1 故障现象</h3>
+<p>APK 安装后启动，页面一直显示空白，无任何内容渲染。</p>
+
+<h3>3.2 根因分析（6 个根因）</h3>
+<table>
+<tr><th>#</th><th>根因</th><th>影响</th><th>修复</th><th>文件</th></tr>
+<tr><td>1</td><td><code>app.py</code> 未显式设置 <code>static_folder</code></td><td>CSS/JS/字体全 404 → 页面空白</td><td>显式设置 <code>static_folder = os.path.join(BUNDLE_DIR, 'static')</code></td><td>app.py</td></tr>
+<tr><td>2</td><td><code>build()</code> 同步阻塞主线程</td><td>Android ANR → WebView 无法创建</td><td>改为后台线程异步启动 Flask</td><td>main.py</td></tr>
+<tr><td>3</td><td>WebView 加载时 Flask 未就绪</td><td>连接拒绝 → 空白</td><td>WebView 延迟3秒创建 + 5秒重试</td><td>main.py</td></tr>
+<tr><td>4</td><td><code>import webbrowser</code> Android 崩溃</td><td>app.py 导入失败 → Flask 无法启动</td><td>try/except ImportError 延迟导入</td><td>app.py</td></tr>
+<tr><td>5</td><td>数据库路径 <code>data/</code> Android 只读</td><td>init_database() 异常</td><td>GIFT_DATA_DIR 环境变量 + getFilesDir()</td><td>app.py + main.py</td></tr>
+<tr><td>6</td><td><code>onReceivedError</code> 静默吞错</td><td>加载失败无反馈或重试</td><td>增加错误日志 + 2秒自动重试</td><td>main.py</td></tr>
+</table>
+
+<h3>3.3 关键修复代码</h3>
+
+<h4>修复1：显式设置 static_folder（app.py）</h4>
+<pre><code>static_folder = os.path.join(BUNDLE_DIR, 'static')
+app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)</code></pre>
+
+<h4>修复2：异步启动 Flask（main.py）</h4>
+<pre><code>flask_init_thread = threading.Thread(target=_start_flask_async, daemon=True)
+flask_init_thread.start()  # build() 立即返回，不阻塞</code></pre>
+
+<h4>修复5：Android 可写数据库路径</h4>
+<pre><code># app.py：优先使用 GIFT_DATA_DIR 环境变量
+custom_data_dir = os.environ.get('GIFT_DATA_DIR', '').strip()
+if custom_data_dir and os.path.isdir(custom_data_dir):
+    db_path = os.path.join(custom_data_dir, 'gift_bookkeeping.db')
+
+# main.py：Android 上通过 getFilesDir() 获取可写目录
+def _get_android_storage_dir():
+    from jnius import autoclass
+    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+    return str(PythonActivity.mActivity.getFilesDir().getAbsolutePath())</code></pre>
+
+<h3>3.4 验证结果</h3>
+<ul>
+<li>5 个 Python 文件语法检查全部通过</li>
+<li>Flask 应用成功导入，static_folder 正确指向项目 static/ 目录</li>
+<li>登录页 HTTP 200，包含 viewport-fit 和 safe-area-inset 移动端 CSS</li>
+<li>静态资源 Bootstrap CSS 和 ECharts JS 均返回 200</li>
+</ul>
+
+<h2><span class="num">4</span>功能模块全量清单</h2>
 
 <h3>3.1 页面/路由清单（25个页面，181条路由）</h3>
 <table>
@@ -253,12 +300,13 @@ body {
 <tr><td>审计日志</td><td>全操作记录 + 90天清理</td><td><span class="badge badge-green">有效</span></td></tr>
 </table>
 
-<h2><span class="num">9</span>版本演进路线图</h2>
+<h2><span class="num">10</span>版本演进路线图</h2>
 <table>
-<tr><th>版本</th><th>架构</th><th>路由</th><th>构建</th><th>状态</th></tr>
-<tr><td>V1.0</td><td>远程WebView壳</td><td>32</td><td><span class="badge badge-green">成功</span></td><td><span class="badge badge-gray">已废弃</span></td></tr>
-<tr><td>V2.0</td><td>本地Flask+WebView</td><td>179</td><td><span class="badge badge-red">失败</span></td><td><span class="badge badge-gray">已替代</span></td></tr>
-<tr><td><b>V3.0</b></td><td><b>本地Flask+WebView</b></td><td><b>181</b></td><td><b><span class="badge badge-green">修复</span></b></td><td><b><span class="badge badge-green">当前版本</span></b></td></tr>
+<tr><th>版本</th><th>架构</th><th>路由</th><th>构建</th><th>运行</th><th>状态</th></tr>
+<tr><td>V1.0</td><td>远程WebView壳</td><td>32</td><td><span class="badge badge-green">成功</span></td><td><span class="badge badge-green">正常</span></td><td><span class="badge badge-gray">已废弃</span></td></tr>
+<tr><td>V2.0</td><td>本地Flask+WebView</td><td>179</td><td><span class="badge badge-red">失败</span></td><td>—</td><td><span class="badge badge-gray">已替代</span></td></tr>
+<tr><td>V3.0</td><td>本地Flask+WebView</td><td>181</td><td><span class="badge badge-green">修复</span></td><td><span class="badge badge-red">空白页面</span></td><td><span class="badge badge-gray">已替代</span></td></tr>
+<tr><td><b>V3.0.1</b></td><td><b>本地Flask+WebView</b></td><td><b>181</b></td><td><b><span class="badge badge-green">成功</span></b></td><td><b><span class="badge badge-green">修复空白</span></b></td><td><b><span class="badge badge-green">当前版本</span></b></td></tr>
 </table>
 
 </div>

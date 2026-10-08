@@ -13,7 +13,7 @@ AIGC:
 
 本项目是将【礼金记账簿】(Gift Bookkeeping App) 完整移植为 Android/iOS 手机端原生可安装运行的应用。通过**本地嵌入式 Flask 服务 + 原生 WebView 容器**技术，用户可以在手机上脱机离线使用完整的礼金记账、亲友管理、统计分析、AI 助手、导入导出等所有功能。
 
-> **V3.0 更新**：修复 V2.0 构建失败问题（p4a recipe 与 python_depends 分离），全量同步源项目最新功能（181条路由），版本号升级至 3.0.0 以区分此前版本。
+> **V3.0.1 更新**：修复 V3.0 APK 安装后页面空白问题（6 根因修复），全量同步源项目最新功能（181条路由），版本号升级至 3.0.0 以区分此前版本。
 
 ---
 
@@ -167,6 +167,19 @@ python main.py
 |:---|:---|:---|:---|
 | `build-android` | ubuntu-22.04 | `bin/*.apk` | GiftBookkeeping-Android-APK-v3.0 |
 | `build-ios` | macos-14 | `*.ipa`（未签名） | GiftBookkeeping-iOS-IPA-v3.0-Unsigned |
+
+### V3.0.1 空白页面修复
+
+V3.0 APK 安装后页面空白的 6 个根因及修复：
+
+| 根因 | 修复 |
+|:---|:---|
+| `app.py` 未显式设置 `static_folder` → CSS/JS 404 | 显式设置 `static_folder = os.path.join(BUNDLE_DIR, 'static')` |
+| `build()` 同步阻塞主线程 → ANR | 改为后台线程异步启动 Flask |
+| WebView 加载时 Flask 未就绪 → 连接拒绝 | WebView 延迟 3 秒创建 + 5 秒重试 |
+| `import webbrowser` Android 崩溃 | try/except ImportError 延迟导入 |
+| 数据库路径 `data/` Android 只读 | GIFT_DATA_DIR 环境变量 + getFilesDir() |
+| `onReceivedError` 静默吞错 | 增加错误日志 + 2 秒自动重试 |
 
 ### V3.0 构建修复要点
 
