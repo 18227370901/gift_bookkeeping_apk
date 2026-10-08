@@ -12,7 +12,7 @@ AIGC:
 # 礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档
 
 > **项目路径**：`gift_bookkeeping_apk/`  
-> **文档版本**：V3.1（空白页面真实根因修复版）  
+> **文档版本**：V3.1.1（AI 图片识别直连修复与构建收窄版）  
 > **生成日期**：2026-10-08  
 > **架构基线**：本地嵌入式 Flask 服务 + 原生 WebView 容器  
 > **代码规模**：12个Python文件 + 25个HTML模板 + 181条路由 + 22+数据模型
@@ -23,14 +23,14 @@ AIGC:
 
 1. **项目全局概览** — 业务定位 · 技术栈全景 · 架构拓扑
 2. **V3.0 核心变更** — 构建修复 · 版本区分 · 全量同步
-3. **V3.1 空白页面真实根因与修复** — python_depends 无效键 · 诊断页方案 · cleartext
+3. **V3.1 空白页面真实根因与修复** — python_depends 无效键 · 诊断页方案 · cleartext · V3.1.1 补丁（AI 图片识别直连修复 + 构建收窄）
 4. **功能模块全量清单** — 25页面 · 181条路由 · 22+数据模型
 5. **技术栈全景** — 后端 · 前端 · 移动端 · CI/CD
 6. **数据持久化设计** — ER关系 · 加密策略 · 迁移策略
 7. **移动端适配设计** — 响应式布局 · 安全区域 · 触控优化
 8. **构建与CI/CD** — Buildozer · GitHub Actions · Android+iOS双平台
 9. **工程与安全保障** — 环境变量 · 认证鉴权 · 安全清单
-10. **版本演进路线图** — V1.0 → V2.0 → V3.0 → V3.1
+10. **版本演进路线图** — V1.0 → V2.0 → V3.0 → V3.1 → V3.1.1
 
 ---
 
@@ -51,7 +51,7 @@ AIGC:
 ```mermaid
 graph TB
     subgraph device["📱 移动设备 (Android/iOS)"]
-        APK["APK 应用 v3.0.0<br/>arm64-v8a<br/>API 21+"] --> WV["原生 WebView<br/>main.py 容器层<br/>jnius → WebView"]
+        APK["APK 应用 v3.1.1<br/>arm64-v8a<br/>API 21+"] --> WV["原生 WebView<br/>main.py 容器层<br/>jnius → WebView"]
         APK --> FLASK_LOCAL["本地 Flask 服务<br/>127.0.0.1:8765<br/>app.py (3376行, 181路由)"]
         FLASK_LOCAL --> DB_LOCAL["SQLite<br/>本地私有存储<br/>data/gift_bookkeeping.db"]
         FLASK_LOCAL -->|"Jinja2 SSR"| TPL_LOCAL["templates/ 25个HTML<br/>Bootstrap5 + FA6 + ECharts<br/>本地化引用"]
@@ -167,15 +167,17 @@ targetSdk≥28 时 `usesCleartextTraffic` 默认为 false，WebView 加载 `http
 | 4 | Flask 启动失败时，12 秒后将 Python traceback 渲染到 WebView 展示（不再白屏盲调，用户可直接截图反馈） | `main.py` |
 | 5 | 双通道日志：print（logcat）+ files/app_debug.log（adb pull 可取） | `main.py` |
 | 6 | 开启 `WebView.setWebContentsDebuggingEnabled(True)`，电脑 Chrome `chrome://inspect` 可远程调试 | `main.py` |
-| 7 | requirements 追加 `greenlet`（有 p4a recipe，交叉编译），消除 SQLAlchemy 2.0 运行时风险 | `buildozer.spec` |
+| 7 | requirements 追加 `greenlet`（有 p4a recipe，交叉编译），消除 SQLAlchemy 2.0 运行时风险 ⚠️ **V3.1.1 已移除**（见 3.4/3.7.2） | `buildozer.spec` |
 
-### 3.4 V3.1 requirements 最终形态
+### 3.4 requirements 最终形态（V3.1.1）
 
 ```
 requirements = python3,hostpython3,openssl,sqlite3,pyjnius,kivy,flask,sqlalchemy,
-  markupsafe,greenlet,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,requests,
+  markupsafe,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,requests,
   itsdangerous,click,blinker,jinja2,wtforms
 ```
+
+> **V3.1.1 变更**：移除 `greenlet`（V3.1 曾短暂加入，见 3.3-7；它是 V3.0 成功构建集之外唯一新增的需 C 交叉编译的 recipe，成为 V3.1 构建失败的高危因素。SQLAlchemy 同步模式缺失时自动纯 Python 回退，零功能损失）。
 
 **p4a 依赖处理机制**：
 - 有 recipe 的包（flask/sqlalchemy/markupsafe/greenlet/sqlite3 等）→ recipe 交叉编译；
@@ -208,7 +210,49 @@ sequenceDiagram
 - 6 个 Python 文件语法检查全部通过；
 - 诊断页模板验证通过（轮询 JS / 跳转 JS / HTML 转义均正确）；
 - 端到端验证：`start_flask_server` → Flask 就绪检测 → `/login` 200 → 静态资源 200；
-- 构建产物与旧版区分：version 3.1.0、UA GiftBookkeeping/3.1、Artifact 名含 v3.1、Release tag v3.1-latest。
+- 构建产物与旧版区分：version 3.1.0、UA GiftBookkeeping/3.1、Artifact 名含 v3.1、Release tag v3.1-latest（V3.1.1 起进一步升级为 3.1.1 系列，见 3.7.3）。
+
+### 3.7 V3.1.1 补丁：AI 图片识别直连修复 + 构建收窄（2026-10-08）
+
+#### 3.7.1 问题一：网关配置了支持图片的模型，却提示「所有 AI 配置均无法识别图片」
+
+**旧逻辑缺陷**（`ai_service.py` 按模型名关键词白名单判断能力）：
+- 旧代码仅当模型名含 `gpt-4o`/`vision`/`vl`/`4v`/`claude-3` 关键词时才原样传给网关，否则硬改为 `gpt-4o-mini`；
+- 用户经自建网关（NewApi/OneAPI）配置的自定义模型名（实际支持图片）不含关键词 → 被硬改 → 网关无 `gpt-4o-mini` 此模型名 → 请求必败 → 提示「所有 AI 配置均无法识别图片」，误导用户。
+
+**V3.1.1 新逻辑（37 项单测全绿）**：
+
+| # | 修复 | 说明 |
+|:--|:---|:---|
+| 1 | 用户原始模型名优先直连 | 客户端不做能力猜测，模型是否支持图片由 AI 服务端判定 |
+| 2 | 常见 vision 模型兑底 | 仅原始模型失败后依次尝试 `gpt-4o-mini`/`gpt-4o`/`gemini-2.0-flash`（不与原始重复），成功响应非 JSON 时不再逐兑底 |
+| 3 | 真实错误透出 | 收集每次失败的真实报错，全部失败时透出最后 3 条（含配置名/模型名/错误详情），不再笼统提示 |
+| 4 | MIME 嗅探修复 | base64 解码头从 8 字节扩至 18 字节，修复 WEBP 魔数 `RIFF....WEBP` 的 `[8:12]` 切片被截断、永远嗅探不出的 Bug |
+| 5 | null 字段清洗 | `r.get(x, default)` 在 key 存在但值为 `null` 时返回 `None` → `str(None)='None'` 字符串；改用 `r.get(x) or default`（event_reason/notes） |
+| 6 | base64 换行清理 | 剥离部分客户端编码插入的 `\r\n`（严格网关解码失败） |
+| 7 | max_tokens 2000→4000 | 长列表识别不再被截断；未配置 AI 时提示改为引导「在【AI 助手配置】中添加并启用」 |
+
+#### 3.7.2 问题二：V3.1 触发的 Actions 构建失败（run 37746146665）
+
+**根因分析**（失败日志需登录无法直读，基于 p4a/buildozer 源码推演的高危因素）：
+- `greenlet` 是 V3.1 新增的唯一需 C 交叉编译的 recipe（V3.0 成功构建集不含它）；
+- CI 缓存同时命中 `./.buildozer` 本地目录，restore-keys 会恢复出旧 requirements 的 stale dist，p4a 复用旧 dist 状态是构建失败的高危来源。
+
+**V3.1.1 修复**（`buildozer.spec` + `build.yml`）：
+
+| # | 修复 | 说明 |
+|:--|:---|:---|
+| 1 | 移除 greenlet | SQLAlchemy 同步模式不依赖，缺失时自动纯 Python 回退，零功能损失 |
+| 2 | CI 缓存收窄 | 仅缓存全局工具链三目录（android-sdk/android-ndk/python-for-android），不再缓存 `./.buildozer`；key 改 `buildozer-global-sdk-v1-*` |
+| 3 | stale 清理 | 构建前 `rm -rf` 清理本地 dists/build，杜绝任何旧产物复用 |
+| 4 | 失败诊断增强 | 失败时 grep 错误摘要（tail -40）+ 最后 250 行直接打印到控制台；失败日志 artifact 更名 `build-log-v3.1.1`（含 build_log.txt + build_aab_log.txt） |
+
+#### 3.7.3 版本区分与验证
+
+- **版本区分**：version 3.1.1 / UA `GiftBookkeeping/3.1.1` / Artifact 名含 v3.1.1 / Release tag `v3.1.1-latest` / 页脚与诊断页 v3.1.1 / iOS CFBundleShortVersionString 3.1.1；
+- **OCR 逻辑回归测试**：11 组 37 项断言全部通过（MIME 嗅探×7、SDK 降级、未配置 403、原始模型直连、换行清理、兑底链路、全败错误透出、非 JSON 422、记录清洗、空 Key 跳过、多配置切换）；
+- **Flask 冒烟**：`/login` 200（页脚 v3.1.1 已生效）、`/api/ocr/recognize` 未登录鉴权拦截 403、静态资源 200；
+- **构建验证**：待提交推送后的 GitHub Actions 新一轮运行确认（V3.1 失败于 run 37746146665）。
 
 ---
 
@@ -384,8 +428,9 @@ body {
 - **Cython**：无版本限制（移除`<3.0`过时限制）
 - **Buildozer**：`>=1.5.2`
 - **ANDROID_HOME/ANDROID_NDK_HOME**：构建步骤中显式设置
-- **构建失败诊断**：失败时打印最后200行日志 + 上传build_log.txt artifact
-- **版本区分**：Artifact名称含`v3.0`，Release tag含`v3.0-latest`
+- **构建失败诊断**：失败时打印错误摘要（grep tail -40）+ 最后 250 行日志，并上传 `build-log-v3.1.1` artifact（V3.1.1 增强）
+- **CI 缓存**：仅缓存全局工具链三目录，不再缓存本地 `./.buildozer`（V3.1.1 收窄）
+- **版本区分**：Artifact名称含`v3.1.1`，Release tag含`v3.1.1-latest`
 
 ---
 
@@ -414,4 +459,5 @@ body {
 | V2.0 | 本地Flask+WebView | 179 | ❌失败 | — | 已被替代 |
 | V3.0 | 本地Flask+WebView | 181 | ✅ | ❌空白（缺Flask扩展库） | 已被替代 |
 | V3.0.1 | 本地Flask+WebView | 181 | ✅ | ❌空白（同V3.0根因） | 已被替代 |
-| **V3.1** | **本地Flask+WebView+诊断页** | **181** | **✅** | **✅根治** | **当前版本** |
+| V3.1 | 本地Flask+WebView+诊断页 | 181 | ❌失败（run 37746146665） | — | 已被替代 |
+| **V3.1.1** | **本地Flask+WebView+诊断页** | **181** | **✅修复（待CI验证）** | **✅根治** | **当前版本** |

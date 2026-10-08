@@ -439,12 +439,49 @@ def _get_suggestions():
 
 # ==================== OCR 图片智能识别（功能三） ====================
 
+def _sniff_image_mime(image_base64):
+    """根据 base64 头部嗅探图片真实 MIME 类型（部分网关严格校验 data URI 的 MIME）
+
+    V3.1.1 修复：此前版本 b64decode 后仅截取前 8 字节再判断 prefix[8:12]，
+    WEBP 魔数（RIFF....WEBP）的 'WEBP' 恰好位于第 8-12 字节，被截掉后
+    永远嗅探不出 webp。现统一解码出 18 字节头部再判断。
+    """
+    try:
+        # 取头部 24 个 base64 字符（解码后 18 字节），覆盖所有格式魔数 + RIFF size + WEBP
+        head = str(image_base64)[:24].lstrip('\r\n')
+        import base64 as _b64
+        pad = -len(head) % 4
+        prefix = _b64.b64decode(head + ('=' * pad))[:18]
+        if prefix.startswith(b'\x89PNG'):
+            return 'image/png'
+        if prefix[:3] == b'\xff\xd8\xff':
+            return 'image/jpeg'
+        if prefix[:4] == b'RIFF' and prefix[8:12] == b'WEBP':
+            return 'image/webp'
+        if prefix[:2] == b'BM':
+            return 'image/bmp'
+        if prefix[:4] in (b'II*\x00', b'MM\x00*'):
+            return 'image/tiff'
+    except Exception:
+        pass
+    return 'image/jpeg'
+
+
 def recognize_gift_image(image_base64, user=None):
     """
     调用 AI Vision 模型识别人情簿/礼金簿图片
     image_base64: base64 编码的图片数据（不含 data:image/ 前缀）
     user: 当前用户对象
     返回: {"code": 200, "records": [...], "message": "..."}
+    
+    V3.1.1 修复：不再按模型名关键词白名单擅自替换用户的模型。
+    原逻辑缺陷：用户经自建网关（NewApi/OneAPI 等）配置的模型实际支持图片识别，
+    但模型名不含 'gpt-4o'/'vision'/'vl'/'4v'/'claude-3' 关键词时被硬改为
+    'gpt-4o-mini'，而该网关无此模型名 → 请求必然失败 → 提示
+    "所有 AI 配置均无法识别图片"，误导用户以为配置的 AI 不支持图片。
+    新逻辑：① 优先用用户配置的原始模型名直连调用（模型是否支持图片由服务端判定）；
+             ② 仅当原始模型调用失败时，才以常见 vision 模型名兜底再试一次；
+             ③ 收集每次失败的真实错误并在最终提示中透出，便于诊断。
     """
     OpenAI = _ensure_openai()
     if not OpenAI:
@@ -457,7 +494,11 @@ def recognize_gift_image(image_base64, user=None):
     # 优先取第一个启用的配置
     enabled_configs = [c for c in configs if c.get('enabled', True)] if configs else []
     if not enabled_configs:
-        return {'code': 403, 'message': '请先在 AI 配置中设置支持图片识别的 AI 服务', 'records': []}
+        return {'code': 403, 'message': '尚未配置或启用任何 AI 服务，请先在【AI 助手配置】中添加并启用', 'records': []}
+
+    # 清理 base64 中的换行符（部分客户端编码会插入，严格网关会解码失败）
+    image_base64 = ''.join(str(image_base64).split())
+    image_mime = _sniff_image_mime(image_base64)
 
     # OCR 识别 Prompt
     ocr_prompt = (
@@ -470,85 +511,101 @@ def recognize_gift_image(image_base64, user=None):
         "请只返回 JSON 数组，不要添加其他文字说明。"
     )
 
+    # 收集每次尝试的真实错误，全部失败时透出便于诊断
+    attempts_errors = []
+
     for cfg in enabled_configs:
         api_key = cfg.get('api_key', '')
         base_url = cfg.get('base_url', '')
-        model = cfg.get('model', '')
+        model = (cfg.get('model', '') or '').strip()
 
         if not api_key:
+            attempts_errors.append(f"[{cfg.get('name', '未命名')}] 该配置缺少 API Key，已跳过")
             continue
 
-        # 尝试使用 vision 模型（常见命名：gpt-4o, gpt-4-vision, claude-3-opus 等）
-        # 如果用户配置的模型不支持 vision，尝试常见 vision 模型
-        vision_models = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-vision-preview', 'gpt-4-turbo',
-                         'claude-3-opus', 'claude-3-sonnet', 'claude-3.5-sonnet', 'qwen-vl-plus',
-                         'qwen-vl-max', 'glm-4v', 'glm-4v-plus']
-        target_model = model
-        if not any(vm in model.lower() for vm in ['gpt-4o', 'vision', 'vl', '4v', 'claude-3']):
-            # 用户配置的模型可能不支持 vision，尝试 gpt-4o-mini 作为兜底
-            target_model = 'gpt-4o-mini'
+        # ① 用户配置的原始模型优先（客户端不做能力猜测，由服务端判定）
+        # ② 原始模型失败后，才尝试常见 vision 模型名兜底（且不与原始模型重复）
+        candidate_models = [model] if model else []
+        fallbacks = [m for m in ('gpt-4o-mini', 'gpt-4o', 'gemini-2.0-flash')
+                     if m and m != model]
+        candidate_models += fallbacks
 
-        try:
-            client = OpenAI(api_key=api_key, base_url=base_url if base_url else None)
-            response = client.chat.completions.create(
-                model=target_model,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": ocr_prompt},
-                        {"type": "image_url", "image_url": {
-                            "url": f"data:image/jpeg;base64,{image_base64}"
-                        }}
-                    ]
-                }],
-                max_tokens=2000,
-                temperature=0.1
-            )
-            content = response.choices[0].message.content.strip()
+        for target_model in candidate_models:
+            try:
+                client = OpenAI(api_key=api_key, base_url=base_url if base_url else None)
+                response = client.chat.completions.create(
+                    model=target_model,
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": ocr_prompt},
+                            {"type": "image_url", "image_url": {
+                                "url": f"data:{image_mime};base64,{image_base64}"
+                            }}
+                        ]
+                    }],
+                    max_tokens=4000,
+                    temperature=0.1
+                )
+                content = response.choices[0].message.content.strip()
 
-            # 尝试从返回内容中提取 JSON 数组
-            import json
-            # 去除可能的 markdown 代码块标记
-            content = content.replace('```json', '').replace('```', '').strip()
-            # 尝试找到 JSON 数组
-            start = content.find('[')
-            end = content.rfind(']')
-            if start != -1 and end != -1:
-                json_str = content[start:end + 1]
-                records = json.loads(json_str)
-                # 清理和验证记录
-                cleaned = []
-                for r in records:
-                    if not isinstance(r, dict):
-                        continue
-                    name = str(r.get('name', '')).strip()
-                    amount = r.get('amount')
-                    try:
-                        amount = float(amount) if amount is not None else 0
-                    except (ValueError, TypeError):
-                        amount = 0
-                    if not name or amount <= 0:
-                        continue
-                    cleaned.append({
-                        'name': name,
-                        'amount': amount,
-                        'event_reason': str(r.get('event_reason', '其它')).strip() or '其它',
-                        'record_type': 'send' if str(r.get('record_type', 'receive')).lower() in ('send', 'give') else 'receive',
-                        'notes': str(r.get('notes', '')).strip()
-                    })
+                # 尝试从返回内容中提取 JSON 数组
+                import json
+                # 去除可能的 markdown 代码块标记
+                content = content.replace('```json', '').replace('```', '').strip()
+                # 尝试找到 JSON 数组
+                start = content.find('[')
+                end = content.rfind(']')
+                if start != -1 and end != -1:
+                    json_str = content[start:end + 1]
+                    records = json.loads(json_str)
+                    # 清理和验证记录
+                    cleaned = []
+                    for r in records:
+                        if not isinstance(r, dict):
+                            continue
+                        name = str(r.get('name', '')).strip()
+                        amount = r.get('amount')
+                        try:
+                            amount = float(amount) if amount is not None else 0
+                        except (ValueError, TypeError):
+                            amount = 0
+                        if not name or amount <= 0:
+                            continue
+                        cleaned.append({
+                            'name': name,
+                            'amount': amount,
+                            # V3.1.1 修复：字段值为 null 时 r.get(...) 返回 None 而非默认值，
+                            # str(None) 会变成 'None' 字符串，改用 or 兜底
+                            'event_reason': (str(r.get('event_reason') or '其它').strip()) or '其它',
+                            'record_type': 'send' if str(r.get('record_type', 'receive')).lower() in ('send', 'give') else 'receive',
+                            'notes': str(r.get('notes') or '').strip()
+                        })
 
-                return {
-                    'code': 200,
-                    'records': cleaned,
-                    'message': f'成功识别 {len(cleaned)} 条记录（使用模型: {target_model}）',
-                    'config_name': cfg.get('name', '')
-                }
-            else:
-                return {'code': 422, 'message': 'AI 返回内容无法解析为记录列表，请重试或手动录入', 'records': []}
+                    return {
+                        'code': 200,
+                        'records': cleaned,
+                        'message': f'成功识别 {len(cleaned)} 条记录（使用模型: {target_model}）',
+                        'config_name': cfg.get('name', '')
+                    }
+                else:
+                    # 原始模型调用成功（未抛异常）但返回内容不像 JSON 数组：
+                    # 无需继续尝试兜底模型，直接返回让用户重试
+                    return {'code': 422,
+                            'message': f'模型 {target_model} 返回内容无法解析为记录列表（请确认为图片识别模型后重试）',
+                            'records': []}
 
-        except Exception as e:
-            error_msg = str(e)
-            # 如果 vision 模型失败，尝试下一个配置
-            continue
+            except Exception as e:
+                error_msg = str(e)
+                attempts_errors.append(
+                    f"[{cfg.get('name', '未命名')} / {target_model}] {error_msg}")
+                # 该模型失败，继续尝试下一个候选模型
+                continue
 
-    return {'code': 503, 'message': '所有 AI 配置均无法识别图片，请检查 AI 配置或手动录入', 'records': []}
+    # 全部配置与候选模型均失败：透出最后 3 条真实错误，帮助用户定位
+    detail = '；'.join(attempts_errors[-3:]) if attempts_errors else '无可用尝试'
+    return {'code': 503,
+            'message': f'图片识别失败（已尝试 {len(attempts_errors)} 次）。最后错误：{detail}。'
+                       f'请检查 AI 配置的 API Key、接口地址与模型名是否正确，'
+                       f'且所用模型需支持图片输入。',
+            'records': []}

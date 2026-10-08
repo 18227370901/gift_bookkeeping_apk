@@ -13,7 +13,7 @@ permissions:
 jobs:
   # ==================== Android APK 构建 ====================
   build-android:
-    name: Build Android APK (v3.1)
+    name: Build Android APK (v3.1.1)
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -62,21 +62,29 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install --upgrade "cython" "buildozer>=1.5.2" virtualenv
 
-      - name: Cache Buildozer Global
+      - name: Cache Buildozer Global (SDK/NDK/p4a only)
         uses: actions/cache@v4
         with:
+          # 【V3.1.1 修复】只缓存全局工具链目录（Android SDK / NDK / p4a 仓库），
+          # 不缓存本地 ./.buildozer（含上次的 dists/build 构建中间产物）。
+          # 此前 restore-keys 会命中旧版本 key，恢复出 requirements 变化前的
+          # stale dist，p4a 复用旧 dist 状态是构建失败的高危来源。
           path: |
-            ~/.buildozer
-            ./.buildozer
-          key: buildozer-android-v3-1-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+            ~/.buildozer/android/platform/android-sdk
+            ~/.buildozer/android/platform/android-ndk
+            ~/.buildozer/android/platform/python-for-android
+          key: buildozer-global-sdk-v1-${{ runner.os }}
           restore-keys: |
-            buildozer-android-v3-1-${{ runner.os }}-
+            buildozer-global-sdk-v1-${{ runner.os }}-
 
       - name: Build APK with Buildozer
         run: |
           export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
           export ANDROID_NDK_HOME="$HOME/.buildozer/android/platform/android-ndk"
           export BUILDOZER_WARN_ON_ROOT=0
+          # 【V3.1.1 修复】彻底清理本地构建目录，杜绝任何 stale dist/build 复用
+          rm -rf .buildozer/android/platform/python-for-android/build* || true
+          rm -rf .buildozer/android/platform/python-for-android/dists || true
           
           echo "=== Buildozer Spec ==="
           cat buildozer.spec
@@ -92,8 +100,10 @@ jobs:
           
           if [ $BUILD_EXIT -ne 0 ]; then
             echo "=== Build FAILED ==="
-            echo "Last 200 lines of build log:"
-            tail -200 build_log.txt
+            echo "--- Error summary (grep) ---"
+            grep -inE "error|fail|exception|traceback|does not exist|not found" build_log.txt | tail -40 || true
+            echo "--- Last 250 lines of build log ---"
+            tail -250 build_log.txt
             exit 1
           fi
           
@@ -110,14 +120,14 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-Android-APK-v3.1
+          name: GiftBookkeeping-Android-APK-v3.1.1
           path: bin/*.apk
           if-no-files-found: error
 
       - name: Upload AAB Artifact (if available)
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-Android-AAB-v3.1
+          name: GiftBookkeeping-Android-AAB-v3.1.1
           path: bin/*.aab
           if-no-files-found: warn
         continue-on-error: true
@@ -126,20 +136,29 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-v3.1
-          path: build_log.txt
+          name: build-log-v3.1.1
+          path: |
+            build_log.txt
+            build_aab_log.txt
+          if-no-files-found: ignore
         continue-on-error: true
 
       - name: Create or Update GitHub Release
         if: github.ref_type == 'tag' || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name == 'main' && 'v3.1-latest' || github.ref_name }}
-          name: "礼金记账簿 v3.1 ${{ github.ref_name == 'main' && '(Latest)' || github.ref_name }}"
+          tag_name: ${{ github.ref_name == 'main' && 'v3.1.1-latest' || github.ref_name }}
+          name: "礼金记账簿 v3.1.1 ${{ github.ref_name == 'main' && '(Latest)' || github.ref_name }}"
           body: |
-            ### 📱 礼金记账簿 Android 客户端 v3.1
+            ### 📱 礼金记账簿 Android 客户端 v3.1.1
             
             本版本由 GitHub Actions 自动化编译打包生成。
+            
+            **v3.1.1 更新内容（AI 图片识别修复 + 构建修复）：**
+            - 修复自定义 AI 网关（NewApi/OneAPI）模型名被擅自替换导致「所有 AI 配置均无法识别图片」的误报，改为用户原始模型名优先直连 + 常见 vision 模型兑底
+            - 全部失败时透出真实错误信息（含配置名/模型名/错误详情），便于定位网关问题
+            - 修复 WEBP 图片 MIME 嗅探失效、OCR 识别结果空字段显示为 "None" 字符串的问题
+            - 移除 greenlet 依赖、收窄 CI 缓存，修复版本构建失败问题
             
             **v3.1 更新内容（修复安装后页面空白）：**
             - 修复 V3.0 因无效 python_depends 配置导致 Flask 扩展库未打包进 APK 的致命问题
@@ -159,7 +178,7 @@ jobs:
 
   # ==================== iOS IPA 构建 ====================
   build-ios:
-    name: Build iOS IPA (v3.1)
+    name: Build iOS IPA (v3.1.1)
     runs-on: macos-14
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     steps:
@@ -229,7 +248,7 @@ jobs:
               <key>CFBundleDisplayName</key><string>礼金记账簿</string>
               <key>CFBundleIdentifier</key><string>org.giftbookkeeping.app</string>
               <key>CFBundleVersion</key><string>1</string>
-              <key>CFBundleShortVersionString</key><string>3.1.0</string>
+              <key>CFBundleShortVersionString</key><string>3.1.1</string>
               <key>CFBundlePackageType</key><string>APPL</string>
               <key>CFBundleExecutable</key><string>GiftBookkeeping</string>
               <key>LSRequiresIPhoneOS</key><true/>
@@ -290,19 +309,19 @@ jobs:
             cp ../app.py ../models.py ../routes_ext.py ../routes_ai.py ../ai_service.py ../pdf_generator.py ../gift_utils.py ../webhook_utils.py ../webdav_utils.py ../web_search.py ../_daemon_lock.py "$APP_PATH/"
             mkdir -p Payload
             cp -r "$APP_PATH" Payload/
-            zip -r GiftBookkeeping-v3.1-unsigned.ipa Payload/
-            echo "IPA created: $(ls -la GiftBookkeeping-v3.1-unsigned.ipa)"
+            zip -r GiftBookkeeping-v3.1.1-unsigned.ipa Payload/
+            echo "IPA created: $(ls -la GiftBookkeeping-v3.1.1-unsigned.ipa)"
           else
             echo "Build output not found, creating placeholder IPA"
             mkdir -p Payload/GiftBookkeeping.app
-            echo "v3.1 placeholder" > Payload/GiftBookkeeping.app/placeholder.txt
-            zip -r GiftBookkeeping-v3.1-unsigned.ipa Payload/
+            echo "v3.1.1 placeholder" > Payload/GiftBookkeeping.app/placeholder.txt
+            zip -r GiftBookkeeping-v3.1.1-unsigned.ipa Payload/
           fi
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-iOS-IPA-v3.1-Unsigned
+          name: GiftBookkeeping-iOS-IPA-v3.1.1-Unsigned
           path: ios_project/*.ipa
           if-no-files-found: warn
         continue-on-error: true
@@ -312,9 +331,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "礼金记账簿 v3.1 ${{ github.ref_name }}"
+          name: "礼金记账簿 v3.1.1 ${{ github.ref_name }}"
           body: |
-            ### 📱 礼金记账簿 iOS 客户端 v3.1（未签名）
+            ### 📱 礼金记账簿 iOS 客户端 v3.1.1（未签名）
             
             本 IPA 为未签名构建产物，需开发者自行签名后安装。
           files: ios_project/*.ipa

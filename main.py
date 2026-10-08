@@ -169,7 +169,7 @@ white-space:pre-wrap;word-break:break-all;max-height:52vh;overflow:auto;line-hei
   <h2>启动失败</h2>
   <p>本地服务初始化遇到异常，详细信息如下（请截图反馈给开发者）：</p>
   <pre>__ERROR_DETAIL__</pre>
-  <div class="tag">版本：礼金记账簿 v3.1.0 Android<br>可尝试：完全退出应用后重新打开</div>
+  <div class="tag">版本：礼金记账簿 v3.1.1 Android<br>可尝试：完全退出应用后重新打开</div>
 </div>
 </body>
 </html>"""
@@ -376,7 +376,7 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
                         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW)
                         settings.setCacheMode(WebSettings.LOAD_DEFAULT)
                         try:
-                            settings.setUserAgentString("Mozilla/5.0 (Linux; Android) GiftBookkeeping/3.1")
+                            settings.setUserAgentString("Mozilla/5.0 (Linux; Android) GiftBookkeeping/3.1.1")
                         except Exception:
                             pass
 

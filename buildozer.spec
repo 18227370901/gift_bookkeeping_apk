@@ -25,16 +25,21 @@ source.exclude_dirs = tests, bin, .gradle, .buildozer, .git, .github, __pycache_
 source.exclude_exts = spec, pyc, pyd, pyo, db, bak, log, png_bak
 
 # (str) Application versioning
-version = 3.1.0
+# 【V3.1.1 版本区分】与 v3.1.0 安装包区分：AI OCR 直连修复 + greenlet 移除 + CI 缓存收窄
+version = 3.1.1
 
 # (list) Application requirements
 # 【V3.1 关键修复】此前版本误将纯 Python 包写在无效的 python_depends 键中，
 # 该键被 buildozer 静默忽略，导致 flask_sqlalchemy/flask_wtf/flask_login 等
 # 根本没有打进 APK，import 即报 ModuleNotFoundError，Flask 起不来，页面空白。
 # 正确方式：p4a 对 requirements 中【有 recipe 的包】用 recipe 交叉编译，
-# 对【无 recipe 的纯 Python 包】自动 pip 安装进 APK，因此全部写在 requirements 即可。
+# 对【无 recipe 的纯 Python 包】自动转入 pip 安装（graph.py 分离 +
+# run_pymodules_install --only-binary 全 wheel 安装），因此全部写在 requirements 即可。
+# 【V3.1.1 注意】greenlet 已移除：它是唯一新增的需 C 交叉编译的 recipe
+#（V3.0 成功构建集不含它），且 SQLAlchemy 同步模式（Flask 侧）不依赖
+# greenlet——缺失时 SQLAlchemy 自动使用纯 Python 回退，零功能损失。
 # 注意：cryptography 需要 Rust 工具链，仍不打包（代码内 try/except 延迟导入自动降级）。
-requirements = python3,hostpython3,openssl,sqlite3,pyjnius,kivy,flask,sqlalchemy,markupsafe,greenlet,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,requests,itsdangerous,click,blinker,jinja2,wtforms
+requirements = python3,hostpython3,openssl,sqlite3,pyjnius,kivy,flask,sqlalchemy,markupsafe,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,requests,itsdangerous,click,blinker,jinja2,wtforms
 
 # (str) Supported orientation
 orientation = portrait

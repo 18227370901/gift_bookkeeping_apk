@@ -13,6 +13,8 @@ AIGC:
 
 本项目是将【礼金记账簿】(Gift Bookkeeping App) 完整移植为 Android/iOS 手机端原生可安装运行的应用。通过**本地嵌入式 Flask 服务 + 原生 WebView 容器**技术，用户可以在手机上脱机离线使用完整的礼金记账、亲友管理、统计分析、AI 助手、导入导出等所有功能。
 
+> **V3.1.1 更新**：修复自定义 AI 网关（NewApi/OneAPI）模型名被擅自替换导致「所有 AI 配置均无法识别图片」的误报，改为原始模型名优先直连 + 常见 vision 模型兑底 + 真实错误透出；修复 WEBP 图片 MIME 嗅探与 OCR 空字段显示 "None" 的问题；移除 greenlet 并收窄 CI 缓存，修复 V3.1 构建失败。
+>
 > **V3.1 更新**：根治 APK 安装后页面空白问题——修复 buildozer.spec 无效 `python_depends` 键（导致 Flask 扩展库未进包）、新增 WebView 内嵌启动诊断页（就绪自动跳转/失败展示报错）、注入 `usesCleartextTraffic` 保障本地 HTTP 可达。全量同步源项目最新功能（181条路由）。
 
 ---
@@ -86,7 +88,7 @@ gift_bookkeeping_apk/
 ├── web_search.py                    # AI 联网搜索
 ├── _daemon_lock.py                  # 守护线程单实例锁
 ├── main.py                          # 移动端启动入口（Flask + WebView）
-├── buildozer.spec                   # Buildozer 打包配置 (v3.0.0)
+├── buildozer.spec                   # Buildozer 打包配置 (v3.1.1)
 ├── requirements.txt                 # Python 依赖清单
 └── README.md
 ```
@@ -98,17 +100,17 @@ gift_bookkeeping_apk/
 ### 方式一：GitHub Releases 下载
 
 1. 访问本仓库的 **[Releases 页面](../../releases)**
-2. 下载 **v3.1** 版本中的：
-   - `GiftBookkeeping-Android-APK-v3.1/*.apk` → Android 安装包
-   - `GiftBookkeeping-iOS-IPA-v3.1-Unsigned/*.ipa` → iOS 未签名包
+2. 下载 **v3.1.1** 版本中的：
+   - `GiftBookkeeping-Android-APK-v3.1.1/*.apk` → Android 安装包
+   - `GiftBookkeeping-iOS-IPA-v3.1.1-Unsigned/*.ipa` → iOS 未签名包
 
 ### 方式二：GitHub Actions 构建产物下载
 
 1. 访问仓库的 **Actions** 标签页
 2. 点击最新的运行记录
 3. 在 **Artifacts** 中下载：
-   - `GiftBookkeeping-Android-APK-v3.1` → Android APK
-   - `GiftBookkeeping-iOS-IPA-v3.1-Unsigned` → iOS IPA
+   - `GiftBookkeeping-Android-APK-v3.1.1` → Android APK
+   - `GiftBookkeeping-iOS-IPA-v3.1.1-Unsigned` → iOS IPA
 
 ### 方式三：本地构建
 
@@ -165,8 +167,19 @@ python main.py
 
 | Job | Runner | 产物 | Artifact名称 |
 |:---|:---|:---|:---|
-| `build-android` | ubuntu-22.04 | `bin/*.apk` | GiftBookkeeping-Android-APK-v3.1 |
-| `build-ios` | macos-14 | `*.ipa`（未签名） | GiftBookkeeping-iOS-IPA-v3.1-Unsigned |
+| `build-android` | ubuntu-22.04 | `bin/*.apk` | GiftBookkeeping-Android-APK-v3.1.1 |
+| `build-android` | ubuntu-22.04 | `bin/*.aab` | GiftBookkeeping-Android-AAB-v3.1.1 |
+| `build-ios` | macos-14 | `*.ipa`（未签名） | GiftBookkeeping-iOS-IPA-v3.1.1-Unsigned |
+
+### V3.1.1 AI 图片识别修复 + 构建失败修复
+
+| 问题 | 修复 |
+|:---|:---|
+| 旧逻辑按模型名关键词白名单判断图片能力，自定义网关模型被硬改为 `gpt-4o-mini` 导致必败，提示「所有 AI 配置均无法识别图片」误导用户 | 用户原始模型名优先直连，失败后才依次兑底 `gpt-4o-mini`/`gpt-4o`/`gemini-2.0-flash`，能力由服务端判定 |
+| 全部失败时只有笼统提示，无法定位网关问题 | 透出最后 3 条真实错误（含配置名/模型名/错误详情），非 JSON 响应返回 422 明确提示 |
+| WEBP 魔数嗅探切片截断（解码头仅 8 字节，`[8:12]` 恒为空） | 扩展解码头至 18 字节，PNG/JPEG/WEBP/BMP/TIFF 全部嗅探正确 |
+| OCR 识别结果空字段的 `str(None)` 显示为 "None" 字符串 | `r.get(x) or 默认值` 清洗（event_reason→其它、notes→空串） |
+| V3.1 构建失败（run 37746146665：greenlet 新增 C 交叉编译 recipe + 缓存恢复 stale dist） | 移除 greenlet（SQLAlchemy 同步模式自动纯 Python 回退）；CI 缓存仅保留全局工具链三目录；构建前清理 dists/build |
 
 ### V3.1 空白页面真实根因修复
 
