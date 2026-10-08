@@ -1,0 +1,862 @@
+{% extends "base.html" %}
+
+{% block title %}亲友纪念日备忘与提醒 - 人情礼金记账系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 flex-wrap gap-2">
+                <h5 class="mb-0 text-primary">
+                    <i class="fa-solid fa-bell me-2"></i>亲友重要纪念日备忘与提醒
+                </h5>
+                <div class="d-flex gap-2">
+                    {# V10.4: 级别1可正常操作纪念日，移除 == 1 限制 #}
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="openAllUpcomingPushModal()" id="pushBtn">
+                        <i class="fa-solid fa-paper-plane me-1"></i>立即推送 Webhook 提醒
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addReminderModal">
+                        <i class="fa-solid fa-plus-circle me-1"></i>添加纪念日
+                    </button>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa-solid fa-arrow-left me-1"></i>返回账本
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- 近期临近提醒 Banner -->
+                {% set upcoming_count = reminders_data | selectattr('is_upcoming') | list | length %}
+                {% if upcoming_count > 0 %}
+                <div class="alert alert-warning border-warning d-flex align-items-center mb-4">
+                    <i class="fa-solid fa-triangle-exclamation text-warning me-3 fa-lg"></i>
+                    <div>
+                        <strong>近期临近纪念日提醒：</strong>
+                        未来 7 天内有 <strong>{{ upcoming_count }}</strong> 位亲友的纪念日即将到来，请提前准备礼金或祝福！
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- 查询搜索栏与批量删除工具条 -->
+                <div class="card border-0 shadow-sm mb-4 bg-light">
+                    <div class="card-body p-3">
+                        <form method="GET" action="{{ url_for('reminders_view') }}" class="row g-2 align-items-center">
+                            <div class="col-md-6">
+                                <div class="input-group shadow-sm border rounded-3 overflow-hidden bg-white">
+                                    <span class="input-group-text bg-white text-muted border-0 pe-2"><i class="fa-solid fa-magnifying-glass text-primary"></i></span>
+                                    <input type="text" name="search" class="form-control border-0 ps-1 py-2 shadow-none" placeholder="搜索亲友姓名、关系、事由或备注..." value="{{ search }}" aria-label="搜索">
+                                    {% if search %}
+                                    <a href="{{ url_for('reminders_view') }}" class="btn btn-light border-0 d-flex align-items-center text-secondary px-3" title="清空搜索">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </a>
+                                    {% endif %}
+                                    <button type="submit" class="btn btn-primary px-3 border-0">
+                                        <i class="fa-solid fa-magnifying-glass me-1"></i> 查询
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6 text-md-end d-flex justify-content-md-end gap-2 flex-wrap">
+                                {# V10.4: 级别1可推送提醒 #}
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="batchPushRemindersBtn" onclick="openBatchPushModal()">
+                                    <i class="fa-solid fa-paper-plane me-1"></i>批量推送选中提醒
+                                </button>
+                                {% if current_user.get_menu_perm('reminders') not in (2,) %}
+                                <button type="button" class="btn btn-outline-danger btn-sm" id="batchDeleteRemindersBtn" onclick="submitBatchDeleteReminders()">
+                                    <i class="fa-solid fa-trash me-1"></i>批量删除选中项
+                                </button>
+                                {% endif %}
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <form id="batchDeleteRemindersForm" action="{{ url_for('reminders_batch_delete') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3" style="width: 40px;">
+                                        <input class="form-check-input" type="checkbox" id="selectAllReminders" title="全选" style="cursor: pointer;">
+                                    </th>
+                                    <th>#</th>
+                                    <th>亲友姓名</th>
+                                    <th>关系标签</th>
+                                    <th>类型</th>
+                                    <th>目标日期</th>
+                                    <th>下次公历日期</th>
+                                    <th>倒计时</th>
+                                    <th>提前提醒</th>
+                                    <th>联系电话</th>
+                                    <th>备注说明</th>
+                                    <th class="text-end pe-3">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if reminders_data %}
+                                    {% for item in reminders_data %}
+                                    {% set r = item.reminder %}
+                                    <tr class="{% if item.is_upcoming %}table-warning-subtle{% endif %}">
+                                        <td class="ps-3">
+                                            <input class="form-check-input reminder-checkbox" type="checkbox" name="reminder_ids" value="{{ r.id }}">
+                                        </td>
+                                        <td class="text-muted">{{ loop.index }}</td>
+                                        <td class="fw-bold">{{ r.name }}</td>
+                                        <td><span class="badge bg-light border text-dark">{{ r.relation or '亲友' }}</span></td>
+                                        <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ r.anniversary_type }}</span></td>
+                                        <td class="text-secondary small">{{ r.target_date }}</td>
+                                        <td class="fw-bold text-dark">{{ item.next_date.strftime('%Y-%m-%d') }}</td>
+                                        <td>
+                                            {% if item.days_left == 0 %}
+                                                <span class="badge bg-danger animate-pulse">🎉 就是今天！</span>
+                                            {% elif item.is_upcoming %}
+                                                <span class="badge bg-warning text-dark">还剩 {{ item.days_left }} 天</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-secondary border">还有 {{ item.days_left }} 天</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">提前 {{ r.advance_days }} 天</span></td>
+                                        <td>{{ r.phone or '-' }}</td>
+                                        <td class="small text-muted text-truncate" style="max-width: 150px;" title="{{ r.notes }}">{{ r.notes or '-' }}</td>
+                                        <td class="text-end pe-3">
+                                            <div class="btn-group btn-group-sm">
+                                                {# V10.4: 级别1可操作纪念日 #}
+                                                <button type="button" class="btn btn-outline-primary btn-push-single"
+                                                        data-id="{{ r.id }}"
+                                                        data-name="{{ r.name }}"
+                                                        data-relation="{{ r.relation or '' }}"
+                                                        data-type="{{ r.anniversary_type }}"
+                                                        data-target="{{ r.target_date }}"
+                                                        data-days="{{ item.days_left }}"
+                                                        data-next="{{ item.next_date.strftime('%m-%d') }}"
+                                                        data-notes="{{ r.notes or '' }}"
+                                                        data-phone="{{ r.phone or '' }}"
+                                                        data-advance="{{ r.advance_days or 3 }}"
+                                                        onclick="openSinglePushModal(this)"
+                                                        title="发起推送提醒">
+                                                    <i class="fa-solid fa-paper-plane"></i>
+                                                </button>
+                                                {% if can_user_edit_reminder(current_user, r) %}
+                                                <button type="button" class="btn btn-outline-secondary btn-edit-reminder"
+                                                        data-id="{{ r.id }}"
+                                                        data-name="{{ r.name }}"
+                                                        data-relation="{{ r.relation or '' }}"
+                                                        data-type="{{ r.anniversary_type }}"
+                                                        data-target-date="{{ r.target_date }}"
+                                                        data-advance="{{ r.advance_days }}"
+                                                        data-phone="{{ r.phone or '' }}"
+                                                        data-notes="{{ r.notes or '' }}"
+                                                        title="编辑纪念日">
+                                                    <i class="fa-solid fa-pen-to-square"></i>
+                                                </button>
+                                                {% endif %}
+                                                {% if can_user_delete_reminder(current_user, r) %}
+                                                <button type="button" class="btn btn-outline-danger" title="移入回收站"
+                                                    onclick="deleteReminder({{ r.id }}, '{{ r.name }}');">
+                                                    <i class="fa-solid fa-trash"></i>
+                                                </button>
+                                                {% endif %}
+                                                {% if not can_user_edit_reminder(current_user, r) and not can_user_delete_reminder(current_user, r) %}
+                                                <span class="badge bg-secondary text-white small">只读</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="12" class="text-center py-4 text-muted">暂无纪念日备忘，点击右上角【添加纪念日】添加吧！</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加纪念日 Modal -->
+<div class="modal fade" id="addReminderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-plus-circle me-2"></i>添加亲友重要纪念日</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('reminders_view') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">亲友姓名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="name" placeholder="请输入亲友姓名" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">亲友关系</label>
+                            <input type="text" class="form-control" name="relation" placeholder="如：堂哥、同事、发小">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">纪念日类型 <span class="text-danger">*</span></label>
+                            <select class="form-select" name="anniversary_type" required>
+                                <option value="生日">生日</option>
+                                <option value="结婚纪念日">结婚纪念日</option>
+                                <option value="长辈大寿">长辈大寿</option>
+                                <option value="宝宝百日/周岁">宝宝百日/周岁</option>
+                                <option value="乔迁纪念日">乔迁纪念日</option>
+                                <option value="祭祀/忌日">祭祀/忌日</option>
+                                <option value="其它">其它</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold">目标日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="target_date" required>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">提前提醒天数</label>
+                            <select class="form-select" name="advance_days">
+                                <option value="1">当天与提前 1 天</option>
+                                <option value="3" selected>提前 3 天</option>
+                                <option value="7">提前 7 天 (1周)</option>
+                                <option value="15">提前 15 天 (半月)</option>
+                                <option value="30">提前 30 天 (1个月)</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">联系电话</label>
+                            <input type="text" class="form-control" name="phone" placeholder="选填，手机号">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">备注备忘说明</label>
+                        <textarea class="form-control" name="notes" rows="2" placeholder="选填，如：准备礼金或礼物、订花等"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold">确认添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑纪念日 Modal -->
+<div class="modal fade" id="editReminderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title"><i class="fa-solid fa-pen-to-square me-2"></i>编辑纪念日提醒</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editReminderForm" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">亲友姓名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="edit_name" name="name" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">亲友关系</label>
+                            <input type="text" class="form-control" id="edit_relation" name="relation">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">纪念日类型 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="edit_anniversary_type" name="anniversary_type" required>
+                                <option value="生日">生日</option>
+                                <option value="结婚纪念日">结婚纪念日</option>
+                                <option value="长辈大寿">长辈大寿</option>
+                                <option value="宝宝百日/周岁">宝宝百日/周岁</option>
+                                <option value="乔迁纪念日">乔迁纪念日</option>
+                                <option value="祭祀/忌日">祭祀/忌日</option>
+                                <option value="其它">其它</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold">目标日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="edit_target_date" name="target_date" required>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">提前提醒天数</label>
+                            <select class="form-select" id="edit_advance_days" name="advance_days">
+                                <option value="1">当天与提前 1 天</option>
+                                <option value="3">提前 3 天</option>
+                                <option value="7">提前 7 天 (1周)</option>
+                                <option value="15">提前 15 天 (半月)</option>
+                                <option value="30">提前 30 天 (1个月)</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">联系电话</label>
+                            <input type="text" class="form-control" id="edit_phone" name="phone">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">备注备忘说明</label>
+                        <textarea class="form-control" id="edit_notes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold">保存修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pushSettingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow rounded-4">
+            <div class="modal-header bg-primary text-white rounded-top-4 py-3">
+                <h5 class="modal-title fw-bold">
+                    <i class="fa-solid fa-paper-plane me-2"></i>发起纪念日推送提醒
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- 待推送目标清单 -->
+                <div class="mb-3 p-3 bg-light rounded-3 border">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-dark small"><i class="fa-solid fa-list-check text-primary me-1"></i>待推送的纪念日记录 (<span id="modalTargetCount" class="text-primary fw-bold">0</span> 条)：</span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle small">已启用权限分控校验</span>
+                    </div>
+                    <div id="modalTargetBadges" class="d-flex flex-wrap gap-2 pt-1" style="max-height: 120px; overflow-y: auto;">
+                    </div>
+                </div>
+
+                <!-- 通知通道选择 (多通道按需指定) -->
+                <div class="mb-3 p-3 bg-light rounded-3 border">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label fw-bold small text-dark mb-0">
+                            <i class="fa-solid fa-tower-broadcast text-primary me-1"></i>指定推送通道：
+                            <span class="badge bg-secondary-subtle text-secondary small fw-normal ms-1">共 {{ available_webhooks|length if available_webhooks else 0 }} 个可用通道</span>
+                        </label>
+                        <div class="small">
+                            <a href="javascript:void(0)" onclick="toggleAllWebhookChannels(true)" class="text-decoration-none me-2">全选</a>
+                            <a href="javascript:void(0)" onclick="toggleAllWebhookChannels(false)" class="text-decoration-none text-secondary">清空</a>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 pt-1" id="webhookChannelsContainer">
+                        {% if available_webhooks %}
+                            {% for wh in available_webhooks %}
+                            <div class="form-check form-check-inline m-0 p-2 bg-white rounded-3 border d-flex align-items-center shadow-xs">
+                                <input class="form-check-input webhook-channel-cb ms-1 me-2" type="checkbox" name="webhook_ids" value="{{ wh.id }}" id="wh_cb_{{ wh.id }}" checked onchange="updatePushPreview()">
+                                <label class="form-check-label small fw-bold text-dark cursor-pointer mb-0 me-2" for="wh_cb_{{ wh.id }}">
+                                    {{ wh.channel_name }}
+                                </label>
+                                {% if wh.connection_type == "long_connection" %}
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.7rem;">长连接</span>
+                                {% else %}
+                                <span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size: 0.7rem;">标准Webhook</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-muted small py-2 px-1">
+                                <i class="fa-solid fa-triangle-exclamation text-warning me-1"></i>系统当前暂无启用的 Webhook 通知通道，请先前往【系统管理 -> Webhook 通知】添加并启用。
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="form-text small text-muted mt-2">
+                        <i class="fa-solid fa-circle-info me-1"></i>已配置多个通知通道时，可勾选指定推送到具体哪一个或哪几个机器人，互不干扰。
+                    </div>
+                </div>
+
+                <!-- 参数设置表单 -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small text-dark"><i class="fa-solid fa-repeat text-secondary me-1"></i>推送提醒次数</label>
+                        <select class="form-select rounded-3 shadow-none" id="modalPushRepeatCount" onchange="updatePushPreview()">
+                            <option value="1" selected>推送 1 次 (单次即时提醒)</option>
+                            <option value="2">推送 2 次 (强化提醒)</option>
+                            <option value="3">推送 3 次 (重点预警提醒)</option>
+                            <option value="5">推送 5 次 (高频催促提醒)</option>
+                        </select>
+                        <div class="form-text small text-muted">支持设置多次提醒，系统将在后台自动按间隔调度</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small text-dark"><i class="fa-solid fa-hourglass-half text-secondary me-1"></i>提醒间隔时长</label>
+                        <select class="form-select rounded-3 shadow-none" id="modalPushIntervalSeconds" onchange="updatePushPreview()">
+                            <option value="0" selected>即时连续推送 (间隔 0 秒)</option>
+                            <option value="5">每隔 5 秒推送一次</option>
+                            <option value="10">每隔 10 秒推送一次</option>
+                            <option value="30">每隔 30 秒推送一次</option>
+                            <option value="60">每隔 1 分钟推送一次</option>
+                            <option value="300">每隔 5 分钟推送一次</option>
+                        </select>
+                        <div class="form-text small text-muted">多次提醒时的排队间隔，避免瞬时并发</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-dark"><i class="fa-solid fa-message text-secondary me-1"></i>特别附言说明 (可选)</label>
+                    <input type="text" class="form-control rounded-3 shadow-none" id="modalPushCustomNote" placeholder="例如：请提前准备随礼礼金或提前致电问候亲友..." oninput="updatePushPreview()">
+                </div>
+
+                <!-- 实时消息预览 -->
+                <div class="card border border-primary-subtle rounded-3 bg-primary-subtle bg-opacity-10 mb-2">
+                    <div class="card-header bg-transparent border-0 py-2 d-flex justify-content-between align-items-center">
+                        <span class="small fw-bold text-primary"><i class="fa-solid fa-pen-to-square me-1"></i>推送消息全量内容预览与自定义编辑</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 small" onclick="resetPushPreview()" title="重置为系统自动生成的预览文案">
+                                <i class="fa-solid fa-rotate-left me-1"></i>重置文案
+                            </button>
+                            <span class="badge bg-light text-secondary border small">全要素展示</span>
+                        </div>
+                    </div>
+                    <div class="card-body pt-1 pb-3">
+                        {% set user_can_edit = True %}
+                        <textarea id="modalPushPreviewBox" class="form-control font-monospace small bg-white" rows="6" 
+                            {% if not user_can_edit %}readonly{% endif %}
+                            placeholder="推送内容预览，支持直接编辑自定义推送内容..."></textarea>
+                        {% if user_can_edit %}
+                        <div class="form-text small text-muted mt-1"><i class="fa-solid fa-pencil text-primary me-1"></i>您有编辑权限，可直接在此文本框中修改或微调推送文案后再点击推送</div>
+                        {% else %}
+                        <div class="form-text small text-muted mt-1"><i class="fa-solid fa-lock text-secondary me-1"></i>当前为只读权限，无法自定义编辑推送内容</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-light py-3">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4 shadow-sm" id="btnConfirmCustomPush" onclick="executeCustomPush()">
+                    <i class="fa-solid fa-paper-plane me-1"></i>确认发起推送
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+
+let currentPushTargets = [];
+let isPreviewCustomEdited = false;
+
+function resetPushPreview() {
+    isPreviewCustomEdited = false;
+    updatePushPreview(true);
+}
+
+function getReminderDisplayName(type, notes) {
+    type = (type || '').trim();
+    notes = (notes || '').trim();
+    if (['其它', '其他', 'other', ''].includes(type)) {
+        return notes || '亲友重要纪念日';
+    }
+    if (notes && notes !== type && !['生日', '结婚纪念日'].includes(notes)) {
+        return `${type} (${notes})`;
+    }
+    return type || '纪念日';
+}
+
+function updatePushPreview(force = false) {
+    const previewBox = document.getElementById('modalPushPreviewBox');
+    if (!previewBox) return;
+    if (isPreviewCustomEdited && !force) return;
+    const noteInput = document.getElementById('modalPushCustomNote');
+    const note = noteInput ? noteInput.value.trim() : '';
+    const repeatCount = parseInt(document.getElementById('modalPushRepeatCount').value || '1', 10);
+    const intervalSec = parseInt(document.getElementById('modalPushIntervalSeconds').value || '0', 10);
+
+    if (!currentPushTargets || currentPushTargets.length === 0) {
+        previewBox.value = '暂无选中的纪念日记录';
+        return;
+    }
+
+    const count = currentPushTargets.length;
+    let lines = [`【亲友重要纪念日提醒】 近期有 ${count} 位亲友重要纪念日临近`];
+    if (repeatCount > 1) {
+        lines.push(`[计划累计提醒 ${repeatCount} 次，间隔 ${intervalSec} 秒]`);
+    }
+    const checkedWhs = Array.from(document.querySelectorAll('.webhook-channel-cb:checked')).map(cb => {
+        const lbl = cb.closest('div').querySelector('label');
+        return lbl ? lbl.innerText.trim() : `通道#${cb.value}`;
+    });
+    if (checkedWhs.length > 0) {
+        lines.push(`推送通道：${checkedWhs.join('、')}`);
+    } else {
+        lines.push(`推送通道：⚠️ 未勾选任何通道`);
+    }
+    const now = new Date();
+    const timeStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+    lines.push(`时间：${timeStr}`);
+    lines.push(`详情：`);
+
+    currentPushTargets.forEach(item => {
+        const evName = getReminderDisplayName(item.type, item.notes);
+        const relStr = item.relation ? `(${item.relation})` : '';
+        const dStr = (parseInt(item.days, 10) === 0) ? `今天(${item.next})！` : `还有 ${item.days} 天(${item.next})`;
+        let extraParts = [];
+        if (item.target) extraParts.push(`目标日期: ${item.target}`);
+        extraParts.push(`预警: 提前${item.advance || 3}天`);
+        if (item.notes) extraParts.push(`备忘: ${item.notes}`);
+        if (item.phone) extraParts.push(`电话: ${item.phone}`);
+        lines.push(`• ${item.name}${relStr} 的【${evName}】${dStr} | ` + extraParts.join(' | '));
+    });
+
+    if (note) {
+        lines.push(`\n💡 特别附言：${note}`);
+    }
+
+    previewBox.value = lines.join('\n');
+}
+
+function renderModalBadges() {
+    const box = document.getElementById('modalTargetBadges');
+    const countEl = document.getElementById('modalTargetCount');
+    if (!box || !countEl) return;
+    box.innerHTML = '';
+    countEl.innerText = currentPushTargets.length;
+
+    currentPushTargets.forEach(item => {
+        const evName = getReminderDisplayName(item.type, item.notes);
+        const relStr = item.relation ? `(${item.relation})` : '';
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-white text-dark border p-2 shadow-sm rounded-3';
+        badge.innerHTML = `<i class="fa-solid fa-bell text-warning me-1"></i><strong>${item.name}</strong>${relStr} · 【${evName}】 <span class="text-danger fw-bold ms-1">${item.days == 0 ? '今天' : item.days + '天后'}</span>`;
+        box.appendChild(badge);
+    });
+    updatePushPreview();
+}
+
+function openSinglePushModal(btn) {
+    isPreviewCustomEdited = false;
+    const data = btn.dataset;
+    currentPushTargets = [{
+        id: parseInt(data.id, 10),
+        name: data.name,
+        relation: data.relation,
+        type: data.type,
+        target: data.target,
+        days: data.days,
+        next: data.next,
+        notes: data.notes,
+        phone: data.phone,
+        advance: data.advance || 3
+    }];
+    renderModalBadges();
+    const modalEl = document.getElementById('pushSettingsModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
+function openBatchPushModal() {
+    isPreviewCustomEdited = false;
+    const checkedBoxes = document.querySelectorAll('.reminder-checkbox:checked');
+    if (!checkedBoxes || checkedBoxes.length === 0) {
+        alert('请先在列表中勾选需要批量推送的亲友纪念日记录！');
+        return;
+    }
+    currentPushTargets = [];
+    checkedBoxes.forEach(cb => {
+        const row = cb.closest('tr');
+        if (!row) return;
+        const singleBtn = row.querySelector('.btn-push-single');
+        if (singleBtn) {
+            const data = singleBtn.dataset;
+            currentPushTargets.push({
+                id: parseInt(data.id, 10),
+                name: data.name,
+                relation: data.relation,
+                type: data.type,
+                target: data.target,
+                days: data.days,
+                next: data.next,
+                notes: data.notes,
+                phone: data.phone,
+                advance: data.advance || 3
+            });
+        }
+    });
+
+    if (currentPushTargets.length === 0) {
+        alert('未获取到有效的纪念日记录，请刷新页面重试！');
+        return;
+    }
+
+    renderModalBadges();
+    const modalEl = document.getElementById('pushSettingsModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
+function openAllUpcomingPushModal() {
+    isPreviewCustomEdited = false;
+    currentPushTargets = [];
+    document.querySelectorAll('.btn-push-single').forEach(singleBtn => {
+        const data = singleBtn.dataset;
+        currentPushTargets.push({
+            id: parseInt(data.id, 10),
+            name: data.name,
+            relation: data.relation,
+            type: data.type,
+            target: data.target,
+            days: data.days,
+            next: data.next,
+            notes: data.notes,
+            phone: data.phone,
+            advance: data.advance || 3
+        });
+    });
+
+    if (currentPushTargets.length === 0) {
+        alert('当前暂无可推送的亲友纪念日记录，请先添加纪念日！');
+        return;
+    }
+
+    renderModalBadges();
+    const modalEl = document.getElementById('pushSettingsModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
+function executeCustomPush() {
+    if (!currentPushTargets || currentPushTargets.length === 0) {
+        alert('待推送目标列表为空！');
+        return;
+    }
+
+    const btn = document.getElementById('btnConfirmCustomPush');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在触发推送...';
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+    const checkedWhs = Array.from(document.querySelectorAll('.webhook-channel-cb:checked'));
+    if (checkedWhs.length === 0) {
+        alert('请至少勾选一个用于发送通知的 Webhook 机器人通道！');
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+        return;
+    }
+    const webhook_ids = checkedWhs.map(cb => parseInt(cb.value, 10));
+    const reminder_ids = currentPushTargets.map(t => t.id);
+    const repeat_count = parseInt(document.getElementById('modalPushRepeatCount').value || '1', 10);
+    const interval_seconds = parseInt(document.getElementById('modalPushIntervalSeconds').value || '0', 10);
+    const custom_note = document.getElementById('modalPushCustomNote').value.trim();
+    const previewBox = document.getElementById('modalPushPreviewBox');
+    const custom_content = previewBox ? previewBox.value.trim() : '';
+
+    fetch('/api/reminders/custom_push', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            reminder_ids: reminder_ids,
+            webhook_ids: webhook_ids,
+            repeat_count: repeat_count,
+            interval_seconds: interval_seconds,
+            custom_note: custom_note,
+            custom_content: custom_content,
+            csrf_token: csrfToken
+        })
+    })
+    .then(r => r.json().then(data => ({ status: r.status, data: data })))
+    .then(({ status, data }) => {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+        if (data.code === 200) {
+            let msg = data.message;
+            if (data.details && data.details.length) {
+                msg += '\n\n' + data.details.join('\n');
+            }
+            alert(msg);
+            const modalEl = document.getElementById('pushSettingsModal');
+            const inst = bootstrap.Modal.getInstance(modalEl);
+            if (inst) inst.hide();
+        } else {
+            alert('推送提示: ' + (data.message || '操作失败'));
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+        alert('请求异常，请检查网络或服务状态：' + err);
+    });
+}
+
+function toggleAllWebhookChannels(status) {
+    document.querySelectorAll('.webhook-channel-cb').forEach(cb => { cb.checked = status; });
+    updatePushPreview();
+}
+
+function updateBatchButtonsState() {
+    const cbs = Array.from(document.querySelectorAll('.reminder-checkbox'));
+    const checked = cbs.filter(cb => cb.checked);
+    const master = document.getElementById('selectAllReminders');
+    if (master) {
+        if (cbs.length > 0 && checked.length === cbs.length) {
+            master.checked = true; master.indeterminate = false;
+        } else if (checked.length > 0) {
+            master.checked = false; master.indeterminate = true;
+        } else {
+            master.checked = false; master.indeterminate = false;
+        }
+    }
+    const pushBtn = document.getElementById('batchPushRemindersBtn');
+    if (pushBtn) { pushBtn.innerHTML = `<i class="fa-solid fa-paper-plane me-1"></i>批量推送选中提醒 (${checked.length})`; }
+    const delBtn = document.getElementById('batchDeleteRemindersBtn');
+    if (delBtn) { delBtn.innerHTML = `<i class="fa-solid fa-trash me-1"></i>批量删除选中项 (${checked.length})`; }
+}
+
+function toggleSelectAllReminders(source) {
+    const master = document.getElementById('selectAllReminders');
+    const isChecked = (source && typeof source.checked === 'boolean') ? source.checked : (master ? master.checked : false);
+    const cbs = document.querySelectorAll('.reminder-checkbox');
+    cbs.forEach(cb => { cb.checked = isChecked; });
+    updateBatchButtonsState();
+}
+
+function submitBatchDeleteReminders() {
+    const checked = document.querySelectorAll('.reminder-checkbox:checked');
+    if (checked.length === 0) {
+        alert('请先勾选需要批量删除的纪念日！');
+        return;
+    }
+    if (confirm(`确定要将选中的 ${checked.length} 条纪念日移入回收站吗？`)) {
+        document.getElementById('batchDeleteRemindersForm').submit();
+    }
+}
+
+// 统一通过事件监听绑定编辑按钮与初始化
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('selectAllReminders');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            toggleSelectAllReminders(this);
+        });
+    }
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.classList.contains('reminder-checkbox')) { updateBatchButtonsState(); }
+    });
+    updateBatchButtonsState();
+
+    document.body.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-edit-reminder');
+        if (btn) {
+            e.preventDefault();
+            const id = btn.getAttribute('data-id');
+            const name = btn.getAttribute('data-name');
+            const relation = btn.getAttribute('data-relation') || '';
+            const type = btn.getAttribute('data-type');
+            const targetDate = btn.getAttribute('data-target-date');
+            const advance = btn.getAttribute('data-advance') || '3';
+            const phone = btn.getAttribute('data-phone') || '';
+            const notes = btn.getAttribute('data-notes') || '';
+
+            const form = document.getElementById('editReminderForm');
+            if (form) form.action = '/reminder/edit/' + id;
+
+            const nameInput = document.getElementById('edit_name');
+            if (nameInput) nameInput.value = name;
+
+            const relInput = document.getElementById('edit_relation');
+            if (relInput) relInput.value = relation;
+
+            const typeSelect = document.getElementById('edit_anniversary_type');
+            if (typeSelect) typeSelect.value = type;
+
+            const dateInput = document.getElementById('edit_target_date');
+            if (dateInput) dateInput.value = targetDate;
+
+            const advSelect = document.getElementById('edit_advance_days');
+            if (advSelect) advSelect.value = advance;
+
+            const phoneInput = document.getElementById('edit_phone');
+            if (phoneInput) phoneInput.value = phone;
+
+            const notesInput = document.getElementById('edit_notes');
+            if (notesInput) notesInput.value = notes;
+
+            const modalEl = document.getElementById('editReminderModal');
+            if (modalEl) {
+                if (window.bootstrap && bootstrap.Modal) {
+                    const inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    inst.show();
+                } else {
+                    modalEl.classList.add('show');
+                    modalEl.style.display = 'block';
+                }
+            }
+        }
+    });
+});
+
+function triggerPushNotification() {
+    const btn = document.getElementById('pushBtn');
+    if (!btn) return;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>正在检查并推送...';
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+
+    fetch('/api/reminders/trigger_push', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ csrf_token: csrfToken })
+    })
+    .then(r => r.json().then(data => ({ status: r.status, data: data })))
+    .then(({ status, data }) => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        if (data.code === 200) {
+            alert(data.message + (data.details && data.details.length ? '\n\n' + data.details.join('\n') : ''));
+        } else {
+            alert('推送提示: ' + (data.message || '操作失败'));
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        alert('请求失败，请检查网络连接与服务状态！');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const pb = document.getElementById('modalPushPreviewBox');
+    if (pb) {
+        pb.addEventListener('input', function() {
+            isPreviewCustomEdited = true;
+        });
+    }
+});
+
+function deleteReminder(reminderId, name) {
+    if (!confirm('确定要将亲友 [' + name + '] 的纪念日移入回收站吗？')) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/reminder/delete/' + reminderId;
+    form.style.display = 'none';
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = '{{ csrf_token }}';
+    form.appendChild(csrfInput);
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{% endblock %}

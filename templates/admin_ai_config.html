@@ -1,0 +1,450 @@
+{% extends 'base.html' %}
+
+{% block title %}AI 助手配置 - 人情记账宝{% endblock %}
+
+{% block extra_css %}
+<style>
+    .config-card {
+        border: 1px solid var(--app-border);
+        border-radius: 10px;
+        margin-bottom: 12px;
+        overflow: hidden;
+    }
+    .config-card-header {
+        background: var(--app-hover-bg);
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--app-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: background-color 0.25s ease;
+    }
+    .config-card-body {
+        padding: 16px;
+    }
+    .config-card.disabled-config {
+        opacity: 0.6;
+    }
+    .test-result {
+        margin-top: 12px;
+        animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .auth-row {
+        padding: 8px 12px;
+        border-radius: 8px;
+        transition: background 0.2s;
+    }
+    .auth-row:hover {
+        background: var(--app-hover-bg);
+    }
+    .auth-row .form-check-input {
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h4 class="mb-0">
+                <i class="fa-solid fa-robot text-primary me-2"></i>AI 助手配置
+            </h4>
+            <small class="text-muted">配置 AI API Key 和模型参数，管理用户 AI 使用授权</small>
+        </div>
+    </div>
+
+    <!-- AI 配置卡片区域 -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span><i class="fa-solid fa-key me-2"></i>AI 配置列表（按优先级排序）</span>
+            <button class="btn btn-sm btn-primary" onclick="addConfig()">
+                <i class="fa-solid fa-plus me-1"></i>添加配置
+            </button>
+        </div>
+        <div class="card-body" id="configList">
+            <div class="text-center text-muted py-4">
+                <i class="fa-solid fa-spinner fa-spin"></i> 加载中...
+            </div>
+        </div>
+        <div class="card-footer">
+            <button class="btn btn-success" onclick="saveConfigs()" id="saveBtn">
+                <i class="fa-solid fa-save me-1"></i>保存配置
+            </button>
+            <span class="text-muted ms-2 small">API Key 使用 AES-256-GCM 加密存储，不会明文落盘</span>
+        </div>
+    </div>
+
+    <!-- 全局配置提示 -->
+    <div class="card shadow-sm mb-3" id="globalConfigCard" style="display: none;">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <i class="fa-solid fa-globe text-info me-2 fa-lg"></i>
+                <div>
+                    <strong>全局环境变量配置</strong>
+                    <small class="text-muted d-block">系统已检测到环境变量中配置了 OPENAI_API_KEY，将作为第3优先级自动兜底</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 授权管理 -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <i class="fa-solid fa-user-shield me-2"></i>AI 使用授权管理
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">勾选用户后，该用户可使用您配置的 AI（共享管理员配置，用户无法查看 Key 明文）</p>
+            <div id="authList">
+                <div class="text-center text-muted py-4">
+                    <i class="fa-solid fa-spinner fa-spin"></i> 加载中...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+let aiConfigs = [];
+let authUsers = [];
+
+async function aiFetch(url, options = {}) {
+    const defaultHeaders = {
+        'X-CSRFToken': CSRF_TOKEN,
+        'X-CSRF-Token': CSRF_TOKEN,
+        'X-Requested-With': 'XMLHttpRequest'
+    };
+    if (options.body && !(options.body instanceof FormData)) {
+        defaultHeaders['Content-Type'] = 'application/json';
+    }
+    const response = await fetch(url, {
+        ...options,
+        headers: { ...defaultHeaders, ...(options.headers || {}) }
+    });
+    const data = await response.json();
+    if (response.status === 401) {
+        alert('登录已过期，请重新登录');
+        window.location.href = '/login';
+        return null;
+    }
+    return data;
+}
+
+// 加载 AI 配置
+async function loadConfig() {
+    const data = await aiFetch('/api/ai/config');
+    if (!data || data.code !== 200) return;
+    
+    aiConfigs = data.data.ai_configs || [];
+    
+    if (data.data.has_global_key) {
+        document.getElementById('globalConfigCard').style.display = '';
+    }
+    
+    renderConfigs();
+}
+
+// 渲染配置列表
+function renderConfigs() {
+    const list = document.getElementById('configList');
+    if (aiConfigs.length === 0) {
+        list.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fa-solid fa-key fa-2x opacity-50 mb-2"></i>
+                <p class="mb-0">暂未配置任何 AI 配置，点击"添加配置"开始</p>
+            </div>
+        `;
+        return;
+    }
+    
+    list.innerHTML = aiConfigs.map((cfg, idx) => `
+        <div class="config-card ${cfg.enabled ? '' : 'disabled-config'}" id="config-${idx}">
+            <div class="config-card-header">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-${cfg.enabled ? 'success' : 'secondary'} me-2">${cfg.enabled ? '启用' : '禁用'}</span>
+                    <strong>${escapeHtml(cfg.name || '配置' + (idx + 1))}</strong>
+                    <small class="text-muted ms-2">优先级 #${idx + 1}</small>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="moveConfig(${idx}, -1)" ${idx === 0 ? 'disabled' : ''}>
+                        <i class="fa-solid fa-arrow-up"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="moveConfig(${idx}, 1)" ${idx === aiConfigs.length - 1 ? 'disabled' : ''}>
+                        <i class="fa-solid fa-arrow-down"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="testConfig(${idx})" id="testBtn-${idx}" title="测试此配置是否可用">
+                        <i class="fa-solid fa-vial me-1"></i>测试
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeConfig(${idx})">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="config-card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small">配置名称</label>
+                        <input type="text" class="form-control form-control-sm" value="${escapeHtml(cfg.name || '')}" 
+                               onchange="updateConfig(${idx}, 'name', this.value)" placeholder="如：我的GPT配置">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">模型名称</label>
+                        <input type="text" class="form-control form-control-sm" value="${escapeHtml(cfg.model || '')}" 
+                               onchange="updateConfig(${idx}, 'model', this.value)" placeholder="如：gpt-4o-mini">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">API Key</label>
+                        <div class="input-group input-group-sm">
+                            <input type="password" class="form-control" id="apiKey-${idx}" 
+                                   value="${escapeHtml(cfg.api_key || '')}" 
+                                   onchange="updateConfig(${idx}, 'api_key', this.value)" placeholder="sk-...">
+                            <button class="btn btn-outline-secondary" type="button" onclick="toggleKeyVisibility(${idx})">
+                                <i class="fa-regular fa-eye" id="keyIcon-${idx}"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Base URL（可选）</label>
+                        <input type="text" class="form-control form-control-sm" value="${escapeHtml(cfg.base_url || '')}" 
+                               onchange="updateConfig(${idx}, 'base_url', this.value)" placeholder="如：https://api.openai.com/v1">
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" ${cfg.enabled ? 'checked' : ''} 
+                                   onchange="updateConfig(${idx}, 'enabled', this.checked)" id="enabled-${idx}">
+                            <label class="form-check-label small" for="enabled-${idx}">启用此配置</label>
+                        </div>
+                    </div>
+                </div>
+                <div id="testResult-${idx}"></div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 添加新配置
+function addConfig() {
+    aiConfigs.push({
+        name: '新配置',
+        api_key: '',
+        base_url: '',
+        model: 'gpt-4o-mini',
+        enabled: true
+    });
+    renderConfigs();
+}
+
+// 移动配置顺序
+function moveConfig(idx, dir) {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= aiConfigs.length) return;
+    [aiConfigs[idx], aiConfigs[newIdx]] = [aiConfigs[newIdx], aiConfigs[idx]];
+    renderConfigs();
+}
+
+// 删除配置
+function removeConfig(idx) {
+    if (!confirm('确定删除此配置？')) return;
+    aiConfigs.splice(idx, 1);
+    renderConfigs();
+}
+
+// 更新配置字段
+function updateConfig(idx, field, value) {
+    if (aiConfigs[idx]) {
+        aiConfigs[idx][field] = value;
+    }
+}
+
+// 切换 API Key 显示/隐藏
+function toggleKeyVisibility(idx) {
+    const input = document.getElementById(`apiKey-${idx}`);
+    const icon = document.getElementById(`keyIcon-${idx}`);
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-regular fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fa-regular fa-eye';
+    }
+}
+
+// 保存配置
+async function saveConfigs() {
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>保存中...';
+    
+    const data = await aiFetch('/api/ai/config', {
+        method: 'POST',
+        body: JSON.stringify({ ai_configs: aiConfigs })
+    });
+    
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="fa-solid fa-save me-1"></i>保存配置';
+    
+    if (data && data.code === 200) {
+        alert('AI 配置保存成功！');
+        aiConfigs = data.data.ai_configs || [];
+        renderConfigs();
+    } else {
+        alert('保存失败：' + (data?.message || '未知错误'));
+    }
+}
+
+// 测试单个 AI 配置是否可用
+async function testConfig(idx) {
+    const cfg = aiConfigs[idx];
+    if (!cfg) return;
+
+    const btn = document.getElementById(`testBtn-${idx}`);
+    const resultDiv = document.getElementById(`testResult-${idx}`);
+    if (!btn || !resultDiv) return;
+
+    // 按钮变为测试中状态
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>测试中...';
+
+    // 先同步当前编辑框中的值到 aiConfigs（确保测试的是最新输入）
+    // 通过 DOM 读取当前输入值
+    const nameInput = document.querySelector(`#config-${idx} input[onchange*="name"]`);
+    const modelInput = document.querySelector(`#config-${idx} input[onchange*="model"]`);
+    const keyInput = document.getElementById(`apiKey-${idx}`);
+    const urlInput = document.querySelector(`#config-${idx} input[onchange*="base_url"]`);
+    if (nameInput) cfg.name = nameInput.value;
+    if (modelInput) cfg.model = modelInput.value;
+    if (keyInput) cfg.api_key = keyInput.value;
+    if (urlInput) cfg.base_url = urlInput.value;
+
+    if (!cfg.api_key) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-warning py-2 mb-0 mt-2 test-result">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i>API Key 为空，请先填写后再测试
+            </div>
+        `;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-vial me-1"></i>测试';
+        return;
+    }
+
+    try {
+        const data = await aiFetch('/api/ai/config/test', {
+            method: 'POST',
+            body: JSON.stringify({
+                api_key: cfg.api_key,
+                base_url: cfg.base_url || '',
+                model: cfg.model || ''
+            })
+        });
+
+        if (data && data.code === 200 && data.data) {
+            const result = data.data;
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success py-2 mb-0 test-result d-flex align-items-start justify-content-between">
+                        <div>
+                            <i class="fa-solid fa-circle-check me-1"></i><strong>配置可用</strong>
+                            <span class="text-muted ms-2">延迟: ${result.latency_ms}ms</span>
+                            ${result.detail ? `<div class="small mt-1">${escapeHtml(result.detail)}</div>` : ''}
+                        </div>
+                        <button type="button" class="btn-close btn-sm ms-2" onclick="this.parentElement.parentElement.remove();"></button>
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger py-2 mb-0 test-result d-flex align-items-start justify-content-between">
+                        <div>
+                            <i class="fa-solid fa-circle-xmark me-1"></i><strong>配置不可用</strong>
+                            <span class="text-danger ms-2">${escapeHtml(result.message)}</span>
+                            ${result.latency_ms ? `<span class="text-muted ms-2">(${result.latency_ms}ms)</span>` : ''}
+                            ${result.detail ? `<div class="small text-muted mt-1">${escapeHtml(result.detail)}</div>` : ''}
+                        </div>
+                        <button type="button" class="btn-close btn-sm ms-2" onclick="this.parentElement.parentElement.remove();"></button>
+                    </div>
+                `;
+            }
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger py-2 mb-0 test-result">
+                    <i class="fa-solid fa-circle-xmark me-1"></i>测试请求失败: ${escapeHtml(data?.message || '未知错误')}
+                </div>
+            `;
+        }
+    } catch (err) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger py-2 mb-0 test-result">
+                <i class="fa-solid fa-circle-xmark me-1"></i>测试请求异常: ${escapeHtml(String(err))}
+            </div>
+        `;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-vial me-1"></i>测试';
+}
+
+// 加载授权用户列表
+async function loadAuthList() {
+    const data = await aiFetch('/api/ai/auth-list');
+    if (!data || data.code !== 200) return;
+    
+    authUsers = data.data || [];
+    const list = document.getElementById('authList');
+    
+    if (authUsers.length === 0) {
+        list.innerHTML = '<div class="text-center text-muted py-4"><i class="fa-solid fa-users-slash fa-2x opacity-50 mb-2"></i><p class="mb-0">暂无普通用户</p></div>';
+        return;
+    }
+    
+    list.innerHTML = authUsers.map(u => `
+        <div class="auth-row d-flex align-items-center justify-content-between">
+            <div>
+                <i class="fa-solid fa-user me-2 text-muted"></i>
+                <strong>${escapeHtml(u.username)}</strong>
+                ${u.has_own_config ? '<span class="badge bg-info ms-2">有独立配置</span>' : ''}
+                <small class="text-muted ms-2">${u.created_at}</small>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" ${u.ai_authorized ? 'checked' : ''} 
+                       onchange="toggleAuth(${u.id}, this.checked)" id="auth-${u.id}">
+                <label class="form-check-label small" for="auth-${u.id}">${u.ai_authorized ? '已授权' : '未授权'}</label>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 切换用户授权
+async function toggleAuth(userId, authorized) {
+    const data = await aiFetch('/api/ai/auth-toggle', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: userId, ai_authorized: authorized })
+    });
+    
+    if (data && data.code === 200) {
+        loadAuthList();
+    } else {
+        alert('授权操作失败');
+        loadAuthList();
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    loadConfig();
+    loadAuthList();
+});
+</script>
+{% endblock %}

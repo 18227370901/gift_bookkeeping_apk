@@ -1,0 +1,1527 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+  <div class="col-md-7">
+    <h3 class="fw-bold mb-1"><i class="fa-solid fa-satellite-dish text-primary me-2"></i>Webhook 与机器人通知配置</h3>
+    <p class="text-muted mb-0">
+      支持 <strong>HTTP 标准 Webhook</strong> 及 <strong>凭证长连接模式</strong>（如企业微信机器人，提供 <code>Bot ID</code> 与 <code>Secret</code> 即可直连对接）。
+    </p>
+  </div>
+  <div class="col-md-5 text-md-end mt-3 mt-md-0">
+    <button class="btn btn-primary rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#newWebhookModal">
+      <i class="fa-solid fa-plus me-1"></i>添加 Webhook / 机器人
+    </button>
+  </div>
+</div>
+
+<!-- Webhook 列表 -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+  <div class="card-header bg-white py-3 border-light d-flex justify-content-between align-items-center">
+    <h5 class="card-title fw-bold mb-0 text-dark">已配置通知通道</h5>
+    <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill">共 {{ webhooks|length }} 个通道</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-4">ID</th>
+            <th>渠道名称</th>
+            <th>连接方式</th>
+            <th>目标地址 / 凭证信息</th>
+            <th>触发通知</th>
+            <th>状态</th>
+            <th>创建时间</th>
+            <th class="text-end pe-4">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for w in webhooks %}
+          <tr>
+            <td class="ps-4 fw-bold text-muted">#{{ w.id }}</td>
+            <td class="fw-bold">
+              {% if w.connection_type == 'long_connection' %}
+                <i class="fa-solid fa-robot text-primary me-1"></i>
+              {% else %}
+                <i class="fa-solid fa-bullhorn text-secondary me-1"></i>
+              {% endif %}
+              {{ w.channel_name }}
+            </td>
+            <td>
+              {% if w.connection_type == 'long_connection' %}
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill">
+                  <i class="fa-solid fa-link me-1"></i>长连接模式 (企微)
+                </span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1 rounded-pill">
+                  <i class="fa-solid fa-globe me-1"></i>标准 Webhook
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if w.connection_type == 'long_connection' %}
+                <div class="small">
+                  <span class="text-muted">Bot ID:</span> <code class="fw-bold text-dark">{{ w.bot_id or '-' }}</code>
+                  <span class="text-muted ms-2">Secret:</span> <code class="text-muted">******</code>
+                  {% if 'chatid=' in (w.webhook_url or '') %}
+                    {% set c_id = (w.webhook_url.split('chatid=')[1]).split('&')[0] %}
+                    <div class="mt-1"><span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-comments me-1"></i>会话: {{ c_id }}</span></div>
+                  {% else %}
+                    <div class="mt-1"><span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="留空将在群内@机器人时自动捕获"><i class="fa-solid fa-clock me-1"></i>待自动捕获或手动绑定</span></div>
+                  {% endif %}
+                </div>
+              {% else %}
+                <div class="text-truncate" style="max-width: 260px;" title="{{ w.webhook_url }}">
+                  <code>{{ w.webhook_url or '-' }}</code>
+                </div>
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex flex-wrap gap-1">
+                {% if w.notify_on_add %}<span class="badge bg-light text-dark border small" title="新增记账">新增</span>{% endif %}
+                {% if w.notify_on_delete %}<span class="badge bg-light text-dark border small" title="删除记账">删除</span>{% endif %}
+                {% if w.notify_on_update %}<span class="badge bg-light text-dark border small" title="修改">修改</span>{% endif %}
+                {% if w.notify_on_reminder %}<span class="badge bg-light text-dark border small" title="纪念日">纪念日</span>{% endif %}
+                {% if w.notify_on_broadcast %}<span class="badge bg-light text-dark border small" title="广播">广播</span>{% endif %}
+                {% if w.notify_on_system %}<span class="badge bg-light text-dark border small" title="系统">系统</span>{% endif %}
+                {% if w.notify_on_security %}<span class="badge bg-light text-dark border small" title="安全">安全</span>{% endif %}
+                {% if w.notify_on_status_change %}<span class="badge bg-light text-dark border small" title="状态变更">状态</span>{% endif %}
+              </div>
+            </td>
+            <td>
+              {% if w.is_enabled %}
+                <span class="badge bg-success rounded-pill px-2 py-1"><i class="fa-solid fa-circle-check me-1"></i>启用中</span>
+              {% else %}
+                <span class="badge bg-secondary rounded-pill px-2 py-1"><i class="fa-solid fa-circle-pause me-1"></i>已停用</span>
+              {% endif %}
+            </td>
+            <td><small class="text-muted">{{ w.created_at.strftime('%Y-%m-%d %H:%M') if w.created_at else '-' }}</small></td>
+            <td class="text-end pe-4">
+              <button type="button" class="btn btn-sm btn-outline-info btn-test-webhook me-1" data-id="{{ w.id }}" title="发送测试通知">
+                <i class="fa-solid fa-paper-plane me-1"></i>测试
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-primary btn-edit-webhook me-1" 
+                      data-id="{{ w.id }}"
+                      data-name="{{ w.channel_name }}"
+                      data-connection-type="{{ w.connection_type or 'webhook_url' }}"
+                      data-bot-platform="{{ w.bot_platform or 'wecom' }}"
+                      data-bot-id="{{ w.bot_id or '' }}"
+                      data-bot-secret="{{ w.bot_secret or '' }}"
+                      data-url="{{ w.webhook_url or '' }}"
+                      data-secret="{{ w.secret_token or '' }}"
+               data-notify-add="{{ 1 if w.notify_on_add else 0 }}"
+               data-notify-delete="{{ 1 if w.notify_on_delete else 0 }}"
+               data-notify-reminder="{{ 1 if w.notify_on_reminder else 0 }}"
+               data-notify-broadcast="{{ 1 if w.notify_on_broadcast else 0 }}"
+               data-notify-update="{{ 1 if w.notify_on_update else 0 }}"
+               data-notify-security="{{ 1 if w.notify_on_security else 0 }}"
+               data-notify-system="{{ 1 if w.notify_on_system else 0 }}"
+               data-notify-status="{{ 1 if w.notify_on_status_change else 0 }}"
+               data-notify-pages="{{ w.notify_pages or '{}' }}"
+               data-message-templates="{{ w.message_templates or '{}' }}"
+               data-monitor-user-ids="{{ w.monitor_user_ids or '[]' }}"
+               data-monitor-event-types="{{ w.monitor_event_types or '[]' }}"
+               title="编辑配置">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <form action="{{ url_for('admin_toggle_webhook', webhook_id=w.id) }}" method="POST" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if w.is_enabled %}
+                <button type="submit" class="btn btn-sm btn-outline-warning me-1" title="停用通道">
+                  <i class="fa-solid fa-pause"></i>
+                </button>
+                {% else %}
+                <button type="submit" class="btn btn-sm btn-outline-success me-1" title="启用通道">
+                  <i class="fa-solid fa-play"></i>
+                </button>
+                {% endif %}
+              </form>
+              <form action="{{ url_for('admin_delete_webhook', webhook_id=w.id) }}" method="POST" class="d-inline" onsubmit="return confirm('确定要删除此 Webhook 通道配置吗？');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="删除通道">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center py-5 text-muted">
+              <i class="fa-solid fa-satellite-dish fa-3x mb-3 text-secondary opacity-50"></i>
+              <p class="mb-0">暂无任何 Webhook / 长连接机器人配置</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 最新推送日志模块 (带查询筛选、单选多选全选删除、分条数分页) -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+  <div class="card-header bg-white py-3 border-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <h5 class="card-title fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-clock-rotate-left text-primary me-2"></i>最新推送日志
+      </h5>
+      <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill small">共 <span id="totalLogsBadge">{{ logs|length }}</span> 条记录</span>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm" id="btnBatchDeleteLogs" onclick="submitBatchDeleteLogs()" disabled>
+        <i class="fa-solid fa-trash me-1"></i>批量删除选中项 (<span id="selectedLogsCount">0</span>)
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm" onclick="submitClearAllLogs()">
+        <i class="fa-solid fa-dumpster me-1"></i>清空全部日志
+      </button>
+    </div>
+  </div>
+
+  <!-- 筛选过滤与分页条数配置栏 -->
+  <div class="bg-light p-3 border-bottom">
+    <div class="row g-2 align-items-center">
+      <!-- 关键词搜索 -->
+      <div class="col-lg-4 col-md-5">
+        <div class="input-group input-group-sm bg-white rounded-3 border overflow-hidden">
+          <span class="input-group-text bg-white border-0 text-muted pe-1"><i class="fa-solid fa-magnifying-glass"></i></span>
+          <input type="text" id="logSearchInput" class="form-control border-0 shadow-none ps-1" placeholder="搜索通道ID、响应摘要、负载关键词..." oninput="onLogFilterChange()">
+          <button type="button" class="btn btn-light border-0 text-secondary" onclick="document.getElementById('logSearchInput').value=''; onLogFilterChange();" title="清空搜索">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 事件类型筛选 -->
+      <div class="col-lg-3 col-md-3 col-6">
+        <select id="logEventTypeFilter" class="form-select form-select-sm rounded-3 shadow-none" onchange="onLogFilterChange()">
+          <option value="all" selected>所有事件类型</option>
+          <option value="test">测试通知</option>
+          <option value="create">新增记账</option>
+          <option value="delete">删除记账</option>
+          <option value="reminder">纪念日到期</option>
+          <option value="broadcast">站内广播</option>
+          <option value="receive_chatid">企微捕获会话</option>
+        </select>
+      </div>
+
+      <!-- 状态筛选 -->
+      <div class="col-lg-2 col-md-2 col-6">
+        <select id="logStatusFilter" class="form-select form-select-sm rounded-3 shadow-none" onchange="onLogFilterChange()">
+          <option value="all" selected>所有状态</option>
+          <option value="1">推送成功</option>
+          <option value="0">推送失败</option>
+        </select>
+      </div>
+
+      <!-- 每页显示条数选择器 (默认10条，用户可自由设置) -->
+      <div class="col-lg-3 col-md-2 d-flex align-items-center gap-2">
+        <span class="small text-muted text-nowrap">每页:</span>
+        <select id="logPerPageSelect" class="form-select form-select-sm rounded-3 shadow-none" onchange="onLogPerPageChange()">
+          <option value="10" selected>10 条/页 (默认)</option>
+          <option value="20">20 条/页</option>
+          <option value="50">50 条/页</option>
+          <option value="100">100 条/页</option>
+          <option value="all">显示全部</option>
+        </select>
+        <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 text-nowrap" onclick="resetLogFilters()" title="重置筛选">
+          <i class="fa-solid fa-rotate-left"></i>
+        </button>
+              </div>
+            </div>
+         </div>
+
+  <!-- 日志表格 -->
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 small" id="webhookLogsTable">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-4" style="width: 45px;">
+              <input class="form-check-input" type="checkbox" id="selectAllLogs" onchange="toggleSelectAllLogs(this)" title="当前页全选/反选">
+            </th>
+            <th>时间</th>
+            <th>触发通道</th>
+            <th>发起用户</th>
+            <th>事件类型</th>
+            <th>状态</th>
+            <th>响应结果 / 状态码</th>
+            <th>请求数据摘要</th>
+            <th class="text-end pe-4">操作</th>
+          </tr>
+        </thead>
+        <tbody id="webhookLogsTbody">
+          {% for log in logs %}
+          <tr class="log-row" 
+              data-id="{{ log.id }}" 
+              data-event="{{ log.event_type }}" 
+              data-status="{{ 1 if log.is_success else 0 }}"
+              data-search="#{{ log.webhook_id or '' }} {{ log.event_type }} {{ log.status_code or '' }} {{ log.response_body or '' }} {{ log.payload or '' }} {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '' }}">
+            <td class="ps-4">
+              <input type="checkbox" class="form-check-input log-item-checkbox" value="{{ log.id }}" onchange="updateLogSelection()">
+            </td>
+            <td class="text-nowrap text-muted">{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '-' }}</td>
+            <td class="fw-bold">#{{ log.webhook_id or '-' }}</td>
+            <td class="text-muted">{{ log.operator.username if log.operator else '系统' }}</td>
+            <td>
+              {% if log.event_type == 'test' %}
+                <span class="badge bg-info-subtle text-info border border-info-subtle">测试通知</span>
+              {% elif log.event_type in ('create', 'record_create') %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle">新增记账</span>
+              {% elif log.event_type in ('delete', 'record_delete', 'batch_delete') %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">删除记账</span>
+              {% elif log.event_type in ('reminder', 'auto_reminder') %}
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">纪念日到期</span>
+              {% elif log.event_type == 'broadcast' %}
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">站内广播</span>
+              {% elif log.event_type == 'receive_chatid' %}
+                <span class="badge bg-purple-subtle text-primary border border-primary-subtle"><i class="fa-solid fa-comments me-1"></i>捕获会话</span>
+              {% else %}
+                <span class="badge bg-light text-dark border">{{ log.event_type }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if log.is_success %}
+                <span class="badge bg-success"><i class="fa-solid fa-check me-1"></i>成功</span>
+              {% else %}
+                <span class="badge bg-danger"><i class="fa-solid fa-xmark me-1"></i>失败</span>
+              {% endif %}
+            </td>
+            <td class="text-truncate" style="max-width: 320px;" title="{{ log.response_body or '' }}">
+              <code>HTTP {{ log.status_code or '-' }}: {{ log.response_body or '无响应' }}</code>
+            </td>
+            <td class="text-truncate text-muted" style="max-width: 250px;" title="{{ log.payload or '' }}">
+              {{ log.payload or '-' }}
+            </td>
+            <td class="text-end pe-4">
+              <button type="button" class="btn btn-outline-danger btn-sm rounded-circle p-1" style="width: 28px; height: 28px;" onclick="deleteSingleLog({{ log.id }})" title="删除此条日志">
+                <i class="fa-solid fa-trash fa-xs"></i>
+              </button>
+            </td>
+          </tr>
+          {% else %}
+          <tr id="emptyLogsRow">
+            <td colspan="8" class="text-center py-4 text-muted">暂无推送日志记录</td>
+          </tr>
+          {% endfor %}
+          <tr id="noMatchLogsRow" style="display: none;">
+            <td colspan="8" class="text-center py-4 text-muted"><i class="fa-solid fa-filter-circle-xmark me-2 text-secondary"></i>没有找到匹配的推送日志</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 分页底栏 -->
+  <div class="card-footer bg-white py-3 border-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="small text-muted">
+      显示第 <span id="logPageStart" class="fw-bold text-dark">0</span> 至 <span id="logPageEnd" class="fw-bold text-dark">0</span> 条，
+      符合条件共 <span id="logFilteredCount" class="fw-bold text-primary">0</span> 条日志
+    </div>
+    <nav aria-label="日志分页">
+      <ul class="pagination pagination-sm mb-0 gap-1" id="logPaginationNav">
+      </ul>
+    </nav>
+  </div>
+</div>
+
+<!-- 新增 Webhook Modal -->
+<div class="modal fade" id="newWebhookModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header border-light">
+        <h5 class="modal-title fw-bold"><i class="fa-solid fa-satellite-dish text-primary me-2"></i>添加通知通道</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="newWebhookForm" action="{{ url_for('admin_create_webhook') }}" method="POST" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="notify_pages" id="newNotifyPagesHidden" value="{}">
+        <input type="hidden" name="monitor_user_ids" id="newMonitorUserIdsHidden" value="[]">
+        <input type="hidden" name="monitor_event_types" id="newMonitorEventTypesHidden" value="[]">
+        <div class="modal-body p-4">
+          <div id="newWebhookError"></div>
+          <!-- 渠道名称 -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">渠道名称 <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="newName" class="form-control rounded-3" placeholder="例如：企业微信长连接机器人 / 财务钉钉群" required>
+          </div>
+
+          <!-- 连接方式选择 -->
+          <div class="mb-4">
+            <label class="form-label fw-bold">连接方式 <span class="text-danger">*</span></label>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="form-check p-3 border rounded-3 h-100 bg-light-subtle">
+                  <input class="form-check-input" type="radio" name="connection_type" id="connTypeLong" value="long_connection" checked onchange="toggleConnTypeFields('new')">
+                  <label class="form-check-label w-100 cursor-pointer" for="connTypeLong">
+                    <div class="fw-bold text-primary mb-1"><i class="fa-solid fa-robot me-1"></i>使用长连接方式 (智能机器人)</div>
+                    <div class="small text-muted">推荐！支持企业微信机器人，只需提供 <strong>Bot ID</strong> 和 <strong>Secret</strong> 这两个凭证即可快速完成直连对接。</div>
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check p-3 border rounded-3 h-100 bg-light-subtle">
+                  <input class="form-check-input" type="radio" name="connection_type" id="connTypeUrl" value="webhook_url" onchange="toggleConnTypeFields('new')">
+                  <label class="form-check-label w-100 cursor-pointer" for="connTypeUrl">
+                    <div class="fw-bold text-dark mb-1"><i class="fa-solid fa-globe me-1"></i>标准 Webhook (HTTP URL)</div>
+                    <div class="small text-muted">适用于钉钉群机器人、飞书自定义机器人、Server酱、Bark、PushPlus等标准 HTTP URL 回调。</div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 长连接凭证专属字段区 -->
+          <div id="newLongConnFields" class="p-3 border border-primary-subtle rounded-3 bg-primary-subtle bg-opacity-10 mb-3">
+            <div class="d-flex align-items-center mb-3 text-primary fw-bold small">
+              <i class="fa-solid fa-circle-info me-2"></i>企业微信长连接对接模式：无需公网回调，提供机器人凭证即刻接入
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">机器人平台</label>
+                <select name="bot_platform" class="form-select rounded-3">
+                  <option value="wecom" selected>企业微信智能机器人 (WeCom Bot)</option>
+                  <option value="general">通用长连接机器人通道</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Bot ID <span class="text-danger">*</span></label>
+                <input type="text" name="bot_id" id="newBotId" class="form-control rounded-3" placeholder="填写企微机器人的 Bot ID 或 Key">
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold">Secret <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <input type="password" name="bot_secret" id="newBotSecret" class="form-control rounded-start-3" placeholder="填写企微机器人的 Secret 凭证">
+                  <button class="btn btn-outline-secondary rounded-end-3" type="button" onclick="togglePasswordVisibility('newBotSecret', this)">
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </div>
+                <div class="form-text small">Bot ID 与 Secret 为企业微信机器人平台提供的双向通信与鉴权凭证。</div>
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold">目标会话 / 群聊 ID (chatid) <span class="badge bg-secondary-subtle text-secondary small fw-normal ms-1">选填</span></label>
+                <input type="text" name="chatid" id="newChatId" class="form-control rounded-3" placeholder="例如：R:10938472918237 或留空由后台自动捕获">
+                <div class="form-text small text-muted">
+                  <i class="fa-solid fa-circle-info me-1"></i>企业微信群聊会话标识。留空时，可在企业微信群内 <strong>@机器人</strong> 一次，系统后台守护进程将自动捕获群聊 ID 并持久化绑定。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 标准 Webhook 专属字段区 -->
+          <div id="newWebhookUrlFields" class="p-3 border rounded-3 bg-light mb-3" style="display: none;">
+            <div class="mb-3">
+              <label class="form-label fw-bold">目标 URL <span class="text-danger">*</span></label>
+              <input type="url" name="url" id="newWebhookUrl" class="form-control rounded-3" placeholder="https://oapi.dingtalk.com/robot/send?access_token=...">
+            </div>
+            <div class="mb-0">
+              <label class="form-label fw-bold">Token / 签名密钥 Secret (选填)</label>
+              <input type="password" name="secret" class="form-control rounded-3" placeholder="PushPlus Token 或 钉钉加签密钥">
+            </div>
+          </div>
+
+           <!-- V10.1: Tab 内嵌模式 — 基础事件开关 / 推送配置矩阵 / 消息模板 -->
+           <input type="hidden" name="message_templates" id="newMessageTemplatesHidden" value="{}">
+           <ul class="nav nav-tabs mb-3" id="newWebhookTabs" role="tablist">
+             <li class="nav-item" role="presentation">
+               <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#newTabEvents" type="button" role="tab"><i class="fa-solid fa-toggle-on me-1"></i>基础事件开关</button>
+             </li>
+             <li class="nav-item" role="presentation">
+               <button class="nav-link" data-bs-toggle="tab" data-bs-target="#newTabMatrix" type="button" role="tab"><i class="fa-solid fa-table-cells me-1"></i>推送配置矩阵</button>
+             </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#newTabTemplates" type="button" role="tab"><i class="fa-solid fa-comment-dots me-1"></i>消息模板</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#newTabMonitor" type="button" role="tab"><i class="fa-solid fa-shield-halved me-1"></i>监控范围</button>
+              </li>
+            </ul>
+           <div class="tab-content">
+              <!-- Tab 1: 基础事件开关 -->
+              <div class="tab-pane fade show active" id="newTabEvents" role="tabpanel">
+                <div class="d-flex justify-content-end align-items-center mb-1">
+                  <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-success btn-sm py-0 px-1" onclick="eventSelectAll('new')">全选</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="eventClearAll('new')">清空</button>
+                  </div>
+                </div>
+                <div class="row g-2">
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_add" id="newNotifyAdd" checked><label class="form-check-label small" for="newNotifyAdd">新增操作</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_delete" id="newNotifyDelete" checked><label class="form-check-label small" for="newNotifyDelete">删除操作（含批量删除/清空）</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_update" id="newNotifyUpdate"><label class="form-check-label small" for="newNotifyUpdate">修改/编辑操作</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_reminder" id="newNotifyReminder" checked><label class="form-check-label small" for="newNotifyReminder">纪念日提醒</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_broadcast" id="newNotifyBroadcast" checked><label class="form-check-label small" for="newNotifyBroadcast">站内广播</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_security" id="newNotifySecurity"><label class="form-check-label small" for="newNotifySecurity">安全风控</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_system" id="newNotifySystem" checked><label class="form-check-label small" for="newNotifySystem">系统配置/同步</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_status_change" id="newNotifyStatusChange"><label class="form-check-label small" for="newNotifyStatusChange">状态变更/还原</label></div></div>
+                </div>
+                <div class="form-text small text-muted mt-1">勾选大类事件开关后，可在「推送配置矩阵」中精细控制每个页面的推送范围。</div>
+              </div>
+
+             <!-- Tab 2: 推送配置矩阵（页面×事件） -->
+             <div class="tab-pane fade" id="newTabMatrix" role="tabpanel">
+               <div class="d-flex justify-content-between align-items-center mb-2">
+                 <span class="small text-muted">勾选 = 该页面该事件触发推送；全选=全推，不勾=不推</span>
+                 <div class="btn-group btn-group-sm">
+                   <button type="button" class="btn btn-outline-success btn-sm py-0 px-1" onclick="matrixSelectAll('new')">全选</button>
+                   <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="matrixClearAll('new')">清空</button>
+                 </div>
+               </div>
+               <div class="border rounded-3 bg-light p-2" style="max-height: 320px; overflow-y: auto;">
+                 <table class="table table-sm table-bordered table-hover mb-0" id="newMatrixTable">
+                   <thead class="table-light sticky-top">
+                     <tr>
+                       <th class="text-center" style="min-width: 100px;">页面</th>
+                       {% for ev_key, ev_label in EVENT_COLUMNS.items() %}
+                       <th class="text-center text-nowrap small" title="{{ ev_label }}">{{ ev_label }}</th>
+                       {% endfor %}
+                     </tr>
+                   </thead>
+                   <tbody>
+                     {% for page_key, page_label in ALL_PAGES.items() %}
+                     <tr>
+                       <td class="small fw-bold text-nowrap">{{ page_label }}</td>
+                       {% for ev_key, ev_label in EVENT_COLUMNS.items() %}
+                       <td class="text-center">
+                         {% if ev_key in PAGE_EVENT_MATRIX[page_key] %}
+                         <input class="form-check-input matrix-cb" type="checkbox" data-page="{{ page_key }}" data-event="{{ ev_key }}" id="new_m_{{ page_key }}_{{ ev_key }}" checked>
+                         {% else %}
+                         <span class="text-muted" style="opacity:0.3;">—</span>
+                         {% endif %}
+                       </td>
+                       {% endfor %}
+                     </tr>
+                     {% endfor %}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+
+             <!-- Tab 3: 消息模板自定义 -->
+             <div class="tab-pane fade" id="newTabTemplates" role="tabpanel">
+               <div class="form-text small text-muted mb-2">
+                 <i class="fa-solid fa-circle-info me-1"></i>可为每个「页面×事件」自定义推送消息内容。留空则使用系统默认模板。
+                 支持占位符: <code>{user}</code> <code>{page}</code> <code>{action}</code> <code>{title}</code> <code>{detail}</code> <code>{time}</code> <code>{count}</code>
+               </div>
+               <div class="border rounded-3 bg-light p-2" style="max-height: 320px; overflow-y: auto;" id="newTemplateList">
+                 {% for page_key, page_label in ALL_PAGES.items() %}
+                 {% for ev_key, ev_label in EVENT_COLUMNS.items() %}
+                 {% if ev_key in PAGE_EVENT_MATRIX[page_key] %}
+                 <div class="row g-1 mb-1 align-items-center">
+                   <div class="col-3"><span class="badge bg-secondary-subtle text-secondary small">{{ page_label }}·{{ ev_label }}</span></div>
+                   <div class="col-9"><input type="text" class="form-control form-control-sm template-input" data-page="{{ page_key }}" data-event="{{ ev_key }}" placeholder="{{ DEFAULT_TEMPLATES[ev_key] }}" title="{{ page_label }}·{{ ev_label }} 消息模板"></div>
+                 </div>
+                 {% endif %}
+                 {% endfor %}
+                 {% endfor %}
+               </div>
+              </div>
+
+               <!-- V10.3: Tab 4: 监控范围 -->
+                <div class="tab-pane fade" id="newTabMonitor" role="tabpanel">
+                  <div class="form-text small text-muted mb-2">
+                    <i class="fa-solid fa-circle-info me-1"></i>设置该通道仅推送特定用户的操作或特定事件类型。必须至少勾选一个用户和一个事件类型，否则通道不会推送任何通知。点击「全选」可快速勾选全部。
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <h6 class="text-muted mb-0"><i class="fa-solid fa-user-shield me-1"></i>监控用户</h6>
+                   <div class="btn-group btn-group-sm">
+                     <button type="button" class="btn btn-outline-success btn-sm py-0 px-1" onclick="monitorUserSelectAll('new')">全选</button>
+                     <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="monitorUserClearAll('new')">清空</button>
+                   </div>
+                 </div>
+                 <div class="border rounded-3 bg-light p-2 mb-3" style="max-height: 150px; overflow-y: auto;">
+                   {% if all_users %}
+                   {% for u in all_users %}
+                   <div class="form-check">
+                     <input class="form-check-input monitor-user-cb" type="checkbox" value="{{ u.id }}" id="new_monitor_user_{{ u.id }}">
+                     <label class="form-check-label small" for="new_monitor_user_{{ u.id }}">{{ u.username }}{% if u.is_admin %}（管理员）{% endif %}</label>
+                   </div>
+                   {% endfor %}
+                   {% else %}
+                   <span class="small text-muted">暂无用户</span>
+                   {% endif %}
+                 </div>
+                 <div class="d-flex justify-content-between align-items-center mb-1">
+                   <h6 class="text-muted mb-0"><i class="fa-solid fa-filter me-1"></i>监控事件类型（可选）</h6>
+                   <div class="btn-group btn-group-sm">
+                     <button type="button" class="btn btn-outline-success btn-sm py-0 px-1" onclick="monitorEventSelectAll('new')">全选</button>
+                     <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="monitorEventClearAll('new')">清空</button>
+                   </div>
+                 </div>
+                 <div class="border rounded-3 bg-light p-2">
+                   {% for ev_key, ev_label in EVENT_COLUMNS.items() %}
+                   <div class="form-check d-inline-block me-3">
+                     <input class="form-check-input monitor-event-cb" type="checkbox" value="{{ ev_key }}" id="new_monitor_ev_{{ ev_key }}">
+                     <label class="form-check-label small" for="new_monitor_ev_{{ ev_key }}">{{ ev_label }}</label>
+                   </div>
+                   {% endfor %}
+                 </div>
+                  <div class="form-text small text-muted mt-2">不勾选任何用户 = 不推送；不勾选任何事件 = 不推送。请勾选需要监控的用户和事件类型，或点击「全选」。</div>
+                </div>
+             </div>
+         </div>
+         <div class="modal-footer border-light">
+           <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">取消</button>
+           <button type="submit" id="newWebhookSubmitBtn" class="btn btn-primary rounded-pill px-4 shadow-sm">保存配置</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑 Webhook Modal -->
+<div class="modal fade" id="editWebhookModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header border-light">
+        <h5 class="modal-title fw-bold"><i class="fa-solid fa-pen-to-square text-primary me-2"></i>编辑通知通道</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editWebhookForm" action="" method="POST" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="notify_pages" id="editNotifyPagesHidden" value="{}">
+        <input type="hidden" name="monitor_user_ids" id="editMonitorUserIdsHidden" value="[]">
+        <input type="hidden" name="monitor_event_types" id="editMonitorEventTypesHidden" value="[]">
+        <div class="modal-body p-4">
+          <div id="editWebhookError"></div>
+          <!-- 渠道名称 -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">渠道名称 <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="editName" class="form-control rounded-3" required>
+          </div>
+
+          <!-- 连接方式选择 -->
+          <div class="mb-4">
+            <label class="form-label fw-bold">连接方式 <span class="text-danger">*</span></label>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="form-check p-3 border rounded-3 h-100 bg-light-subtle">
+                  <input class="form-check-input" type="radio" name="connection_type" id="editConnTypeLong" value="long_connection" onchange="toggleConnTypeFields('edit')">
+                  <label class="form-check-label w-100 cursor-pointer" for="editConnTypeLong">
+                    <div class="fw-bold text-primary mb-1"><i class="fa-solid fa-robot me-1"></i>使用长连接方式 (智能机器人)</div>
+                    <div class="small text-muted">企业微信机器人：提供 <strong>Bot ID</strong> 和 <strong>Secret</strong> 凭证完成对接。</div>
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check p-3 border rounded-3 h-100 bg-light-subtle">
+                  <input class="form-check-input" type="radio" name="connection_type" id="editConnTypeUrl" value="webhook_url" onchange="toggleConnTypeFields('edit')">
+                  <label class="form-check-label w-100 cursor-pointer" for="editConnTypeUrl">
+                    <div class="fw-bold text-dark mb-1"><i class="fa-solid fa-globe me-1"></i>标准 Webhook (HTTP URL)</div>
+                    <div class="small text-muted">适用于钉钉、飞书、Server酱、Bark、PushPlus等 HTTP 回调。</div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 长连接凭证专属字段区 -->
+          <div id="editLongConnFields" class="p-3 border border-primary-subtle rounded-3 bg-primary-subtle bg-opacity-10 mb-3">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">机器人平台</label>
+                <select name="bot_platform" id="editBotPlatform" class="form-select rounded-3">
+                  <option value="wecom">企业微信智能机器人 (WeCom Bot)</option>
+                  <option value="general">通用长连接机器人通道</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Bot ID <span class="text-danger">*</span></label>
+                <input type="text" name="bot_id" id="editBotId" class="form-control rounded-3" placeholder="填写企微机器人的 Bot ID">
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold">Secret <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <input type="password" name="bot_secret" id="editBotSecret" class="form-control rounded-start-3" placeholder="填写企微机器人的 Secret 凭证">
+                  <button class="btn btn-outline-secondary rounded-end-3" type="button" onclick="togglePasswordVisibility('editBotSecret', this)">
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold">目标会话 / 群聊 ID (chatid) <span class="badge bg-secondary-subtle text-secondary small fw-normal ms-1">选填</span></label>
+                <input type="text" name="chatid" id="editChatId" class="form-control rounded-3" placeholder="例如：R:10938472918237 或留空由后台自动捕获">
+                <div class="form-text small text-muted">
+                  <i class="fa-solid fa-circle-info me-1"></i>企业微信群聊会话标识。留空时，可在企业微信群内 <strong>@机器人</strong> 一次，系统后台守护进程将自动捕获群聊 ID 并持久化绑定。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 标准 Webhook 专属字段区 -->
+          <div id="editWebhookUrlFields" class="p-3 border rounded-3 bg-light mb-3" style="display: none;">
+            <div class="mb-3">
+              <label class="form-label fw-bold">目标 URL <span class="text-danger">*</span></label>
+              <input type="url" name="url" id="editWebhookUrl" class="form-control rounded-3">
+            </div>
+            <div class="mb-0">
+              <label class="form-label fw-bold">Token / 签名密钥 Secret (选填)</label>
+              <input type="password" name="secret" id="editSecret" class="form-control rounded-3">
+            </div>
+          </div>
+
+           <!-- V10.1: Tab 内嵌模式 — 基础事件开关 / 推送配置矩阵 / 消息模板 -->
+           <input type="hidden" name="message_templates" id="editMessageTemplatesHidden" value="{}">
+           <ul class="nav nav-tabs mb-3" id="editWebhookTabs" role="tablist">
+             <li class="nav-item" role="presentation">
+               <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#editTabEvents" type="button" role="tab"><i class="fa-solid fa-toggle-on me-1"></i>基础事件开关</button>
+             </li>
+             <li class="nav-item" role="presentation">
+               <button class="nav-link" data-bs-toggle="tab" data-bs-target="#editTabMatrix" type="button" role="tab"><i class="fa-solid fa-table-cells me-1"></i>推送配置矩阵</button>
+             </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#editTabTemplates" type="button" role="tab"><i class="fa-solid fa-comment-dots me-1"></i>消息模板</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#editTabMonitor" type="button" role="tab"><i class="fa-solid fa-shield-halved me-1"></i>监控范围</button>
+              </li>
+            </ul>
+           <div class="tab-content">
+              <!-- Tab 1: 基础事件开关 -->
+              <div class="tab-pane fade show active" id="editTabEvents" role="tabpanel">
+                <div class="d-flex justify-content-end align-items-center mb-1">
+                  <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-success btn-sm py-0 px-1" onclick="eventSelectAll('edit')">全选</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="eventClearAll('edit')">清空</button>
+                  </div>
+                </div>
+                <div class="row g-2">
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_add" id="editNotifyAdd"><label class="form-check-label small" for="editNotifyAdd">新增操作</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_delete" id="editNotifyDelete"><label class="form-check-label small" for="editNotifyDelete">删除操作（含批量删除/清空）</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_update" id="editNotifyUpdate"><label class="form-check-label small" for="editNotifyUpdate">修改/编辑操作</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_reminder" id="editNotifyReminder"><label class="form-check-label small" for="editNotifyReminder">纪念日提醒</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_broadcast" id="editNotifyBroadcast"><label class="form-check-label small" for="editNotifyBroadcast">站内广播</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_security" id="editNotifySecurity"><label class="form-check-label small" for="editNotifySecurity">安全风控</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_system" id="editNotifySystem" checked><label class="form-check-label small" for="editNotifySystem">系统配置/同步</label></div></div>
+                  <div class="col-sm-6"><div class="form-check"><input class="form-check-input event-switch-cb" type="checkbox" name="notify_on_status_change" id="editNotifyStatusChange"><label class="form-check-label small" for="editNotifyStatusChange">状态变更/还原</label></div></div>
+                </div>
+                <div class="form-text small text-muted mt-1">勾选大类事件开关后，可在「推送配置矩阵」中精细控制每个页面的推送范围。</div>
+              </div>
+
+             <!-- Tab 2: 推送配置矩阵（页面×事件） -->
+             <div class="tab-pane fade" id="editTabMatrix" role="tabpanel">
+               <div class="d-flex justify-content-between align-items-center mb-2">
+                 <span class="small text-muted">勾选 = 该页面该事件触发推送；全选=全推，不勾=不推</span>
+                 <div class="btn-group btn-group-sm">
+                   <button type="button" class="btn btn-outline-success btn-sm py-0 px-1" onclick="matrixSelectAll('edit')">全选</button>
+                   <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="matrixClearAll('edit')">清空</button>
+                 </div>
+               </div>
+               <div class="border rounded-3 bg-light p-2" style="max-height: 320px; overflow-y: auto;">
+                 <table class="table table-sm table-bordered table-hover mb-0" id="editMatrixTable">
+                   <thead class="table-light sticky-top">
+                     <tr>
+                       <th class="text-center" style="min-width: 100px;">页面</th>
+                       {% for ev_key, ev_label in EVENT_COLUMNS.items() %}
+                       <th class="text-center text-nowrap small" title="{{ ev_label }}">{{ ev_label }}</th>
+                       {% endfor %}
+                     </tr>
+                   </thead>
+                   <tbody>
+                     {% for page_key, page_label in ALL_PAGES.items() %}
+                     <tr>
+                       <td class="small fw-bold text-nowrap">{{ page_label }}</td>
+                       {% for ev_key, ev_label in EVENT_COLUMNS.items() %}
+                       <td class="text-center">
+                         {% if ev_key in PAGE_EVENT_MATRIX[page_key] %}
+                         <input class="form-check-input matrix-cb" type="checkbox" data-page="{{ page_key }}" data-event="{{ ev_key }}" id="edit_m_{{ page_key }}_{{ ev_key }}">
+                         {% else %}
+                         <span class="text-muted" style="opacity:0.3;">—</span>
+                         {% endif %}
+                       </td>
+                       {% endfor %}
+                     </tr>
+                     {% endfor %}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+
+             <!-- Tab 3: 消息模板自定义 -->
+             <div class="tab-pane fade" id="editTabTemplates" role="tabpanel">
+               <div class="form-text small text-muted mb-2">
+                 <i class="fa-solid fa-circle-info me-1"></i>可为每个「页面×事件」自定义推送消息内容。留空则使用系统默认模板。
+                 支持占位符: <code>{user}</code> <code>{page}</code> <code>{action}</code> <code>{title}</code> <code>{detail}</code> <code>{time}</code> <code>{count}</code>
+               </div>
+               <div class="border rounded-3 bg-light p-2" style="max-height: 320px; overflow-y: auto;" id="editTemplateList">
+                 {% for page_key, page_label in ALL_PAGES.items() %}
+                 {% for ev_key, ev_label in EVENT_COLUMNS.items() %}
+                 {% if ev_key in PAGE_EVENT_MATRIX[page_key] %}
+                 <div class="row g-1 mb-1 align-items-center">
+                   <div class="col-3"><span class="badge bg-secondary-subtle text-secondary small">{{ page_label }}·{{ ev_label }}</span></div>
+                   <div class="col-9"><input type="text" class="form-control form-control-sm template-input" data-page="{{ page_key }}" data-event="{{ ev_key }}" placeholder="{{ DEFAULT_TEMPLATES[ev_key] }}" title="{{ page_label }}·{{ ev_label }} 消息模板"></div>
+                 </div>
+                 {% endif %}
+                 {% endfor %}
+                 {% endfor %}
+               </div>
+              </div>
+
+               <!-- V10.3: Tab 4: 监控范围 -->
+                <div class="tab-pane fade" id="editTabMonitor" role="tabpanel">
+                  <div class="form-text small text-muted mb-2">
+                    <i class="fa-solid fa-circle-info me-1"></i>设置该通道仅推送特定用户的操作或特定事件类型。必须至少勾选一个用户和一个事件类型，否则通道不会推送任何通知。点击「全选」可快速勾选全部。
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <h6 class="text-muted mb-0"><i class="fa-solid fa-user-shield me-1"></i>监控用户</h6>
+                   <div class="btn-group btn-group-sm">
+                     <button type="button" class="btn btn-outline-success btn-sm py-0 px-1" onclick="monitorUserSelectAll('edit')">全选</button>
+                     <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="monitorUserClearAll('edit')">清空</button>
+                   </div>
+                 </div>
+                 <div class="border rounded-3 bg-light p-2 mb-3" style="max-height: 150px; overflow-y: auto;">
+                   {% if all_users %}
+                   {% for u in all_users %}
+                   <div class="form-check">
+                     <input class="form-check-input monitor-user-cb" type="checkbox" value="{{ u.id }}" id="edit_monitor_user_{{ u.id }}">
+                     <label class="form-check-label small" for="edit_monitor_user_{{ u.id }}">{{ u.username }}{% if u.is_admin %}（管理员）{% endif %}</label>
+                   </div>
+                   {% endfor %}
+                   {% else %}
+                   <span class="small text-muted">暂无用户</span>
+                   {% endif %}
+                 </div>
+                 <div class="d-flex justify-content-between align-items-center mb-1">
+                   <h6 class="text-muted mb-0"><i class="fa-solid fa-filter me-1"></i>监控事件类型（可选）</h6>
+                   <div class="btn-group btn-group-sm">
+                     <button type="button" class="btn btn-outline-success btn-sm py-0 px-1" onclick="monitorEventSelectAll('edit')">全选</button>
+                     <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="monitorEventClearAll('edit')">清空</button>
+                   </div>
+                 </div>
+                 <div class="border rounded-3 bg-light p-2">
+                   {% for ev_key, ev_label in EVENT_COLUMNS.items() %}
+                   <div class="form-check d-inline-block me-3">
+                     <input class="form-check-input monitor-event-cb" type="checkbox" value="{{ ev_key }}" id="edit_monitor_ev_{{ ev_key }}">
+                     <label class="form-check-label small" for="edit_monitor_ev_{{ ev_key }}">{{ ev_label }}</label>
+                   </div>
+                   {% endfor %}
+                 </div>
+                  <div class="form-text small text-muted mt-2">不勾选任何用户 = 不推送；不勾选任何事件 = 不推送。请勾选需要监控的用户和事件类型，或点击「全选」。</div>
+                </div>
+              </div>
+           </div>
+         <div class="modal-footer border-light">
+           <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">取消</button>
+           <button type="submit" id="editWebhookSubmitBtn" class="btn btn-primary rounded-pill px-4 shadow-sm">保存修改</button>
+         </div>
+       </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleConnTypeFields(prefix) {
+  const isLong = document.getElementById(prefix === 'new' ? 'connTypeLong' : 'editConnTypeLong').checked;
+  const longFields = document.getElementById(prefix + 'LongConnFields');
+  const urlFields = document.getElementById(prefix + 'WebhookUrlFields');
+  const urlInput = document.getElementById(prefix === 'new' ? 'newWebhookUrl' : 'editWebhookUrl');
+  const botIdInput = document.getElementById(prefix === 'new' ? 'newBotId' : 'editBotId');
+  const botSecretInput = document.getElementById(prefix === 'new' ? 'newBotSecret' : 'editBotSecret');
+
+  if (isLong) {
+    longFields.style.display = 'block';
+    urlFields.style.display = 'none';
+    if (urlInput) urlInput.removeAttribute('required');
+    if (botIdInput) botIdInput.setAttribute('required', 'required');
+    if (botSecretInput) botSecretInput.setAttribute('required', 'required');
+  } else {
+    longFields.style.display = 'none';
+    urlFields.style.display = 'block';
+    if (urlInput) urlInput.setAttribute('required', 'required');
+    if (botIdInput) botIdInput.removeAttribute('required');
+    if (botSecretInput) botSecretInput.removeAttribute('required');
+  }
+}
+
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const icon = btn.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) icon.className = 'fa-solid fa-eye-slash';
+  } else {
+    input.type = 'password';
+    if (icon) icon.className = 'fa-solid fa-eye';
+  }
+}
+
+// V10.1: 矩阵全选/清空
+function matrixSelectAll(prefix) {
+  const table = document.getElementById(prefix + 'MatrixTable');
+  if (table) {
+    table.querySelectorAll('input.matrix-cb').forEach(cb => { cb.checked = true; });
+  }
+}
+function matrixClearAll(prefix) {
+  const table = document.getElementById(prefix + 'MatrixTable');
+  if (table) {
+    table.querySelectorAll('input.matrix-cb').forEach(cb => { cb.checked = false; });
+  }
+}
+
+// V10.5: 基础事件开关全选/清空
+function eventSelectAll(prefix) {
+  const tab = document.getElementById(prefix + 'TabEvents');
+  if (tab) {
+    tab.querySelectorAll('input.event-switch-cb').forEach(cb => { cb.checked = true; });
+  }
+}
+function eventClearAll(prefix) {
+  const tab = document.getElementById(prefix + 'TabEvents');
+  if (tab) {
+    tab.querySelectorAll('input.event-switch-cb').forEach(cb => { cb.checked = false; });
+  }
+}
+
+// V10.5: 监控范围 - 监控用户全选/清空
+function monitorUserSelectAll(prefix) {
+  const tab = document.getElementById(prefix + 'TabMonitor');
+  if (tab) {
+    tab.querySelectorAll('input.monitor-user-cb').forEach(cb => { cb.checked = true; });
+  }
+}
+function monitorUserClearAll(prefix) {
+  const tab = document.getElementById(prefix + 'TabMonitor');
+  if (tab) {
+    tab.querySelectorAll('input.monitor-user-cb').forEach(cb => { cb.checked = false; });
+  }
+}
+
+// V10.5: 监控范围 - 监控事件类型全选/清空
+function monitorEventSelectAll(prefix) {
+  const tab = document.getElementById(prefix + 'TabMonitor');
+  if (tab) {
+    tab.querySelectorAll('input.monitor-event-cb').forEach(cb => { cb.checked = true; });
+  }
+}
+function monitorEventClearAll(prefix) {
+  const tab = document.getElementById(prefix + 'TabMonitor');
+  if (tab) {
+    tab.querySelectorAll('input.monitor-event-cb').forEach(cb => { cb.checked = false; });
+  }
+}
+
+// V10.1: 将矩阵勾选组装为 notify_pages JSON
+// 格式: {"create": ["ledger","banquets",...], "update": [...], ...}
+function assembleNotifyPages(prefix) {
+  const table = document.getElementById(prefix + 'MatrixTable');
+  if (!table) return '{}';
+  const result = {};
+  table.querySelectorAll('input.matrix-cb:checked').forEach(cb => {
+    const page = cb.dataset.page;
+    const event = cb.dataset.event;
+    if (!result[event]) result[event] = [];
+    result[event].push(page);
+  });
+  return JSON.stringify(result);
+}
+
+// V10.1: 将模板输入组装为 message_templates JSON
+// 格式: {"event:page": "自定义模板内容", ...}
+function assembleMessageTemplates(prefix) {
+  const container = document.getElementById(prefix + 'TemplateList');
+  if (!container) return '{}';
+  const result = {};
+  container.querySelectorAll('input.template-input').forEach(input => {
+    const val = input.value.trim();
+    if (val) {
+      const key = input.dataset.event + ':' + input.dataset.page;
+      result[key] = val;
+    }
+  });
+  return JSON.stringify(result);
+}
+
+// V10.3: 将监控用户和事件类型组装为 JSON
+function assembleMonitorData(prefix) {
+  // 组装用户 ID
+  var userIds = [];
+  document.querySelectorAll('#' + prefix + 'TabMonitor input.monitor-user-cb:checked').forEach(function(cb) {
+    userIds.push(parseInt(cb.value));
+  });
+  // 组装事件类型
+  var eventTypes = [];
+  document.querySelectorAll('#' + prefix + 'TabMonitor input.monitor-event-cb:checked').forEach(function(cb) {
+    eventTypes.push(cb.value);
+  });
+  return [JSON.stringify(userIds), JSON.stringify(eventTypes)];
+}
+
+// V10.3: 回填编辑监控数据
+function fillEditMonitor(userIdsJson, eventTypesJson) {
+  var userIds = [];
+  try { userIds = JSON.parse(userIdsJson || '[]'); } catch(e) {}
+  var eventTypes = [];
+  try { eventTypes = JSON.parse(eventTypesJson || '[]'); } catch(e) {}
+  document.querySelectorAll('#editTabMonitor input.monitor-user-cb').forEach(function(cb) {
+    cb.checked = userIds.includes(parseInt(cb.value));
+  });
+  document.querySelectorAll('#editTabMonitor input.monitor-event-cb').forEach(function(cb) {
+    cb.checked = eventTypes.includes(cb.value);
+  });
+}
+
+// V10.1: 从 notify_pages JSON 回填报编辑矩阵
+function fillEditMatrix(notifyPagesJson) {
+  let pagesData = {};
+  try { pagesData = JSON.parse(notifyPagesJson || '{}'); } catch(e) {}
+  const table = document.getElementById('editMatrixTable');
+  if (!table) return;
+  const allCbs = table.querySelectorAll('input.matrix-cb');
+  if (Object.keys(pagesData).length === 0) {
+    // 空配置 = 全选（不过滤）
+    allCbs.forEach(cb => { cb.checked = true; });
+  } else {
+    allCbs.forEach(cb => {
+      const page = cb.dataset.page;
+      const event = cb.dataset.event;
+      const pagesForEvent = pagesData[event] || [];
+      cb.checked = pagesForEvent.includes(page);
+    });
+  }
+}
+
+// V10.1: 从 message_templates JSON 回填报编辑模板
+function fillEditTemplates(templatesJson) {
+  let tplData = {};
+  try { tplData = JSON.parse(templatesJson || '{}'); } catch(e) {}
+  const container = document.getElementById('editTemplateList');
+  if (!container) return;
+  container.querySelectorAll('input.template-input').forEach(input => {
+    const key = input.dataset.event + ':' + input.dataset.page;
+    input.value = tplData[key] || tplData[input.dataset.event] || '';
+  });
+}
+
+// V7: 在 Modal 顶部显示错误提示横幅（替代浏览器原生气泡）
+function showWebhookFormError(errorDivId, message) {
+  const errorDiv = document.getElementById(errorDivId);
+  const html = `<div class="alert alert-danger alert-dismissible rounded-3 py-2 mb-0"><i class="fa-solid fa-circle-exclamation me-1"></i>${message}<button type="button" class="btn-close ms-2" onclick="this.parentElement.remove()"></button></div>`;
+  if (errorDiv) {
+    errorDiv.innerHTML = html;
+    errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } else {
+    alert(message);
+  }
+}
+
+// V7: 保存前显式必填校验（保存只保存、不校验凭证真实性，但必填项必须齐全）
+function validateWebhookForm(form, prefix) {
+  const missing = [];
+  const nameInput = form.querySelector('input[name="name"]');
+  if (!nameInput || !nameInput.value.trim()) missing.push('渠道名称');
+
+  const isLong = document.getElementById(prefix === 'new' ? 'connTypeLong' : 'editConnTypeLong').checked;
+  if (isLong) {
+    const botId = document.getElementById(prefix === 'new' ? 'newBotId' : 'editBotId');
+    const botSecret = document.getElementById(prefix === 'new' ? 'newBotSecret' : 'editBotSecret');
+    if (!botId || !botId.value.trim()) missing.push('Bot ID');
+    if (!botSecret || !botSecret.value.trim()) missing.push('Secret 凭证');
+  } else {
+    const urlInput = document.getElementById(prefix === 'new' ? 'newWebhookUrl' : 'editWebhookUrl');
+    if (!urlInput || !urlInput.value.trim()) missing.push('目标 URL');
+  }
+  return missing;
+}
+
+// V3: AJAX 提交 Webhook 表单，校验失败时在 Modal 内就地显示错误
+// V7 新增：
+//  - 保存按钮 loading 状态（禁用+转圈）防重复提交；
+//  - 保存成功后提示用户用「测试」按钮验证凭证（保存不再校验凭证）
+function submitWebhookFormAjax(form, modalId, errorDivId, submitBtn, successTip) {
+  const errorDiv = document.getElementById(errorDivId);
+  if (errorDiv) errorDiv.innerHTML = '';
+
+  // V7: 按钮置为 loading，防止重复提交
+  let origBtnHtml = null;
+  if (submitBtn) {
+    origBtnHtml = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>正在保存...';
+  }
+
+  const formData = new FormData(form);
+  fetch(form.action, {
+    method: 'POST',
+    body: formData,
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(res => res.json().catch(() => ({ success: false, message: '服务器返回非 JSON 响应' })))
+  .then(data => {
+    if (data.success) {
+      const modalEl = document.getElementById(modalId);
+      if (modalEl) {
+        const bsModal = bootstrap.Modal.getInstance(modalEl);
+        if (bsModal) bsModal.hide();
+      }
+      // V7: 保存只保存、不校验凭证，提示用「测试」按钮验证连通性
+      alert(successTip || data.message || '操作成功');
+      location.reload();
+    } else {
+      showWebhookFormError(errorDivId, data.message || '操作失败');
+    }
+  })
+  .catch(() => {
+    showWebhookFormError(errorDivId, '网络请求异常，请稍后重试');
+  })
+  .finally(() => {
+    if (submitBtn && origBtnHtml !== null) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = origBtnHtml;
+    }
+  });
+}
+
+// 初始化新增模态框字段状态
+document.addEventListener('DOMContentLoaded', function() {
+  toggleConnTypeFields('new');
+  onLogFilterChange();
+
+
+  // 提交前组装 notify_pages JSON - V3: 改为 AJAX 提交
+  const newForm = document.getElementById('newWebhookForm');
+  if (newForm) {
+    newForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      document.getElementById('newNotifyPagesHidden').value = assembleNotifyPages('new');
+      document.getElementById('newMessageTemplatesHidden').value = assembleMessageTemplates('new');
+      // V10.3: 组装监控数据
+      var monitorData = assembleMonitorData('new');
+      document.getElementById('newMonitorUserIdsHidden').value = monitorData[0];
+      document.getElementById('newMonitorEventTypesHidden').value = monitorData[1];
+      // V7: 显式必填校验，缺项时在 Modal 顶部明确提示
+      const missing = validateWebhookForm(newForm, 'new');
+      if (missing.length) {
+        showWebhookFormError('newWebhookError', '以下必填项未填写：' + missing.join('、'));
+        return;
+      }
+      submitWebhookFormAjax(newForm, 'newWebhookModal', 'newWebhookError', document.getElementById('newWebhookSubmitBtn'),
+        'Webhook 通道已保存。\n\n保存操作不会校验凭证有效性，请点击列表中的「测试」按钮验证连通性。');
+    });
+  }
+  const editForm = document.getElementById('editWebhookForm');
+  if (editForm) {
+    editForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      document.getElementById('editNotifyPagesHidden').value = assembleNotifyPages('edit');
+      document.getElementById('editMessageTemplatesHidden').value = assembleMessageTemplates('edit');
+      // V10.3: 组装监控数据
+      var editMonitorData = assembleMonitorData('edit');
+      document.getElementById('editMonitorUserIdsHidden').value = editMonitorData[0];
+      document.getElementById('editMonitorEventTypesHidden').value = editMonitorData[1];
+      // V7: 显式必填校验，缺项时在 Modal 顶部明确提示
+      const missing = validateWebhookForm(editForm, 'edit');
+      if (missing.length) {
+        showWebhookFormError('editWebhookError', '以下必填项未填写：' + missing.join('、'));
+        return;
+      }
+      submitWebhookFormAjax(editForm, 'editWebhookModal', 'editWebhookError', document.getElementById('editWebhookSubmitBtn'),
+      '修改已保存。\n\n如修改了凭证或地址，请点击列表中的「测试」按钮验证连通性。');
+    });
+  }
+
+  // 编辑模态框填充
+  document.querySelectorAll('.btn-edit-webhook').forEach(btn => {
+
+    btn.addEventListener('click', function() {
+      const data = this.dataset;
+      const form = document.getElementById('editWebhookForm');
+      form.action = '/admin/webhooks/edit/' + data.id;
+
+      document.getElementById('editName').value = data.name || '';
+      const isLong = (data.connectionType === 'long_connection');
+      document.getElementById('editConnTypeLong').checked = isLong;
+      document.getElementById('editConnTypeUrl').checked = !isLong;
+
+      document.getElementById('editBotPlatform').value = data.botPlatform || 'wecom';
+      document.getElementById('editBotId').value = data.botId || '';
+      document.getElementById('editBotSecret').value = data.botSecret || '';
+      document.getElementById('editWebhookUrl').value = data.url || '';
+      let extractedChatId = '';
+      if (data.url && data.url.indexOf('chatid=') !== -1) {
+        extractedChatId = data.url.split('chatid=')[1].split('&')[0];
+      }
+      document.getElementById('editChatId').value = extractedChatId;
+      document.getElementById('editSecret').value = data.secret || '';
+
+      document.getElementById('editNotifyAdd').checked = (data.notifyAdd === '1');
+      document.getElementById('editNotifyDelete').checked = (data.notifyDelete === '1');
+      document.getElementById('editNotifyReminder').checked = (data.notifyReminder === '1');
+      document.getElementById('editNotifyBroadcast').checked = (data.notifyBroadcast === '1');
+
+      // 扩展事件
+      document.getElementById('editNotifyUpdate').checked = (data.notifyUpdate === '1');
+      document.getElementById('editNotifySecurity').checked = (data.notifySecurity === '1');
+      document.getElementById('editNotifySystem').checked = (data.notifySystem === '1');
+      document.getElementById('editNotifyStatusChange').checked = (data.notifyStatus === '1');
+
+      // V10.1: 矩阵回填（替代旧的硬编码 allPageKeys 逻辑，修复 permission_tickets 缺失 bug）
+      fillEditMatrix(data.notifyPages);
+
+      // V10.1: 消息模板回填
+      fillEditTemplates(data.messageTemplates);
+
+      // V10.3: 监控数据回填
+      fillEditMonitor(data.monitorUserIds, data.monitorEventTypes);
+
+      toggleConnTypeFields('edit');
+      const editModal = new bootstrap.Modal(document.getElementById('editWebhookModal'));
+      editModal.show();
+    });
+  });
+
+  // 测试 Webhook 发送（V8: 增加超时保护 + toast 提示替换 alert）
+  document.querySelectorAll('.btn-test-webhook').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const id = this.dataset.id;
+      const origHtml = this.innerHTML;
+      const btnEl = this;
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>测试中...';
+
+      // V8: AbortController 前端超时保护（后端已优化为 5s 超时）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      // 2 秒内未返回时追加提示，避免"看起来像无反应"
+      let slowTimer = null;
+      slowTimer = setTimeout(() => {
+        showToast('正在等待目标服务器响应，请稍候...', 'info');
+      }, 2000);
+
+      fetch('/admin/webhook/test/' + id, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        signal: controller.signal
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && (data.code === 200 || data.status_code === 200)) {
+          showToast('【测试成功】' + (data.message || 'Webhook / 机器人通道测试响应正常！') + '（状态码 ' + (data.status_code || data.code || 200) + '）', 'success');
+          // V10: 延迟 2 秒刷新页面，确保 toast 提示可见后再刷新
+          setTimeout(() => { window.location.reload(); }, 2000);
+        } else {
+          showToast('【测试失败】' + (data.message || '连接失败，请检查企业微信机器人凭证或目标地址') + '（状态码 ' + (data.status_code || data.code || '?') + '）', 'danger');
+        }
+      })
+      .catch(err => {
+        if (err && err.name === 'AbortError') {
+          showToast('测试超时：目标服务器响应超过 10 秒未返回，请检查 Webhook 地址与网络后重试', 'danger');
+        } else {
+          showToast('请求异常: ' + err, 'danger');
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+        if (slowTimer) clearTimeout(slowTimer);
+        btnEl.disabled = false;
+        btnEl.innerHTML = origHtml;
+      });
+    });
+  });
+});
+
+// --- Webhook Logs Pagination & Filter Management ---
+let currentLogPage = 1;
+let currentLogPerPage = 10; // default 10 per page
+
+function getFilteredLogRows() {
+  const searchInput = document.getElementById('logSearchInput');
+  const query = searchInput ? (searchInput.value || '').toLowerCase().trim() : '';
+  const eventFilter = document.getElementById('logEventTypeFilter');
+  const eventType = eventFilter ? eventFilter.value : 'all';
+  const statusFilterEl = document.getElementById('logStatusFilter');
+  const statusFilter = statusFilterEl ? statusFilterEl.value : 'all';
+  const allRows = Array.from(document.querySelectorAll('#webhookLogsTbody .log-row'));
+
+  return allRows.filter(row => {
+    const searchData = (row.dataset.search || '').toLowerCase();
+    const rowEvent = row.dataset.event || '';
+    const rowStatus = row.dataset.status || '';
+
+    if (query && !searchData.includes(query)) return false;
+
+    if (eventType !== 'all') {
+      if (eventType === 'create' && !['create', 'record_create'].includes(rowEvent)) return false;
+      else if (eventType === 'delete' && !['delete', 'record_delete', 'batch_delete'].includes(rowEvent)) return false;
+      else if (eventType !== 'create' && eventType !== 'delete' && rowEvent !== eventType) return false;
+    }
+
+    if (statusFilter !== 'all' && rowStatus !== statusFilter) return false;
+
+    return true;
+  });
+}
+
+function renderLogPagination(totalItems, filteredRows) {
+  const nav = document.getElementById('logPaginationNav');
+  const startSpan = document.getElementById('logPageStart');
+  const endSpan = document.getElementById('logPageEnd');
+  const totalCountSpan = document.getElementById('logFilteredCount');
+  const noMatchRow = document.getElementById('noMatchLogsRow');
+  if (!nav || !startSpan || !endSpan || !totalCountSpan) return;
+
+  totalCountSpan.innerText = totalItems;
+
+  const allRows = document.querySelectorAll('#webhookLogsTbody .log-row');
+  allRows.forEach(r => r.style.display = 'none');
+
+  if (totalItems === 0) {
+    startSpan.innerText = '0';
+    endSpan.innerText = '0';
+    nav.innerHTML = '';
+    if (noMatchRow) noMatchRow.style.display = '';
+    return;
+  }
+  if (noMatchRow) noMatchRow.style.display = 'none';
+
+  let effectivePerPage = (currentLogPerPage === 'all') ? totalItems : parseInt(currentLogPerPage, 10);
+  const totalPages = Math.max(1, Math.ceil(totalItems / effectivePerPage));
+  if (currentLogPage > totalPages) currentLogPage = totalPages;
+  if (currentLogPage < 1) currentLogPage = 1;
+
+  const startIndex = (currentLogPage - 1) * effectivePerPage;
+  const endIndex = Math.min(startIndex + effectivePerPage, totalItems);
+
+  startSpan.innerText = startIndex + 1;
+  endSpan.innerText = endIndex;
+
+  for (let i = startIndex; i < endIndex; i++) {
+    if (filteredRows[i]) {
+      filteredRows[i].style.display = '';
+    }
+  }
+
+  nav.innerHTML = '';
+  if (totalPages <= 1) return;
+
+  const prevLi = document.createElement('li');
+  prevLi.className = `page-item ${currentLogPage === 1 ? 'disabled' : ''}`;
+  prevLi.innerHTML = `<button type="button" class="page-link rounded-2 px-2 shadow-none" onclick="changeLogPage(${currentLogPage - 1})"><i class="fa-solid fa-chevron-left"></i></button>`;
+  nav.appendChild(prevLi);
+
+  const maxButtons = 5;
+  let startPage = Math.max(1, currentLogPage - 2);
+  let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+  if (endPage - startPage < maxButtons - 1) {
+    startPage = Math.max(1, endPage - maxButtons + 1);
+  }
+
+  for (let p = startPage; p <= endPage; p++) {
+    const li = document.createElement('li');
+    li.className = `page-item ${p === currentLogPage ? 'active' : ''}`;
+    li.innerHTML = `<button type="button" class="page-link rounded-2 px-2 shadow-none fw-bold" onclick="changeLogPage(${p})">${p}</button>`;
+    nav.appendChild(li);
+  }
+
+  const nextLi = document.createElement('li');
+  nextLi.className = `page-item ${currentLogPage === totalPages ? 'disabled' : ''}`;
+  nextLi.innerHTML = `<button type="button" class="page-link rounded-2 px-2 shadow-none" onclick="changeLogPage(${currentLogPage + 1})"><i class="fa-solid fa-chevron-right"></i></button>`;
+  nav.appendChild(nextLi);
+}
+
+function changeLogPage(page) {
+  currentLogPage = page;
+  const filtered = getFilteredLogRows();
+  renderLogPagination(filtered.length, filtered);
+  updateLogSelection();
+}
+
+function onLogFilterChange() {
+  currentLogPage = 1;
+  const filtered = getFilteredLogRows();
+  renderLogPagination(filtered.length, filtered);
+  updateLogSelection();
+}
+
+function onLogPerPageChange() {
+  currentLogPerPage = document.getElementById('logPerPageSelect').value;
+  currentLogPage = 1;
+  const filtered = getFilteredLogRows();
+  renderLogPagination(filtered.length, filtered);
+  updateLogSelection();
+}
+
+function resetLogFilters() {
+  document.getElementById('logSearchInput').value = '';
+  document.getElementById('logEventTypeFilter').value = 'all';
+  document.getElementById('logStatusFilter').value = 'all';
+  document.getElementById('logPerPageSelect').value = '10';
+  currentLogPerPage = 10;
+  currentLogPage = 1;
+  const filtered = getFilteredLogRows();
+  renderLogPagination(filtered.length, filtered);
+  updateLogSelection();
+}
+
+function toggleSelectAllLogs(masterCb) {
+  const visibleCheckboxes = Array.from(document.querySelectorAll('#webhookLogsTbody .log-row'))
+    .filter(r => r.style.display !== 'none')
+    .map(r => r.querySelector('.log-item-checkbox'))
+    .filter(cb => !!cb);
+
+  visibleCheckboxes.forEach(cb => {
+    cb.checked = masterCb.checked;
+  });
+  updateLogSelection();
+}
+
+function updateLogSelection() {
+  const allCheckboxes = Array.from(document.querySelectorAll('.log-item-checkbox'));
+  const checked = allCheckboxes.filter(cb => cb.checked);
+  const countSpan = document.getElementById('selectedLogsCount');
+  const batchBtn = document.getElementById('btnBatchDeleteLogs');
+  const masterCb = document.getElementById('selectAllLogs');
+
+  if (countSpan) countSpan.innerText = checked.length;
+  if (batchBtn) batchBtn.disabled = (checked.length === 0);
+
+  const visibleCheckboxes = Array.from(document.querySelectorAll('#webhookLogsTbody .log-row'))
+    .filter(r => r.style.display !== 'none')
+    .map(r => r.querySelector('.log-item-checkbox'))
+    .filter(cb => !!cb);
+
+  if (masterCb) {
+    if (visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked)) {
+      masterCb.checked = true;
+      masterCb.indeterminate = false;
+    } else if (visibleCheckboxes.some(cb => cb.checked)) {
+      masterCb.checked = false;
+      masterCb.indeterminate = true;
+    } else {
+      masterCb.checked = false;
+      masterCb.indeterminate = false;
+    }
+  }
+}
+
+function deleteSingleLog(logId) {
+  if (!confirm(`确定要永久删除 ID 为 #${logId} 的推送日志吗？`)) return;
+
+  fetch(`/admin/webhook/logs/delete/${logId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': '{{ csrf_token }}'
+    }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.code === 200) {
+      const row = document.querySelector(`.log-row[data-id="${logId}"]`);
+      if (row) row.remove();
+      const badge = document.getElementById('totalLogsBadge');
+      if (badge) badge.innerText = Math.max(0, parseInt(badge.innerText || '1', 10) - 1);
+      onLogFilterChange();
+    } else {
+      alert('删除失败: ' + (data.message || '系统错误'));
+    }
+  })
+  .catch(err => alert('网络异常: ' + err));
+}
+
+function submitBatchDeleteLogs() {
+  const checked = Array.from(document.querySelectorAll('.log-item-checkbox:checked'));
+  if (checked.length === 0) {
+    alert('请先勾选需要删除的推送日志！');
+    return;
+  }
+  const ids = checked.map(cb => parseInt(cb.value, 10));
+  if (!confirm(`确定要批量删除已选中的 ${ids.length} 条推送日志吗？删除后不可恢复！`)) return;
+
+  const batchBtn = document.getElementById('btnBatchDeleteLogs');
+  const origHtml = batchBtn.innerHTML;
+  batchBtn.disabled = true;
+  batchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>删除中...';
+
+  fetch('/admin/webhook/logs/batch_delete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': '{{ csrf_token }}'
+    },
+    body: JSON.stringify({ log_ids: ids, csrf_token: '{{ csrf_token }}' })
+  })
+  .then(res => res.json())
+  .then(data => {
+    batchBtn.disabled = false;
+    batchBtn.innerHTML = origHtml;
+    if (data.code === 200) {
+      ids.forEach(id => {
+        const row = document.querySelector(`.log-row[data-id="${id}"]`);
+        if (row) row.remove();
+      });
+      const badge = document.getElementById('totalLogsBadge');
+      if (badge) badge.innerText = Math.max(0, parseInt(badge.innerText || '0', 10) - ids.length);
+      onLogFilterChange();
+      alert(data.message);
+    } else {
+      alert('批量删除失败: ' + (data.message || '系统错误'));
+    }
+  })
+  .catch(err => {
+    batchBtn.disabled = false;
+    batchBtn.innerHTML = origHtml;
+    alert('网络异常: ' + err);
+  });
+}
+
+function submitClearAllLogs() {
+  if (!confirm('警告：清空全部日志将彻底删除历史所有 Webhook 推送及交付记录，不可恢复！\n\n确定要清空全部日志吗？')) return;
+
+  fetch('/admin/webhook/logs/clear', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': '{{ csrf_token }}'
+    },
+    body: JSON.stringify({ csrf_token: '{{ csrf_token }}' })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.code === 200) {
+      document.querySelectorAll('#webhookLogsTbody .log-row').forEach(r => r.remove());
+      const badge = document.getElementById('totalLogsBadge');
+      if (badge) badge.innerText = '0';
+      onLogFilterChange();
+      alert(data.message);
+    } else {
+      alert('清空失败: ' + (data.message || '系统错误'));
+    }
+  })
+  .catch(err => alert('网络异常: ' + err));
+}
+
+// V8: 通用 toast 提示容器 + 函数（全局可用，替换原生 alert 提升反馈体验）
+function ensureToastContainer() {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+    container.style.zIndex = '1080';
+    document.body.appendChild(container);
+  }
+  return container;
+}
+
+function showToast(message, type) {
+  const cls = type === 'success' ? 'text-bg-success' : (type === 'warning' ? 'text-bg-warning' : 'text-bg-danger');
+  const container = ensureToastContainer();
+  const toastEl = document.createElement('div');
+  toastEl.className = 'toast align-items-center border-0 ' + cls;
+  toastEl.setAttribute('role', 'alert');
+  toastEl.innerHTML = '<div class="d-flex"><div class="toast-body">' + message + '</div>' +
+    '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
+  container.appendChild(toastEl);
+  const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+  toast.show();
+  toastEl.addEventListener('hidden.bs.toast', function() { toastEl.remove(); });
+}
+
+</script>
+{% endblock %}

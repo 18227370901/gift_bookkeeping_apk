@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - 人情簿打印</title>
+    <style>
+        /* ===== 打印专用样式：A4 纵向，传统中式人情簿风格 ===== */
+        @page { size: A4 portrait; margin: 15mm 12mm; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "SimSun", "宋体", "Noto Serif CJK SC", serif; font-size: 12pt; color: #1a1a1a; background: #fff; }
+        .print-header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #8B0000; padding-bottom: 10px; }
+        .print-header h1 { font-size: 24pt; color: #8B0000; font-family: "KaiTi", "楷体", "Noto Serif CJK SC", serif; letter-spacing: 4px; margin-bottom: 5px; }
+        .print-header .subtitle { font-size: 11pt; color: #666; }
+        .print-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .print-table th { background: #f5f0e8; border: 1px solid #999; padding: 6px 8px; font-size: 10pt; font-weight: bold; text-align: center; color: #8B0000; }
+        .print-table td { border: 1px solid #ccc; padding: 5px 8px; font-size: 10pt; text-align: center; }
+        .print-table tr:nth-child(even) { background: #faf8f5; }
+        .print-table .amount-col { text-align: right; font-weight: bold; font-family: "Courier New", monospace; }
+        .print-table .seq-col { width: 40px; color: #999; }
+        .print-footer { text-align: center; font-size: 9pt; color: #999; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 8px; }
+        .summary-bar { background: #f5f0e8; border: 1px solid #8B0000; padding: 10px 20px; margin-bottom: 15px; text-align: center; font-weight: bold; font-size: 13pt; color: #8B0000; }
+        .summary-bar span { margin: 0 20px; }
+        @media print {
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+        }
+        .no-print { position: fixed; top: 15px; right: 15px; z-index: 9999; }
+        .no-print button { margin-left: 5px; }
+        .page-break { page-break-before: always; }
+    </style>
+</head>
+<body>
+    <!-- 打印操作按钮（不打印） -->
+    <div class="no-print">
+        <button onclick="window.print()" style="padding: 8px 20px; font-size: 14px; background: #8B0000; color: #fff; border: none; border-radius: 5px; cursor: pointer;">🖨️ 打印 / 另存为 PDF</button>
+        <button onclick="window.close()" style="padding: 8px 20px; font-size: 14px; background: #6c757d; color: #fff; border: none; border-radius: 5px; cursor: pointer;">关闭</button>
+    </div>
+
+    <!-- 页眉 -->
+    <div class="print-header">
+        <h1>{{ title }}</h1>
+        <div class="subtitle">{{ subtitle }} | 共 {{ total_count }} 笔记录 | 生成于 {{ generated_at }}</div>
+    </div>
+
+    <!-- 汇总 -->
+    <div class="summary-bar">
+        <span>收礼总额：¥{{ "%.2f"|format(total_received) }}</span>
+        <span>送礼总额：¥{{ "%.2f"|format(total_sent) }}</span>
+        <span>净额：{{ '+¥%.2f'|format(net_amount) if net_amount >= 0 else '-¥%.2f'|format(-net_amount) }}</span>
+    </div>
+
+    <!-- 记录表格 -->
+    <table class="print-table">
+        <thead>
+            <tr>
+                <th class="seq-col">序号</th>
+                <th>姓名</th>
+                <th>往来类型</th>
+                <th class="amount-col">金额（元）</th>
+                <th>大写金额</th>
+                <th>事由</th>
+                <th>备注</th>
+                <th>日期</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in records %}
+            <tr>
+                <td class="seq-col">{{ loop.index }}</td>
+                <td>{{ record.name }}</td>
+                <td>{{ '送礼' if record.record_type in ('send', 'give') else '收礼' }}</td>
+                <td class="amount-col">¥{{ "%.2f"|format(record.amount) }}</td>
+                <td>{{ record.amount_cn }}</td>
+                <td>{{ record.event_reason }}</td>
+                <td>{{ record.notes or '' }}</td>
+                <td>{{ record.created_at.strftime('%Y-%m-%d') if record.created_at else '' }}</td>
+            </tr>
+            {% if loop.index % 20 == 0 and not loop.last %}
+        </tbody>
+    </table>
+    <div class="print-footer">— 第 {{ (loop.index // 20) }} 页 —</div>
+    <div class="page-break"></div>
+    <table class="print-table">
+        <thead>
+            <tr>
+                <th class="seq-col">序号</th>
+                <th>姓名</th>
+                <th>往来类型</th>
+                <th class="amount-col">金额（元）</th>
+                <th>大写金额</th>
+                <th>事由</th>
+                <th>备注</th>
+                <th>日期</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="print-footer">
+        — 人情记账宝 · 共 {{ total_pages }} 页 —
+    </div>
+</body>
+</html>

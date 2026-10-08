@@ -1,0 +1,994 @@
+{% extends "base.html" %}
+
+{% block title %}{{ banquet.title }} - 宴席大账本详情{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- 头部概览卡片 -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center py-3 gap-2">
+                <div>
+                    <h5 class="mb-1 text-primary fw-bold">
+                        <i class="fa-solid fa-champagne-glasses me-2"></i>{{ banquet.title }}
+                        <span class="badge bg-primary-subtle text-primary ms-2 fs-6">{{ banquet.event_type }}</span>
+                    </h5>
+                    <span class="text-muted small">
+                        <i class="fa-regular fa-calendar me-1"></i>{{ banquet.event_date or '未设置日期' }}
+                        {% if banquet.venue %}<span class="ms-2"><i class="fa-solid fa-location-dot me-1"></i>{{ banquet.venue }}</span>{% endif %}
+                    </span>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    {% if can_user_edit_banquet(current_user, banquet) %}
+                    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#importRecordsModal">
+                        <i class="fa-solid fa-file-import me-1"></i>从账本引入明细
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#editBanquetModal">
+                        <i class="fa-solid fa-pen-to-square me-1"></i>编辑成本/信息
+                    </button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#shareModal">
+                        <i class="fa-solid fa-share-nodes me-1"></i>分享账本
+                    </button>
+                    {% else %}
+                    <span class="badge bg-secondary text-white small align-self-center py-2 px-3"><i class="fa-solid fa-eye me-1"></i>只读账本</span>
+                    {% endif %}
+                    <a href="{{ url_for('banquet_export_excel', banquet_id=banquet.id) }}" class="btn btn-success btn-sm">
+                        <i class="fa-solid fa-file-excel me-1"></i>导出台账(CSV/Excel)
+                    </a>
+                    <a href="{{ url_for('banquets_view') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa-solid fa-arrow-left me-1"></i>返回宴席列表
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- 盈亏分析大指标 -->
+                <div class="row g-3 text-center mb-4">
+                    <div class="col-md-3">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <span class="text-muted d-block small mb-1">收礼总收入 ({{ records|length }}笔)</span>
+                            <span class="fs-4 fw-bold text-success privacy-blur">¥{{ "%.2f"|format(total_income) }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <span class="text-muted d-block small mb-1">办宴总支出成本</span>
+                            <span class="fs-4 fw-bold text-secondary privacy-blur">¥{{ "%.2f"|format(banquet_cost) }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <span class="text-muted d-block small mb-1">净盈亏 (收礼 - 成本)</span>
+                            <span class="fs-4 fw-bold {{ 'text-success' if net_profit >= 0 else 'text-danger' }} privacy-blur">
+                                {{ '+' if net_profit > 0 else '' }}¥{{ "%.2f"|format(net_profit) }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <span class="text-muted d-block small mb-1">资金回本率</span>
+                            <span class="fs-4 fw-bold text-primary privacy-blur">{{ "%.1f"|format(recovery_rate) }}%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 现场快速收礼录入卡片 -->
+                {% if can_user_edit_banquet(current_user, banquet) %}
+                <div class="card border-primary bg-primary bg-opacity-10 mb-4">
+                    <div class="card-body p-3">
+                        <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-bolt me-1"></i>现场快速收礼登记台</h6>
+                        <form action="{{ url_for('banquet_quick_add', banquet_id=banquet.id) }}" method="POST" class="row g-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" name="name" placeholder="客人姓名 *" required>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number" step="0.01" min="0" class="form-control" name="amount" placeholder="礼金金额 *" required>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" class="form-control" name="phone" placeholder="联系电话 (选填)">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" class="form-control" name="notes" placeholder="桌号/备注 (如：3号桌)">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100 fw-bold">
+                                    <i class="fa-solid fa-check me-1"></i>快速登记入库
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- 明细查询、筛选与分页条数工具栏 -->
+                <div class="bg-light p-3 rounded-3 mb-3 border">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-3 col-sm-12">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                                <input type="text" id="recordSearchInput" class="form-control" placeholder="搜索客人姓名、电话、备注...">
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-6">
+                            <select id="recordAmountFilter" class="form-select form-select-sm">
+                                <option value="">全部金额范围</option>
+                                <option value="0-200">200 元及以下</option>
+                                <option value="200-500">200 - 500 元</option>
+                                <option value="500-1000">500 - 1000 元</option>
+                                <option value="1000-2000">1000 - 2000 元</option>
+                                <option value="2000+">2000 元以上</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 col-sm-6">
+                            <select id="recordSortSelect" class="form-select form-select-sm">
+                                <option value="time_desc">登记时间倒序 (最新)</option>
+                                <option value="time_asc">登记时间正序</option>
+                                <option value="amount_desc">礼金金额从高到低</option>
+                                <option value="amount_asc">礼金金额从低到高</option>
+                                <option value="name_asc">客人姓名 A-Z</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 col-sm-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white text-muted">每页</span>
+                                <select id="recordPageSizeSelect" class="form-select form-select-sm">
+                                    <option value="10" selected>10 条</option>
+                                    <option value="20">20 条</option>
+                                    <option value="50">50 条</option>
+                                    <option value="all">全部显示</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 text-md-end">
+                            <button type="button" id="btnResetRecordFilters" class="btn btn-sm btn-outline-secondary w-100">
+                                <i class="fa-solid fa-rotate-left me-1"></i>重置筛选条件
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 批量操作工具条 -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 px-2 py-2 bg-white border rounded-3 shadow-sm">
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="selectedRecordsBadge" class="badge bg-primary-subtle text-primary border border-primary-subtle py-2 px-3 small">
+                            已勾选 <strong id="selectedRecordsCount">0</strong> 笔明细
+                        </span>
+                        {% if can_user_edit_banquet(current_user, banquet) %}
+                        <button type="button" id="btnBatchUnlinkRecords" class="btn btn-sm btn-outline-warning" disabled>
+                            <i class="fa-solid fa-arrow-right-from-bracket me-1"></i>批量移出此宴席 (保留主账本)
+                        </button>
+                        {% endif %}
+                        {% if not (current_user.get_menu_perm('banquets') in (2,)) %}
+                        <button type="button" id="btnBatchDeleteRecords" class="btn btn-sm btn-outline-danger" disabled>
+                            <i class="fa-solid fa-trash-can me-1"></i>批量移入回收站
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <span class="small text-muted" id="recordStatsSpan">
+                            当前筛选到 <strong id="matchedRecordsCount">{{ records|length }}</strong> / 共 {{ records|length }} 笔明细
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 礼金记录明细表格 -->
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="banquetRecordsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;" class="text-center">
+                                    <input type="checkbox" class="form-check-input" id="selectAllRecords" title="全选 / 取消全选">
+                                </th>
+                                <th style="width: 60px;">#</th>
+                                <th>客人姓名</th>
+                                <th>礼金金额</th>
+                                <th>联系电话</th>
+                                <th>备注说明/桌号</th>
+                                <th>登记时间</th>
+                                <th class="text-end pe-3">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsTbody">
+                            {% if records %}
+                                {% for r in records %}
+                                <tr class="banquet-record-row"
+                                    data-id="{{ r.id }}"
+                                    data-name="{{ r.name|lower }}"
+                                    data-amount="{{ r.amount }}"
+                                    data-phone="{{ (r.phone or '')|lower }}"
+                                    data-notes="{{ (r.notes or '')|lower }}"
+                                    data-time="{{ r.created_at.timestamp() if r.created_at else 0 }}"
+                                    data-time-str="{{ r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '-' }}">
+                                    <td class="text-center">
+                                        <input type="checkbox" class="form-check-input record-checkbox" value="{{ r.id }}" data-name="{{ r.name }}">
+                                    </td>
+                                    <td class="text-muted row-index">{{ loop.index }}</td>
+                                    <td class="fw-bold">{{ r.name }}</td>
+                                    <td class="text-success fw-bold privacy-blur">¥{{ "%.2f"|format(r.amount) }}</td>
+                                    <td>{{ r.phone or '-' }}</td>
+                                    <td>{{ r.notes or '-' }}</td>
+                                    <td class="small text-muted">{{ r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '-' }}</td>
+                                    <td class="text-end pe-3">
+                                        {% if can_user_edit_banquet(current_user, banquet) %}
+                                        <form action="{{ url_for('banquet_unlink_record', banquet_id=banquet.id, record_id=r.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('确定要将客人 [{{ r.name }}] 的这笔记录移出此专属宴席吗？（记录仍保留在主账本中）');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning me-1" title="移出此宴席（保留在主账本）">
+                                                <i class="fa-solid fa-arrow-right-from-bracket"></i> 移出
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                        {% if can_user_delete_entity(current_user, r, 'banquets') %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete-single-record"
+                                                data-id="{{ r.id }}"
+                                                data-name="{{ r.name }}"
+                                                title="移入回收站">
+                                            <i class="fa-solid fa-trash me-1"></i>删除
+                                        </button>
+                                        {% elif not can_user_edit_banquet(current_user, banquet) %}
+                                        <span class="badge bg-secondary text-white small">只读</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr id="initialEmptyRow">
+                                    <td colspan="8" class="text-center py-4 text-muted">本宴席尚无收礼记录，请使用上方快捷登记台现场录入</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 分页控制栏 -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-2 border-top" id="paginationWrapper">
+                    <div class="small text-muted" id="recordPaginationInfo">
+                        显示第 1 - 10 条
+                    </div>
+                    <nav aria-label="明细分页">
+                        <ul class="pagination pagination-sm mb-0" id="recordPaginationUl">
+                            <!-- 动态生成分页按钮 -->
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 分享模态框 -->
+<div class="modal fade" id="shareModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4">
+            <div class="modal-header border-light">
+                <h5 class="modal-title fw-bold"><i class="fa-solid fa-share-nodes text-primary me-2"></i>免登录只读分享链接</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">生成专属只读链接后，亲友或记账帮手无需登录即可查阅本宴席台账明细，无需强行刷新页面即可在当前窗口生成与复制。</p>
+                <form id="banquetShareForm" action="{{ url_for('banquet_share', banquet_id=banquet.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">访问密码 (选填，留空则免密直接查看)</label>
+                        <input type="text" class="form-control rounded-3" name="access_password" id="shareAccessPassword" placeholder="设置6位数字或密码" value="{{ share.access_password if share else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">链接有效期</label>
+                        <select class="form-select rounded-3" name="expire_days" id="shareExpireDays">
+                            <option value="permanent" {% if not share or not share.expires_at %}selected{% endif %}>永久有效</option>
+                            <option value="1">1 天内有效 (24小时)</option>
+                            <option value="7">7 天内有效 (1周)</option>
+                            <option value="30">30 天内有效 (1个月)</option>
+                        </select>
+                        <div class="form-text small text-muted">到期后分享链接将自动失效，访客无法继续访问。</div>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" name="hide_amount" id="hideAmount" {% if share and share.hide_amount %}checked{% endif %}>
+                        <label class="form-check-label" for="hideAmount">对只读访客隐藏具体金额数字（防隐私泄露）</label>
+                    </div>
+                    <button type="submit" id="btnSubmitShare" class="btn btn-primary w-100 rounded-pill shadow-sm">
+                        <i class="fa-solid fa-link me-1"></i>生成 / 更新专属分享链接
+                    </button>
+                    <button type="button" id="btnDeleteShare" class="btn btn-outline-danger w-100 rounded-pill mt-2" onclick="deleteShareLink()" style="display: {% if share and share.is_active %}block{% else %}none{% endif %};">
+                        <i class="fa-solid fa-trash-can me-1"></i>删除 / 作废此分享链接
+                    </button>
+                </form>
+
+                <div id="shareResultAlert" class="alert alert-success py-2 px-3 mt-3 mb-0 small rounded-3" style="display: none;">
+                    <i class="fa-solid fa-circle-check me-1"></i> <span id="shareAlertText">专属免登录只读分享链接已成功生成并更新！</span>
+                </div>
+
+                <div id="shareLinkSection" class="mt-3" style="display: {% if share and share.is_active %}block{% else %}none{% endif %};">
+                    <hr class="my-3">
+                    <label class="form-label fw-bold small text-secondary">专属只读访问地址：</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control rounded-start-3" id="shareUrlInput" value="{{ request.host_url.rstrip('/') }}{{ url_for('shared_ledger_view', token=share.share_token) if share else '' }}" readonly>
+                        <button class="btn btn-outline-primary" type="button" onclick="copyShareUrl()" title="复制链接">
+                            <i class="fa-solid fa-copy me-1"></i>复制
+                        </button>
+                        <a id="shareOpenLink" href="{{ url_for('shared_ledger_view', token=share.share_token) if share else '#' }}" target="_blank" class="btn btn-outline-secondary rounded-end-3" title="在新窗口中打开预览">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                        </a>
+                    </div>
+                    <div class="form-text small text-muted mt-2">
+                        <i class="fa-solid fa-circle-info me-1"></i>链接生成成功，停留在当前窗口即可一键复制并发送给亲友。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 从账本引入收礼明细模态框 -->
+<div class="modal fade" id="importRecordsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold"><i class="fa-solid fa-file-import text-primary me-2"></i>从礼金账本引入收礼明细</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('banquet_import_records', banquet_id=banquet.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">
+                        选择主礼金账本中现有的收礼记录，直接归集关联到本专属宴席（根据业务规则，仅收礼记录支持关联专属宴席）。
+                    </p>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="input-group input-group-sm" style="max-width: 320px;">
+                            <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
+                            <input type="text" class="form-control" id="importSearchInput" placeholder="输入姓名/事由/备注快速搜索..." oninput="filterImportRows()">
+                        </div>
+                        <div class="small text-muted">
+                            候选收礼记录：<span class="fw-bold text-primary">{{ available_records|length if available_records else 0 }}</span> 笔
+                        </div>
+                    </div>
+                    <div class="table-responsive border rounded-3" style="max-height: 380px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle mb-0" id="importRecordsTable">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 40px;" class="text-center">
+                                        <input class="form-check-input" type="checkbox" id="importSelectAll" onclick="toggleImportSelectAll(this)">
+                                    </th>
+                                    <th>客人姓名</th>
+                                    <th>礼金金额</th>
+                                    <th>办席事由</th>
+                                    <th>备注说明</th>
+                                    <th>登记时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if available_records %}
+                                    {% for ar in available_records %}
+                                    <tr class="import-record-row">
+                                        <td class="text-center">
+                                            <input class="form-check-input import-checkbox" type="checkbox" name="record_ids" value="{{ ar.id }}">
+                                        </td>
+                                        <td class="fw-bold col-name">{{ ar.name }}</td>
+                                        <td class="text-success fw-bold">¥{{ "%.2f"|format(ar.amount) }}</td>
+                                        <td><span class="badge bg-light text-dark border col-reason">{{ ar.event_reason }}</span></td>
+                                        <td class="small text-muted text-truncate col-notes" style="max-width: 150px;" title="{{ ar.notes }}">{{ ar.notes or '-' }}</td>
+                                        <td class="small text-muted">{{ ar.created_at.strftime('%Y-%m-%d') if ar.created_at else '-' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-muted">暂无未归属本宴席的候选收礼记录</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary btn-sm fw-bold">
+                        <i class="fa-solid fa-check me-1"></i>确认引入选中记录到本宴席
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑宴席基本信息与成本模态框 -->
+<div class="modal fade" id="editBanquetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title"><i class="fa-solid fa-pen-to-square me-2"></i>编辑宴席信息与办宴成本</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('banquet_edit', banquet_id=banquet.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">宴席/活动名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="title" value="{{ banquet.title }}" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">活动类型</label>
+                            <input type="text" class="form-control" name="event_type" value="{{ banquet.event_type }}" list="eventTypesList">
+                            <datalist id="eventTypesList">
+                                <option value="婚宴">
+                                <option value="百日宴">
+                                <option value="满月酒">
+                                <option value="乔迁宴">
+                                <option value="寿宴">
+                                <option value="升学宴">
+                            </datalist>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">举办地点 / 酒店</label>
+                            <input type="text" class="form-control" name="venue" value="{{ banquet.venue or '' }}">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">预算金额 (元)</label>
+                            <input type="number" step="0.01" class="form-control" name="budget" value="{{ banquet.budget or 0 }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-danger">办宴总成本支出 (元)</label>
+                            <input type="number" step="0.01" class="form-control text-danger fw-bold" name="banquet_cost" value="{{ banquet.banquet_cost or 0 }}">
+                            <div class="form-text">计入酒席、烟酒、婚庆、场地等所有实际支出</div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">备注说明</label>
+                        <textarea class="form-control" name="notes" rows="2">{{ banquet.notes or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary fw-bold">保存修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyShareUrl() {
+    const input = document.getElementById('shareUrlInput');
+    if (!input || !input.value) return;
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(input.value).then(() => {
+            alert('专属只读分享链接已成功复制到剪贴板！');
+        }).catch(() => {
+            input.select();
+            document.execCommand('copy');
+            alert('专属只读分享链接已成功复制到剪贴板！');
+        });
+    } else {
+        input.select();
+        document.execCommand('copy');
+        alert('专属只读分享链接已成功复制到剪贴板！');
+    }
+}
+
+async function deleteShareLink() {
+    if (!confirm('确定要删除并作废此专属分享链接吗？删除后访客将无法再访问此账本页面。')) {
+        return;
+    }
+    const btn = document.getElementById('btnDeleteShare');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在删除...';
+
+    try {
+        const formData = new FormData();
+        formData.append('csrf_token', '{{ csrf_token }}');
+        const resp = await fetch("{{ url_for('banquet_share_delete', banquet_id=banquet.id) }}", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            const linkSection = document.getElementById('shareLinkSection');
+            if (linkSection) linkSection.style.display = 'none';
+            const urlInput = document.getElementById('shareUrlInput');
+            if (urlInput) urlInput.value = '';
+            btn.style.display = 'none';
+
+            const alertBox = document.getElementById('shareResultAlert');
+            const alertText = document.getElementById('shareAlertText');
+            if (alertBox && alertText) {
+                alertBox.className = 'alert alert-warning py-2 px-3 mt-3 mb-0 small rounded-3';
+                alertText.textContent = data.message || '专属分享链接已成功删除作废！';
+                alertBox.style.display = 'block';
+            }
+        } else {
+            alert(data.message || '删除分享链接失败，请重试');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('网络请求异常，请重试');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+}
+
+function toggleImportSelectAll(source) {
+    document.querySelectorAll('#importRecordsTable .import-checkbox').forEach(cb => {
+        const tr = cb.closest('tr');
+        if (tr && tr.style.display !== 'none') {
+            cb.checked = source.checked;
+        }
+    });
+}
+
+function filterImportRows() {
+    const input = document.getElementById('importSearchInput');
+    const q = input ? input.value.trim().toLowerCase() : '';
+    document.querySelectorAll('#importRecordsTable .import-record-row').forEach(row => {
+        const name = row.querySelector('.col-name') ? row.querySelector('.col-name').textContent.toLowerCase() : '';
+        const reason = row.querySelector('.col-reason') ? row.querySelector('.col-reason').textContent.toLowerCase() : '';
+        const notes = row.querySelector('.col-notes') ? row.querySelector('.col-notes').textContent.toLowerCase() : '';
+        if (!q || name.includes(q) || reason.includes(q) || notes.includes(q)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. 分享表单 AJAX 提交（停留在当前小窗口，不强行刷新页面）
+    const shareForm = document.getElementById('banquetShareForm');
+    if (shareForm) {
+        shareForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const submitBtn = document.getElementById('btnSubmitShare');
+            const originalBtnHtml = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在生成并更新链接...';
+
+            try {
+                const formData = new FormData(shareForm);
+                const resp = await fetch(shareForm.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await resp.json();
+                if (resp.ok && (data.code === 200 || data.success || data.share_url)) {
+                    const shareUrl = data.share_url;
+                    const urlInput = document.getElementById('shareUrlInput');
+                    if (urlInput) urlInput.value = shareUrl;
+
+                    const openLink = document.getElementById('shareOpenLink');
+                    if (openLink) openLink.href = shareUrl;
+
+                    const linkSection = document.getElementById('shareLinkSection');
+                    if (linkSection) linkSection.style.display = 'block';
+
+                    const delBtn = document.getElementById('btnDeleteShare');
+                    if (delBtn) delBtn.style.display = 'block';
+
+                    const alertBox = document.getElementById('shareResultAlert');
+                    const alertText = document.getElementById('shareAlertText');
+                    if (alertBox && alertText) {
+                        alertBox.className = 'alert alert-success py-2 px-3 mt-3 mb-0 small rounded-3';
+                        alertText.textContent = data.message || '专属免登录只读分享链接已成功生成并更新！';
+                        alertBox.style.display = 'block';
+                    }
+                } else {
+                    alert(data.message || '生成分享链接失败，请重试');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('网络请求异常，请重试');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
+            }
+        });
+    }
+
+    // 2. 礼金明细表格：筛选、查询、排序、分页与批量操作
+    const searchInput = document.getElementById('recordSearchInput');
+    const amountFilter = document.getElementById('recordAmountFilter');
+    const sortSelect = document.getElementById('recordSortSelect');
+    const pageSizeSelect = document.getElementById('recordPageSizeSelect');
+    const resetBtn = document.getElementById('btnResetRecordFilters');
+
+    const selectAllCheckbox = document.getElementById('selectAllRecords');
+    const selectedBadge = document.getElementById('selectedRecordsBadge');
+    const selectedCountSpan = document.getElementById('selectedRecordsCount');
+    const batchUnlinkBtn = document.getElementById('btnBatchUnlinkRecords');
+    const batchDeleteBtn = document.getElementById('btnBatchDeleteRecords');
+    const matchedCountSpan = document.getElementById('matchedRecordsCount');
+
+    const tbody = document.getElementById('recordsTbody');
+    const paginationInfo = document.getElementById('recordPaginationInfo');
+    const paginationUl = document.getElementById('recordPaginationUl');
+    const paginationWrapper = document.getElementById('paginationWrapper');
+
+    let currentPage = 1;
+
+    function getAllRows() {
+        return Array.from(document.querySelectorAll('.banquet-record-row'));
+    }
+
+    function updateSelectionState() {
+        const rows = getAllRows();
+        const visibleChecked = rows
+            .filter(r => r.style.display !== 'none')
+            .map(r => r.querySelector('.record-checkbox'))
+            .filter(cb => cb && cb.checked);
+
+        const count = visibleChecked.length;
+        if (selectedCountSpan) selectedCountSpan.textContent = count;
+        if (batchUnlinkBtn) {
+            batchUnlinkBtn.disabled = (count === 0);
+            batchUnlinkBtn.innerHTML = '<i class="fa-solid fa-arrow-right-from-bracket me-1"></i>批量移出此宴席 (' + count + ')';
+        }
+        if (batchDeleteBtn) {
+            batchDeleteBtn.disabled = (count === 0);
+            batchDeleteBtn.innerHTML = '<i class="fa-solid fa-trash-can me-1"></i>批量移入回收站 (' + count + ')';
+        }
+
+        const visibleCbs = rows
+            .filter(r => r.style.display !== 'none')
+            .map(r => r.querySelector('.record-checkbox'))
+            .filter(Boolean);
+
+        if (selectAllCheckbox) {
+            if (visibleCbs.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (visibleChecked.length === visibleCbs.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else if (visibleChecked.length > 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            }
+        }
+    }
+
+    function applyFilterAndPagination() {
+        const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        const amtMode = amountFilter ? amountFilter.value : '';
+        const sortMode = sortSelect ? sortSelect.value : 'time_desc';
+        const pageSizeVal = pageSizeSelect ? pageSizeSelect.value : '10';
+
+        let rows = getAllRows();
+        if (rows.length === 0) return;
+
+        // 1. 过滤匹配
+        let matchedRows = rows.filter(row => {
+            const name = row.dataset.name || '';
+            const phone = row.dataset.phone || '';
+            const notes = row.dataset.notes || '';
+            const amt = parseFloat(row.dataset.amount || '0');
+
+            if (q) {
+                if (!name.includes(q) && !phone.includes(q) && !notes.includes(q)) {
+                    return false;
+                }
+            }
+
+            if (amtMode) {
+                if (amtMode === '0-200' && amt > 200) return false;
+                if (amtMode === '200-500' && (amt < 200 || amt > 500)) return false;
+                if (amtMode === '500-1000' && (amt < 500 || amt > 1000)) return false;
+                if (amtMode === '1000-2000' && (amt < 1000 || amt > 2000)) return false;
+                if (amtMode === '2000+' && amt <= 2000) return false;
+            }
+
+            return true;
+        });
+
+        // 2. 排序
+        matchedRows.sort((a, b) => {
+            if (sortMode === 'time_desc') {
+                return parseFloat(b.dataset.time || '0') - parseFloat(a.dataset.time || '0');
+            } else if (sortMode === 'time_asc') {
+                return parseFloat(a.dataset.time || '0') - parseFloat(b.dataset.time || '0');
+            } else if (sortMode === 'amount_desc') {
+                return parseFloat(b.dataset.amount || '0') - parseFloat(a.dataset.amount || '0');
+            } else if (sortMode === 'amount_asc') {
+                return parseFloat(a.dataset.amount || '0') - parseFloat(b.dataset.amount || '0');
+            } else if (sortMode === 'name_asc') {
+                return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+            }
+            return 0;
+        });
+
+        // 3. 分页计算
+        const totalMatched = matchedRows.length;
+        if (matchedCountSpan) matchedCountSpan.textContent = totalMatched;
+
+        let pageSize = (pageSizeVal === 'all') ? (totalMatched || 1) : parseInt(pageSizeVal, 10);
+        let totalPages = Math.ceil(totalMatched / pageSize) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        let startIndex = (currentPage - 1) * pageSize;
+        let endIndex = startIndex + pageSize;
+
+        // 隐藏所有行，并仅展示当前页的匹配行
+        rows.forEach(r => {
+            r.style.display = 'none';
+        });
+
+        matchedRows.forEach((r, idx) => {
+            if (idx >= startIndex && idx < endIndex) {
+                r.style.display = '';
+                const idxCell = r.querySelector('.row-index');
+                if (idxCell) idxCell.textContent = idx + 1;
+                tbody.appendChild(r);
+            }
+        });
+
+        // 4. 更新分页 UI
+        if (paginationInfo) {
+            if (totalMatched === 0) {
+                paginationInfo.textContent = '暂无符合筛选条件的明细';
+            } else {
+                let showEnd = Math.min(endIndex, totalMatched);
+                paginationInfo.textContent = '显示第 ' + (startIndex + 1) + ' - ' + showEnd + ' 条，共 ' + totalMatched + ' 条';
+            }
+        }
+
+        renderPaginationButtons(totalPages);
+        updateSelectionState();
+    }
+
+    function renderPaginationButtons(totalPages) {
+        if (!paginationUl) return;
+        paginationUl.innerHTML = '';
+        if (totalPages <= 1) {
+            paginationWrapper.style.display = (pageSizeSelect.value === 'all') ? 'flex' : 'none';
+            return;
+        }
+        paginationWrapper.style.display = 'flex';
+
+        // 上一页
+        const prevLi = document.createElement('li');
+        prevLi.className = 'page-item ' + (currentPage === 1 ? 'disabled' : '');
+        prevLi.innerHTML = '<a class="page-link" href="javascript:void(0);">上一页</a>';
+        prevLi.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                applyFilterAndPagination();
+            }
+        });
+        paginationUl.appendChild(prevLi);
+
+        // 页码
+        let startP = Math.max(1, currentPage - 2);
+        let endP = Math.min(totalPages, currentPage + 2);
+
+        for (let p = startP; p <= endP; p++) {
+            const li = document.createElement('li');
+            li.className = 'page-item ' + (p === currentPage ? 'active' : '');
+            li.innerHTML = '<a class="page-link" href="javascript:void(0);">' + p + '</a>';
+            li.addEventListener('click', () => {
+                currentPage = p;
+                applyFilterAndPagination();
+            });
+            paginationUl.appendChild(li);
+        }
+
+        // 下一页
+        const nextLi = document.createElement('li');
+        nextLi.className = 'page-item ' + (currentPage === totalPages ? 'disabled' : '');
+        nextLi.innerHTML = '<a class="page-link" href="javascript:void(0);">下一页</a>';
+        nextLi.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                applyFilterAndPagination();
+            }
+        });
+        paginationUl.appendChild(nextLi);
+    }
+
+    if (searchInput) searchInput.addEventListener('input', () => { currentPage = 1; applyFilterAndPagination(); });
+    if (amountFilter) amountFilter.addEventListener('change', () => { currentPage = 1; applyFilterAndPagination(); });
+    if (sortSelect) sortSelect.addEventListener('change', () => { applyFilterAndPagination(); });
+    if (pageSizeSelect) pageSizeSelect.addEventListener('change', () => { currentPage = 1; applyFilterAndPagination(); });
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            if (searchInput) searchInput.value = '';
+            if (amountFilter) amountFilter.value = '';
+            if (sortSelect) sortSelect.value = 'time_desc';
+            if (pageSizeSelect) pageSizeSelect.value = '10';
+            currentPage = 1;
+            applyFilterAndPagination();
+        });
+    }
+
+    // 全选/取消全选当前可见明细
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const isChecked = this.checked;
+            getAllRows().forEach(r => {
+                if (r.style.display !== 'none') {
+                    const cb = r.querySelector('.record-checkbox');
+                    if (cb) cb.checked = isChecked;
+                }
+            });
+            updateSelectionState();
+        });
+    }
+
+    // 行复选框切换
+    tbody.addEventListener('change', function(e) {
+        if (e.target.classList.contains('record-checkbox')) {
+            updateSelectionState();
+        }
+    });
+
+    // 单笔明细删除 (AJAX 移入回收站，不离开本宴席页面)
+    tbody.addEventListener('click', async function(e) {
+        const btn = e.target.closest('.btn-delete-single-record');
+        if (!btn) return;
+
+        const recordId = btn.dataset.id;
+        const recordName = btn.dataset.name || '此客人';
+        if (!confirm('确定要删除客人 [' + recordName + '] 的这笔记录吗？（将移入回收站）')) {
+            return;
+        }
+
+        const origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        try {
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token }}');
+            const resp = await fetch('/banquet/{{ banquet.id }}/record/delete/' + recordId, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            });
+            const data = await resp.json();
+            if (resp.ok && (data.code === 200 || data.success)) {
+                alert(data.message || '客人记录已成功移入回收站！');
+                const row = btn.closest('.banquet-record-row');
+                if (row) row.remove();
+                applyFilterAndPagination();
+                // 刷新页面以更新统计指标
+                window.location.reload();
+            } else {
+                alert(data.message || '删除失败，请稍后重试');
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
+        } catch (err) {
+            console.error(err);
+            alert('网络请求异常，请刷新后重试');
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    });
+
+    // 批量移出宴席 (保留在主账本)
+    if (batchUnlinkBtn) {
+        batchUnlinkBtn.addEventListener('click', async function() {
+            const checkedBoxes = getAllRows()
+                .filter(r => r.style.display !== 'none')
+                .map(r => r.querySelector('.record-checkbox'))
+                .filter(cb => cb && cb.checked);
+
+            if (checkedBoxes.length === 0) {
+                alert('请至少勾选一条要移出的记录！');
+                return;
+            }
+
+            const ids = checkedBoxes.map(cb => cb.value);
+            if (!confirm('确定要将选中的 ' + ids.length + ' 笔记录移出此专属宴席吗？（记录仍保留在主账本）')) {
+                return;
+            }
+
+            const origHtml = batchUnlinkBtn.innerHTML;
+            batchUnlinkBtn.disabled = true;
+            batchUnlinkBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在移出...';
+
+            try {
+                const resp = await fetch('{{ url_for("banquet_records_batch_unlink", banquet_id=banquet.id) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ record_ids: ids })
+                });
+                const data = await resp.json();
+                if (resp.ok && (data.code === 200 || data.success)) {
+                    alert(data.message || '选中的记录已成功移出此宴席！');
+                    window.location.reload();
+                } else {
+                    alert(data.message || '批量移出失败，请重试');
+                    batchUnlinkBtn.disabled = false;
+                    batchUnlinkBtn.innerHTML = origHtml;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('网络请求异常，请重试');
+                batchUnlinkBtn.disabled = false;
+                batchUnlinkBtn.innerHTML = origHtml;
+            }
+        });
+    }
+
+    // 批量删除明细 (移入回收站)
+    if (batchDeleteBtn) {
+        batchDeleteBtn.addEventListener('click', async function() {
+            const checkedBoxes = getAllRows()
+                .filter(r => r.style.display !== 'none')
+                .map(r => r.querySelector('.record-checkbox'))
+                .filter(cb => cb && cb.checked);
+
+            if (checkedBoxes.length === 0) {
+                alert('请至少勾选一条要删除的记录！');
+                return;
+            }
+
+            const ids = checkedBoxes.map(cb => cb.value);
+            if (!confirm('确定要将选中的 ' + ids.length + ' 笔明细移入回收站吗？')) {
+                return;
+            }
+
+            const origHtml = batchDeleteBtn.innerHTML;
+            batchDeleteBtn.disabled = true;
+            batchDeleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在删除...';
+
+            try {
+                const resp = await fetch('{{ url_for("banquet_records_batch_delete", banquet_id=banquet.id) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ record_ids: ids })
+                });
+                const data = await resp.json();
+                if (resp.ok && (data.code === 200 || data.success)) {
+                    alert(data.message || '选中的明细已成功移入回收站！');
+                    window.location.reload();
+                } else {
+                    alert(data.message || '批量删除失败，请重试');
+                    batchDeleteBtn.disabled = false;
+                    batchDeleteBtn.innerHTML = origHtml;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('网络请求异常，请重试');
+                batchDeleteBtn.disabled = false;
+                batchDeleteBtn.innerHTML = origHtml;
+            }
+        });
+    }
+
+    // 初始化运行一次筛选与分页
+    applyFilterAndPagination();
+});
+</script>
+{% endblock %}

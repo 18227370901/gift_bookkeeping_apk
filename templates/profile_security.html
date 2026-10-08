@@ -1,0 +1,262 @@
+{% extends 'base.html' %}
+
+{% block title %}个人安全设置 - 人情礼金记账系统{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-8 col-lg-7">
+        <!-- 页面标题 -->
+        <div class="text-center mb-4">
+            <h3 class="fw-bold text-primary"><i class="fa-solid fa-shield-halved me-2"></i>个人安全设置</h3>
+            <p class="text-muted small mb-0">管理您的登录密码与密保问题，确保账户安全</p>
+        </div>
+
+        <!-- 折叠面板：修改密码 / 修改密保 -->
+        <div class="accordion" id="securityAccordion">
+            <!-- 面板 A：修改登录密码 -->
+            <div class="accordion-item border-0 shadow-sm mb-3 rounded-3 overflow-hidden">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-light d-flex align-items-center py-3" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#collapsePassword" aria-expanded="false" aria-controls="collapsePassword">
+                        <i class="fa-solid fa-key me-2 text-danger"></i>
+                        <span class="fw-bold">修改登录密码</span>
+                    </button>
+                </h2>
+                <div id="collapsePassword" class="accordion-collapse collapse" data-bs-parent="#securityAccordion">
+                    <div class="accordion-body p-4">
+                        <form method="POST" action="{{ url_for('change_password') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <div class="mb-3">
+                                <label for="old_password" class="form-label fw-bold text-secondary small">原密码 <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="old_password" name="old_password" placeholder="请输入当前密码" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('old_password', this)" title="切换明密文">
+                                        <i class="fa-regular fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="new_password" class="form-label fw-bold text-secondary small">新密码 <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="new_password" name="new_password" placeholder="至少6位，须包含字母和数字" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('new_password', this)" title="切换明密文">
+                                        <i class="fa-regular fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="confirm_password" class="form-label fw-bold text-secondary small">确认新密码 <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="请再次输入新密码" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('confirm_password', this)" title="切换明密文">
+                                        <i class="fa-regular fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-danger w-100 py-2 fw-bold"><i class="fa-solid fa-check me-1"></i>提交修改密码</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 面板 B：修改密保问题 -->
+            <div class="accordion-item border-0 shadow-sm mb-3 rounded-3 overflow-hidden">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-light d-flex align-items-center py-3" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#collapseSecurity" aria-expanded="false" aria-controls="collapseSecurity">
+                        <i class="fa-solid fa-circle-question me-2 text-warning"></i>
+                        <span class="fw-bold">修改密保问题</span>
+                        <span class="ms-auto me-3 small text-muted d-none d-sm-inline">
+                            问题1：{{ current_user.security_question_1 or current_user.security_question or '未设置' }}
+                        </span>
+                    </button>
+                </h2>
+                <div id="collapseSecurity" class="accordion-collapse collapse" data-bs-parent="#securityAccordion">
+                    <div class="accordion-body p-4">
+                        <!-- 当前密保信息展示 -->
+                        <div class="p-3 bg-light rounded-3 border mb-4">
+                            <div class="small fw-bold text-primary mb-2"><i class="fa-solid fa-info-circle me-1"></i>当前密保信息</div>
+                            <div class="small text-muted mb-1">问题 1：<strong class="text-dark">{{ current_user.security_question_1 or current_user.security_question or '未设置' }}</strong></div>
+                            <div class="small text-muted">问题 2：<strong class="text-dark">{{ current_user.security_question_2 or '未设置' }}</strong></div>
+                        </div>
+
+                        <form method="POST" action="{{ url_for('profile_security') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                            <!-- 身份验证区 -->
+                            <div class="alert alert-warning-subtle border border-warning-subtle py-2 px-3 small rounded-3 mb-3">
+                                <i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>
+                                <strong>安全验证：</strong>修改密保前请先验证身份，输入旧密码或任意一个密保答案即可。
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-secondary small">旧密码验证（三选一）：</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="profile_old_pwd" name="old_password" placeholder="输入当前密码">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('profile_old_pwd', this)" title="切换明密文">
+                                        <i class="fa-regular fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="small text-muted mb-1">原密保问题 1：<strong class="text-dark">{{ current_user.security_question_1 or current_user.security_question or '未设置' }}</strong></div>
+                                <input type="text" class="form-control" name="old_security_answer_1" placeholder="输入原密保问题 1 的答案">
+                            </div>
+                            {% if current_user.security_question_2 %}
+                            <div class="mb-3">
+                                <div class="small text-muted mb-1">原密保问题 2：<strong class="text-dark">{{ current_user.security_question_2 }}</strong></div>
+                                <input type="text" class="form-control" name="old_security_answer_2" placeholder="输入原密保问题 2 的答案">
+                            </div>
+                            {% endif %}
+                            <hr class="my-3 text-muted">
+
+                            <!-- 新密保问题输入区 -->
+                            <h6 class="text-muted mb-3"><i class="fa-solid fa-edit me-1 text-warning"></i>设置新密保问题</h6>
+
+                            <!-- 新密保问题 1 -->
+                            <div class="p-3 bg-light rounded-3 border mb-3" data-sq-group="1">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold text-secondary small">
+                                        <i class="fa-solid fa-circle-question me-1 text-primary"></i>新密保问题 1 <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select form-select-sm sq-select" name="security_question_1_select" data-target="security_question_1" onchange="onSecurityQuestionSelectChange(this)">
+                                        <option value="__custom__">自定义问题...</option>
+                                        <option value="您母亲的姓名是？">您母亲的姓名是？</option>
+                                        <option value="您第一所小学的名字是？">您第一所小学的名字是？</option>
+                                        <option value="您拥有的第一辆汽车品牌是？">您拥有的第一辆汽车品牌是？</option>
+                                        <option value="您出生的城市是？">您出生的城市是？</option>
+                                        <option value="您最喜欢的食物是什么？">您最喜欢的食物是什么？</option>
+                                        <option value="您父亲的生日是？">您父亲的生日是？</option>
+                                        <option value="您父亲的姓名是？">您父亲的姓名是？</option>
+                                        <option value="您童年最好的朋友名字是？">您童年最好的朋友名字是？</option>
+                                        <option value="您的第一只宠物名字是？">您的第一只宠物名字是？</option>
+                                        <option value="您高中班主任的姓名是？">您高中班主任的姓名是？</option>
+                                        <option value="您最喜欢的一部电影是？">您最喜欢的一部电影是？</option>
+                                        <option value="您毕业的学校名称是？">您毕业的学校名称是？</option>
+                                    </select>
+                                </div>
+                                <!-- 自定义问题输入框容器（通过 d-none 控制显隐） -->
+                                <div class="sq-custom-wrapper d-none mb-2">
+                                    <input type="text" name="security_question_1" class="form-control form-control-sm" placeholder="请输入自定义密保问题 1" value="{{ current_user.security_question_1 or current_user.security_question }}" required>
+                                </div>
+                                <div>
+                                    <label class="form-label fw-bold text-secondary small">
+                                        <i class="fa-solid fa-key me-1 text-success"></i>新密保答案 1 <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control" name="security_answer_1" placeholder="请输入新密保答案 1" required autocomplete="off">
+                                </div>
+                            </div>
+
+                            <!-- 新密保问题 2 -->
+                            <div class="p-3 bg-light rounded-3 border mb-3" data-sq-group="2">
+                                <div class="mb-2">
+                                    <label class="form-label fw-bold text-secondary small">
+                                        <i class="fa-solid fa-circle-question me-1 text-primary"></i>新密保问题 2 <span class="text-muted fw-normal">（可选）</span>
+                                    </label>
+                                    <select class="form-select form-select-sm sq-select" name="security_question_2_select" data-target="security_question_2" onchange="onSecurityQuestionSelectChange(this)">
+                                        <option value="">不设置第 2 个密保</option>
+                                        <option value="__custom__">自定义问题...</option>
+                                        <option value="您母亲的姓名是？">您母亲的姓名是？</option>
+                                        <option value="您第一所小学的名字是？">您第一所小学的名字是？</option>
+                                        <option value="您拥有的第一辆汽车品牌是？">您拥有的第一辆汽车品牌是？</option>
+                                        <option value="您出生的城市是？">您出生的城市是？</option>
+                                        <option value="您最喜欢的食物是什么？">您最喜欢的食物是什么？</option>
+                                        <option value="您父亲的生日是？">您父亲的生日是？</option>
+                                        <option value="您父亲的姓名是？">您父亲的姓名是？</option>
+                                        <option value="您童年最好的朋友名字是？">您童年最好的朋友名字是？</option>
+                                        <option value="您的第一只宠物名字是？">您的第一只宠物名字是？</option>
+                                        <option value="您高中班主任的姓名是？">您高中班主任的姓名是？</option>
+                                        <option value="您最喜欢的一部电影是？">您最喜欢的一部电影是？</option>
+                                        <option value="您毕业的学校名称是？">您毕业的学校名称是？</option>
+                                    </select>
+                                </div>
+                                <!-- 自定义问题输入框容器（通过 d-none 控制显隐） -->
+                                <div class="sq-custom-wrapper d-none mb-2">
+                                    <input type="text" name="security_question_2" class="form-control form-control-sm" placeholder="请输入自定义密保问题 2" value="{{ current_user.security_question_2 or '' }}">
+                                </div>
+                                <div>
+                                    <label class="form-label fw-bold text-secondary small">
+                                        <i class="fa-solid fa-key me-1 text-success"></i>新密保答案 2 <span class="text-muted fw-normal">（可选）</span>
+                                    </label>
+                                    <input type="text" class="form-control" name="security_answer_2" placeholder="如不设置第 2 个密保可留空" autocomplete="off">
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-warning w-100 py-2 fw-bold text-white"><i class="fa-solid fa-check me-1"></i>提交修改密保</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mb-4">
+            <a href="{{ url_for('index') }}" class="text-decoration-none text-secondary"><i class="fa-solid fa-arrow-left me-1"></i>返回账本</a>
+        </div>
+    </div>
+</div>
+
+<script>
+// 密保问题下拉菜单切换：选择预置问题直接写入隐藏 input，选择自定义则显示输入框
+// 通过 closest('[data-sq-group]') 查找容器，不再依赖 parentElement 层级
+function onSecurityQuestionSelectChange(selectEl) {
+  var group = selectEl.closest('[data-sq-group]');
+  if (!group) return;
+  var targetName = selectEl.getAttribute('data-target');
+  var customWrapper = group.querySelector('.sq-custom-wrapper');
+  var hiddenInput = group.querySelector('input[name="' + targetName + '"]');
+  if (!hiddenInput) return;
+  var val = selectEl.value;
+  if (val === '__custom__') {
+    // 自定义：显示输入框容器，不清空原有值（方便用户来回切换）
+    if (customWrapper) customWrapper.classList.remove('d-none');
+  } else if (val === '') {
+    // 不设置第 2 个密保（仅问题2有此选项）
+    if (customWrapper) customWrapper.classList.add('d-none');
+    hiddenInput.value = '';
+  } else {
+    // 选择了预置问题，隐藏自定义输入框容器，将值写入隐藏字段
+    if (customWrapper) customWrapper.classList.add('d-none');
+    hiddenInput.value = val;
+  }
+}
+
+// 旧密码输入框切换明密文（个人安全设置页专用）
+function togglePasswordVisibility(inputId, btn) {
+  // 修正：需要通过 name 属性查找，因为没有 id
+  var input = document.querySelector('input[name="' + inputId + '"]') || document.getElementById(inputId);
+  if (!input) return;
+  var icon = btn.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
+  } else {
+    input.type = 'password';
+    if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+  }
+}
+
+// 页面加载时初始化密保问题下拉框默认选中状态
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.sq-select').forEach(function(sel) {
+    var group = sel.closest('[data-sq-group]');
+    if (!group) return;
+    var targetName = sel.getAttribute('data-target');
+    var customWrapper = group.querySelector('.sq-custom-wrapper');
+    var hiddenInput = group.querySelector('input[name="' + targetName + '"]');
+    if (!hiddenInput) return;
+    var currentVal = hiddenInput.value || '';
+    if (!currentVal) return;
+    var found = false;
+    Array.from(sel.options).forEach(function(opt) {
+      if (opt.value === currentVal) found = true;
+    });
+    if (found) {
+      sel.value = currentVal;
+      if (customWrapper) customWrapper.classList.add('d-none');
+    } else {
+      sel.value = '__custom__';
+      if (customWrapper) customWrapper.classList.remove('d-none');
+    }
+  });
+});
+</script>
+{% endblock %}

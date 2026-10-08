@@ -1,8 +1,23 @@
+# ===== 核心依赖（移动端必需）=====
 Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
 Flask-WTF==1.2.1
 Flask-Login==0.6.3
 Werkzeug==3.0.3
-gunicorn==22.0.0
 cryptography==42.0.8
+requests>=2.31.0
+
+# ===== 可选依赖（移动端按需启用，代码中已做延迟导入）=====
+# 以下依赖在代码中通过 try/except 延迟导入，未安装时自动降级：
+# - openai: AI 助手功能（未安装时使用本地知识引擎）
+# - duckduckgo_search: AI 联网搜索（未安装时跳过搜索）
+# - reportlab: PDF 对账单生成（未安装时跳过 PDF 功能）
+# - openpyxl: Excel 导入导出（未安装时跳过 Excel 功能）
+# - pyzipper: 加密备份（未安装时跳过加密功能）
+# - wecom-aibot-python-sdk: 企业微信长连接（未安装时仅支持标准 Webhook）
+# - websockets/aiohttp/pyee: WebSocket 长连接（同上）
+# - psycopg2-binary: PostgreSQL 支持（移动端使用 SQLite，不需要）
+# - gunicorn: WSGI 服务器（移动端直接使用 Flask 内置服务器）
+
+# 桌面端调试用（移动端不需要，但 buildozer 会自动过滤）
 pywebview>=4.0.0

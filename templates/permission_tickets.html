@@ -1,0 +1,461 @@
+{% extends 'base.html' %}
+
+{% block title %}权限申请工单 - 人情记账宝{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="fa-solid fa-ticket text-primary me-2"></i>权限申请工单</h3>
+        <p class="text-muted mb-0 small">
+            {% if current_user.is_admin %}
+                管理所有用户的权限申请，审批后自动授权
+            {% else %}
+                申请功能模块访问权限，提交后等待管理员审批
+            {% endif %}
+        </p>
+    </div>
+    {% if not current_user.is_admin %}
+    <div>
+        <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#createTicketModal">
+            <i class="fa-solid fa-plus me-1"></i> 新建申请
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- V10: 管理员筛选区（状态 + 关键词 + 模块） -->
+{% if current_user.is_admin %}
+{% set base_qs = 'sort=' ~ sort_key ~ '&order=' ~ order ~ '&per_page=' ~ per_page ~ ('&q=' ~ keyword if keyword else '') ~ ('&module=' ~ module_filter if module_filter else '') %}
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex gap-2 align-items-center flex-wrap mb-2">
+            <span class="text-muted small fw-bold">筛选状态：</span>
+            <a href="{{ url_for('permission_tickets_view') }}?{{ base_qs }}" class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-outline-secondary{% endif %} rounded-pill">全部</a>
+            <a href="?status=pending&{{ base_qs }}" class="btn btn-sm {% if status_filter == 'pending' %}btn-warning{% else %}btn-outline-warning{% endif %} rounded-pill">待审批</a>
+            <a href="?status=approved&{{ base_qs }}" class="btn btn-sm {% if status_filter == 'approved' %}btn-success{% else %}btn-outline-success{% endif %} rounded-pill">已批准</a>
+            <a href="?status=rejected&{{ base_qs }}" class="btn btn-sm {% if status_filter == 'rejected' %}btn-danger{% else %}btn-outline-danger{% endif %} rounded-pill">已驳回</a>
+            <a href="?status=revoked&{{ base_qs }}" class="btn btn-sm {% if status_filter == 'revoked' %}btn-warning{% else %}btn-outline-warning{% endif %} rounded-pill">已撤销</a>
+        </div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <!-- V10: 关键词搜索 -->
+            <form method="GET" action="{{ url_for('permission_tickets_view') }}" class="d-flex gap-2 align-items-center flex-grow-1" id="searchForm">
+                <input type="hidden" name="sort" value="{{ sort_key }}">
+                <input type="hidden" name="order" value="{{ order }}">
+                <input type="hidden" name="per_page" value="{{ per_page }}">
+                {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+                <div class="input-group input-group-sm" style="max-width:260px">
+                    <span class="input-group-text bg-light"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                    <input type="text" name="q" value="{{ keyword }}" class="form-control" placeholder="搜索申请人/理由" id="keywordInput">
+                    {% if keyword %}<button class="btn btn-outline-secondary" type="button" onclick="clearKeyword()" title="清除"><i class="fa-solid fa-xmark"></i></button>{% endif %}
+                </div>
+                <!-- V10: 模块筛选下拉 -->
+                <select name="module" class="form-select form-select-sm" style="max-width:180px" id="moduleSelect" onchange="this.form.submit()">
+                    <option value="">全部模块</option>
+                    {% for key, label in menu_options %}
+                    <option value="{{ key }}" {% if module_filter == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary"><i class="fa-solid fa-search me-1"></i>搜索</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% else %}
+{% set base_qs = 'sort=' ~ sort_key ~ '&order=' ~ order ~ '&per_page=' ~ per_page %}
+{% endif %}
+
+<!-- 工单列表 -->
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        {% if tickets %}
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-light-subtle">
+            <span class="small text-muted">
+                共 <strong>{{ pagination.total }}</strong> 条工单
+                {% if pagination.pages > 1 %}，第 <strong>{{ pagination.page }}</strong>/{{ pagination.pages }} 页{% endif %}
+            </span>
+            <div class="d-flex align-items-center gap-2">
+                {% if current_user.is_admin and tickets %}
+                <!-- V10: 多选批量删除 -->
+                <button type="button" class="btn btn-sm btn-outline-danger" id="btnBatchDeleteTickets" onclick="batchDeleteTickets()" style="display:none">
+                    <i class="fa-solid fa-trash me-1"></i>批量删除选中
+                </button>
+                <span class="small text-muted" id="ticketSelectedCount"></span>
+                {% endif %}
+                <span class="small text-muted">
+                    每页
+                    <select class="form-select form-select-sm d-inline-block w-auto" onchange="window.location.href = '?' + updatePerPage(this.value)">
+                        {% for n in [5, 10, 20, 50, 100] %}
+                        <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }} 条</option>
+                        {% endfor %}
+                    </select>
+                </span>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        {% if current_user.is_admin %}
+                        <th style="width:36px"><input type="checkbox" id="selectAllTickets" onclick="toggleSelectAllTickets(this)"></th>
+                        {% endif %}
+                        <th style="width:50px"><a href="javascript:location.href='?'+toggleSortQs('id')" class="text-decoration-none text-reset">#</a></th>
+                        <th><a href="javascript:location.href='?'+toggleSortQs('applicant')" class="text-decoration-none text-reset">申请人{% if sort_key == 'applicant' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th>申请模块</th>
+                        <th><a href="javascript:location.href='?'+toggleSortQs('reason')" class="text-decoration-none text-reset">申请理由{% if sort_key == 'reason' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th style="width:90px"><a href="javascript:location.href='?'+toggleSortQs('status')" class="text-decoration-none text-reset">状态{% if sort_key == 'status' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th><a href="javascript:location.href='?'+toggleSortQs('created_at')" class="text-decoration-none text-reset">提交时间{% if sort_key == 'created_at' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th>审批人</th>
+                        <th><a href="javascript:location.href='?'+toggleSortQs('updated_at')" class="text-decoration-none text-reset">审批时间{% if sort_key == 'updated_at' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th style="width:160px">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in tickets %}
+                    <tr>
+                        {% if current_user.is_admin %}
+                        <td><input type="checkbox" class="ticket-checkbox" value="{{ t.id }}" onchange="updateTicketBatchBtn()"></td>
+                        {% endif %}
+                        <td class="fw-bold text-muted">{{ loop.index + (pagination.page - 1) * per_page }}</td>
+                        <td>
+                            <i class="fa-solid fa-user-circle text-secondary me-1"></i>{{ t.user.username if t.user else '已删除用户' }}
+                        </td>
+                        <td>
+                            {% set menus = t.requested_menus.split(',') if t.requested_menus else [] %}
+                            {% for m in menus %}
+                            {% set label = dict(menu_options).get(m, m) %}
+                            <span class="badge bg-info-subtle text-info me-1 mb-1">{{ label }}</span>
+                            {% endfor %}
+                        </td>
+                        <td class="small text-muted" style="max-width:200px">{{ t.reason or '—' }}</td>
+                        <td>
+                            {% if t.status == 'pending' %}
+                            <span class="badge bg-warning text-dark"><i class="fa-solid fa-clock me-1"></i>待审批</span>
+                            {% elif t.status == 'approved' %}
+                            <span class="badge bg-success"><i class="fa-solid fa-check me-1"></i>已批准</span>
+                            {% elif t.status == 'rejected' %}
+                            <span class="badge bg-danger"><i class="fa-solid fa-xmark me-1"></i>已驳回</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted">{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '—' }}</td>
+                        <td class="small">{{ t.reviewer.username if t.reviewer else '—' }}</td>
+                        <td class="small text-muted">{{ t.reviewed_at.strftime('%Y-%m-%d %H:%M') if t.reviewed_at else '—' }}</td>
+                        <td>
+                            {% if t.status == 'pending' and current_user.is_admin %}
+                            <button type="button" class="btn btn-sm btn-success py-1 px-2" data-bs-toggle="modal" data-bs-target="#approveModal{{ t.id }}">
+                                <i class="fa-solid fa-check me-1"></i>批准
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2" data-bs-toggle="modal" data-bs-target="#rejectModal{{ t.id }}">
+                                <i class="fa-solid fa-xmark me-1"></i>驳回
+                            </button>
+
+                            <!-- 批准 Modal -->
+                            <div class="modal fade" id="approveModal{{ t.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form method="POST" action="{{ url_for('permission_ticket_approve', ticket_id=t.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title text-success"><i class="fa-solid fa-check-circle me-2"></i>批准工单 #{{ t.id }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <p class="text-muted mb-2">申请人：<strong>{{ t.user.username if t.user else '?' }}</strong></p>
+                                                <p class="text-muted mb-2">申请模块：
+                                                    {% set menus = t.requested_menus.split(',') if t.requested_menus else [] %}
+                                                    {% for m in menus %}
+                                                    <span class="badge bg-info-subtle text-info me-1">{{ dict(menu_options).get(m, m) }}</span>
+                                                    {% endfor %}
+                                                </p>
+                                                <p class="text-muted mb-3">可勾选实际授予的模块（默认全部授予申请项）：</p>
+                                                <div class="d-flex flex-wrap gap-3 mb-3">
+                                                    {% for key, label in menu_options %}
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" name="granted_menus" value="{{ key }}" id="grant_{{ t.id }}_{{ key }}"
+                                                        {% if key in (t.requested_menus or '') %}checked{% endif %}>
+                                                        <label class="form-check-label small" for="grant_{{ t.id }}_{{ key }}">{{ label }}</label>
+                                                    </div>
+                                                    {% endfor %}
+                                                </div>
+                                                <div class="mb-2">
+                                                    <label class="form-label small text-muted">审批备注（可选）</label>
+                                                    <textarea class="form-control form-control-sm" name="review_comment" rows="2" placeholder="如需备注请填写..."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                                                <button type="submit" class="btn btn-success btn-sm"><i class="fa-solid fa-check me-1"></i>确认批准</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 驳回 Modal -->
+                            <div class="modal fade" id="rejectModal{{ t.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form method="POST" action="{{ url_for('permission_ticket_reject', ticket_id=t.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title text-danger"><i class="fa-solid fa-xmark-circle me-2"></i>驳回工单 #{{ t.id }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <p class="text-muted mb-2">申请人：<strong>{{ t.user.username if t.user else '?' }}</strong></p>
+                                                <p class="text-muted mb-3">确定要驳回此权限申请吗？</p>
+                                                <div class="mb-2">
+                                                    <label class="form-label small text-muted">驳回理由（可选）</label>
+                                                    <textarea class="form-control form-control-sm" name="review_comment" rows="2" placeholder="如需说明请填写..."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                                                <button type="submit" class="btn btn-danger btn-sm"><i class="fa-solid fa-xmark me-1"></i>确认驳回</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% elif t.status != 'pending' %}
+                            {% if t.status == 'approved' and current_user.is_admin %}
+                            <button type="button" class="btn btn-sm btn-outline-warning py-1 px-2" data-bs-toggle="modal" data-bs-target="#revokeModal{{ t.id }}" title="撤销授权">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                            {% endif %}
+                            {% if t.review_comment %}
+                            <button type="button" class="btn btn-sm btn-outline-info py-1 px-2" data-bs-toggle="tooltip" title="{{ t.review_comment }}">
+                                <i class="fa-solid fa-comment-dots"></i>
+                            </button>
+                            {% endif %}
+                            {% if t.status == 'revoked' %}
+                            <span class="badge bg-warning-subtle text-warning">已撤销</span>
+                            {% endif %}
+                            {% if current_user.is_admin %}
+                            <!-- V8: 管理员删除工单（二次确认） -->
+                            <form action="{{ url_for('permission_ticket_delete', ticket_id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('确定删除工单 #{{ t.id }}？删除后不可恢复！');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-1 px-2" title="删除工单">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- V8: 分页条 -->
+        {% if pagination.pages > 1 %}
+        <nav class="d-flex justify-content-center py-3" aria-label="工单分页">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="javascript:location.href='?'+pageQs({{ pagination.prev_num }})" aria-label="上一页">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </a>
+                </li>
+                {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="javascript:location.href='?'+pageQs({{ p }})">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="javascript:location.href='?'+pageQs({{ pagination.page + 1 }})" {% if not pagination.has_next %}tabindex="-1"{% endif %}>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fa-solid fa-inbox fa-3x text-muted opacity-25 mb-3 d-block"></i>
+            <p class="text-muted">暂无工单记录</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 新建工单 Modal -->
+{% if not current_user.is_admin %}
+<div class="modal fade" id="createTicketModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('permission_ticket_create') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title text-primary"><i class="fa-solid fa-ticket me-2"></i>新建权限申请</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">请勾选您需要使用的功能模块，提交后等待管理员审批。</p>
+                    <div class="d-flex flex-wrap gap-3 mb-3">
+                        {% for key, label in menu_options %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="requested_menus" value="{{ key }}" id="req_{{ key }}"
+                                {% if key in already_requested %}disabled{% endif %}>
+                            <label class="form-check-label {% if key in already_requested %}text-muted text-decoration-line-through{% endif %}"
+                                for="req_{{ key }}">{{ label }}
+                                {% if key in already_requested %}<span class="badge bg-secondary-subtle text-secondary small ms-1">已有/申请中</span>{% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label text-muted small">申请理由（可选）</label>
+                        <textarea class="form-control form-control-sm" name="reason" rows="3" placeholder="简要说明您需要该权限的原因..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-paper-plane me-1"></i>提交申请</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- V3: 撤销授权 Modal（管理员对已批准工单） -->
+{% if current_user.is_admin %}
+{% for t in tickets %}
+{% if t.status == 'approved' %}
+<div class="modal fade" id="revokeModal{{ t.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('permission_ticket_revoke', ticket_id=t.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title text-warning"><i class="fa-solid fa-rotate-left me-2"></i>撤销授权</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">确定要撤销工单 #{{ t.id }} 的授权吗？用户对应的菜单权限将被收回。</p>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">撤销理由（可选）</label>
+                        <textarea class="form-control form-control-sm" name="review_comment" rows="2" placeholder="如需说明请填写..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-warning btn-sm"><i class="fa-solid fa-rotate-left me-1"></i>确认撤销</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% block scripts %}
+<script>
+// 初始化 tooltip
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltips.forEach(function(el) {
+        new bootstrap.Tooltip(el);
+    });
+});
+
+// V8/V10: 构造带排序/筛选/搜索/分页参数的 URL
+function buildQs(params) {
+    const url = new URL(window.location.href);
+    Object.keys(params).forEach(k => {
+        if (params[k] === null || params[k] === '') url.searchParams.delete(k);
+        else url.searchParams.set(k, params[k]);
+    });
+    // 翻页/切换每页条数时回到第 1 页
+    if (params.hasOwnProperty('per_page')) url.searchParams.set('page', '1');
+    return url.searchParams.toString();
+}
+
+// V10: 排序时保留所有筛选/搜索参数
+function toggleSortQs(key) {
+    const url = new URL(window.location.href);
+    const curSort = url.searchParams.get('sort') || 'created_at';
+    const curOrder = url.searchParams.get('order') || 'desc';
+    let newOrder = 'desc';
+    if (curSort === key) newOrder = (curOrder === 'desc') ? 'asc' : 'desc';
+    url.searchParams.set('sort', key);
+    url.searchParams.set('order', newOrder);
+    url.searchParams.set('page', '1');
+    // 保留 q、module、status、per_page 等筛选参数（已在 url 中，无需额外处理）
+    return url.searchParams.toString();
+}
+
+// 每页条数切换
+function updatePerPage(val) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('per_page', val);
+    url.searchParams.set('page', '1');
+    return url.searchParams.toString();
+}
+
+// 分页链接
+function pageQs(p) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', p);
+    return url.searchParams.toString();
+}
+
+// V10: 清除关键词搜索
+function clearKeyword() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('q');
+    url.searchParams.set('page', '1');
+    window.location.href = '?' + url.searchParams.toString();
+}
+
+// V10: 全选/取消全选工单
+function toggleSelectAllTickets(checkbox) {
+    document.querySelectorAll('.ticket-checkbox').forEach(cb => cb.checked = checkbox.checked);
+    updateTicketBatchBtn();
+}
+
+// V10: 更新批量删除按钮显示状态
+function updateTicketBatchBtn() {
+    const checked = document.querySelectorAll('.ticket-checkbox:checked');
+    const btn = document.getElementById('btnBatchDeleteTickets');
+    const countSpan = document.getElementById('ticketSelectedCount');
+    if (checked.length > 0) {
+        if (btn) btn.style.display = 'inline-block';
+        if (countSpan) countSpan.textContent = '已选 ' + checked.length + ' 项';
+    } else {
+        if (btn) btn.style.display = 'none';
+        if (countSpan) countSpan.textContent = '';
+    }
+}
+
+// V10: 批量删除工单
+function batchDeleteTickets() {
+    const checked = document.querySelectorAll('.ticket-checkbox:checked');
+    if (checked.length === 0) return;
+    if (!confirm('确定删除选中的 ' + checked.length + ' 条工单？删除后不可恢复！')) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ url_for("permission_ticket_batch_delete") }}';
+    const csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrf_token';
+    csrf.value = '{{ csrf_token }}';
+    form.appendChild(csrf);
+    checked.forEach(cb => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ticket_ids';
+        input.value = cb.value;
+        form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{% endblock %}
+{% endblock %}

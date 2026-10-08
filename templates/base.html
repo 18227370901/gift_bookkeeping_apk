@@ -2,19 +2,217 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}人情礼金记账系统{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- PWA Manifest and Theme -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#0d6efd" id="themeColorMeta">
+    <script>
+        // 主题初始化：首帧读取本地偏好，避免页面闪烁（默认白天模式）
+        (function() {
+            var t = localStorage.getItem('gift_theme');
+            if (t === 'dark') {
+                document.documentElement.setAttribute('data-bs-theme', 'dark');
+            }
+        })();
+    </script>
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎁</text></svg>">
+    
+    <!-- V10.10.18 前端资源本地化：原 jsdelivr/cdnjs 国外 CDN 在国内服务器环境不可达，改为 static/vendor 本地引用（版本与原 CDN 完全一致，零视觉变化） -->
+    <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.0/css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/font-awesome/6.4.0/css/all.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <style>
-        body { background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+        /* ===== 全局主题 CSS 变量（默认白天模式，值与原版一致） ===== */
+        :root {
+            --app-bg: #f4f6f9;
+            --app-card-bg: #ffffff;
+            --app-card-header-bg: #ffffff;
+            --app-border: #e9ecef;
+            --app-border-soft: #edf2f7;
+            --app-footer-bg: #ffffff;
+            --app-hover-bg: #f8f9fa;
+            --app-ai-bg: #f8f9fa;
+            --app-ai-text: #212529;
+            --ph-color: #9aa5b1;
+            --ph-opacity: 0.75;
+        }
+        [data-bs-theme="dark"] {
+            --app-bg: #121417;
+            --app-card-bg: #1b2128;
+            --app-card-header-bg: #20262e;
+            --app-border: #2b354a;
+            --app-border-soft: #2b354a;
+            --app-footer-bg: #1b2128;
+            --app-hover-bg: #232a33;
+            --app-ai-bg: #232a33;
+            --app-ai-text: #e6eaef;
+            --ph-color: #7d8794;
+            --ph-opacity: 0.7;
+        }
+
+        body { background-color: var(--app-bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100vh; display: flex; flex-direction: column; transition: background-color 0.25s ease; }
         .navbar-brand { font-weight: bold; color: #dc3545 !important; }
         .main-container { flex: 1; padding-top: 20px; padding-bottom: 40px; }
         .card { border: none; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); border-radius: 10px; }
-        .card-header { background-color: #ffffff; border-bottom: 1px solid #edf2f7; font-weight: 600; }
-        footer { background-color: #ffffff; border-top: 1px solid #e9ecef; padding: 15px 0; margin-top: auto; }
+        .card-header { background-color: var(--app-card-header-bg); border-bottom: 1px solid var(--app-border-soft); font-weight: 600; transition: background-color 0.25s ease; }
+        footer { background-color: var(--app-footer-bg); border-top: 1px solid var(--app-border); padding: 15px 0; margin-top: auto; transition: background-color 0.25s ease; }
+        .broadcast-banner { border-left: 4px solid #0dcaf0; }
+
+        /* ===== 输入框提示语（placeholder）美化：更轻更淡更精致 ===== */
+        .form-control::placeholder,
+        .form-control::-webkit-input-placeholder,
+        .form-control::-moz-placeholder,
+        .form-control:-ms-input-placeholder {
+            color: var(--ph-color);
+            font-weight: 400;
+            font-size: 0.875em;
+            opacity: var(--ph-opacity);
+            letter-spacing: 0.01em;
+            transition: opacity 0.2s ease;
+        }
+        .form-control:focus::placeholder {
+            opacity: 0.4;
+        }
+
+        /* ===== 黑夜模式覆盖：适配大量使用 Bootstrap 浅色工具类的页面 ===== */
+        [data-bs-theme="dark"] .bg-white { background-color: var(--app-card-bg) !important; }
+        [data-bs-theme="dark"] .bg-light { background-color: var(--app-hover-bg) !important; }
+        [data-bs-theme="dark"] .text-dark { color: var(--bs-body-color) !important; }
+        [data-bs-theme="dark"] .text-muted { color: var(--bs-secondary-color) !important; }
+        [data-bs-theme="dark"] .table-light,
+        [data-bs-theme="dark"] .table-light > th,
+        [data-bs-theme="dark"] .table-light > td {
+            --bs-table-bg: var(--app-hover-bg);
+            --bs-table-color: var(--bs-body-color);
+            color: var(--bs-body-color);
+        }
+
+        /* 防偷窥遮罩模式样式 */
+        body.privacy-mode .privacy-blur {
+            filter: blur(6px) !important;
+            user-select: none !important;
+            transition: filter 0.2s ease;
+        }
+        body.privacy-mode .privacy-blur:hover {
+            filter: blur(1px) !important;
+        }
         
+        /* ===== 移动端响应式适配（APK WebView 专用增强） ===== */
+        /* 安全区域适配：刘海屏、挖孔屏、底部手势条 */
+        :root {
+            --safe-area-top: env(safe-area-inset-top, 0px);
+            --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-area-left: env(safe-area-inset-left, 0px);
+            --safe-area-right: env(safe-area-inset-right, 0px);
+        }
+
+        /* 移动端基础重置 */
+        @media (max-width: 768px) {
+            html { font-size: 15px; }
+            body {
+                padding-top: env(safe-area-inset-top);
+                padding-bottom: env(safe-area-inset-bottom);
+                padding-left: env(safe-area-inset-left);
+                padding-right: env(safe-area-inset-right);
+                -webkit-tap-highlight-color: transparent;
+                -webkit-touch-callout: none;
+                overflow-x: hidden;
+            }
+            .main-container {
+                padding-top: 8px;
+                padding-bottom: calc(20px + env(safe-area-inset-bottom));
+                padding-left: 8px;
+                padding-right: 8px;
+                max-width: 100%;
+            }
+            .container {
+                max-width: 100%;
+                padding-left: 8px;
+                padding-right: 8px;
+            }
+            .card { border-radius: 8px; margin-bottom: 10px; }
+            .card-body { padding: 0.75rem !important; }
+            .card-header { padding: 0.5rem 0.75rem !important; font-size: 0.95rem; }
+            h1 { font-size: 1.5rem; }
+            h2 { font-size: 1.3rem; }
+            h3 { font-size: 1.15rem; }
+            h4 { font-size: 1.05rem; }
+            h5 { font-size: 0.95rem; }
+            h6 { font-size: 0.875rem; }
+
+            /* 表格手机适配：横向可滚动 + 紧凑字体 */
+            .table { font-size: 0.8rem; }
+            .table th, .table td { padding: 0.35rem 0.4rem; white-space: nowrap; }
+            .table-responsive { -webkit-overflow-scrolling: touch; }
+
+            /* 按钮触控优化：最小 44x44px 点击区域 */
+            .btn { min-height: 44px; min-width: 44px; font-size: 0.85rem; padding: 0.35rem 0.6rem; }
+            .btn-sm { min-height: 36px; min-width: 36px; font-size: 0.75rem; padding: 0.2rem 0.4rem; }
+            .btn-lg { min-height: 52px; font-size: 1.1rem; }
+
+            /* 表单控件适配 */
+            .form-control, .form-select { font-size: 0.9rem; min-height: 44px; padding: 0.4rem 0.6rem; }
+            .form-label { font-size: 0.85rem; margin-bottom: 0.2rem; }
+            .input-group-text { font-size: 0.85rem; min-height: 44px; }
+
+            /* 导航栏手机适配 */
+            .navbar { padding: 0.375rem 0.5rem; padding-top: calc(0.375rem + env(safe-area-inset-top)); }
+            .navbar-brand { font-size: 1.05rem; }
+            .navbar-toggler { padding: 0.2rem 0.4rem; min-width: 44px; min-height: 44px; }
+            .nav-link { padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+            .navbar-collapse { max-height: 70vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+            /* 模态框手机适配 */
+            .modal-dialog { margin: 0.5rem; max-width: calc(100vw - 1rem); }
+            .modal-content { border-radius: 8px; }
+            .modal-body { padding: 0.75rem; }
+            .modal-header, .modal-footer { padding: 0.5rem 0.75rem; }
+
+            /* 分页控件手机适配 */
+            .pagination { flex-wrap: wrap; gap: 2px; }
+            .page-link { min-width: 36px; min-height: 36px; padding: 0.25rem 0.4rem; font-size: 0.8rem; }
+
+            /* 统计卡片手机适配 */
+            .stat-card, .dashboard-stat-card { padding: 0.75rem !important; }
+            .stat-number, .stat-value { font-size: 1.3rem !important; }
+
+            /* 下拉菜单手机适配 */
+            .dropdown-menu { font-size: 0.85rem; min-width: 12rem; }
+            .dropdown-item { padding: 0.5rem 0.75rem; min-height: 44px; }
+
+            /* Alert 消息手机适配 */
+            .alert { padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+
+            /* 标签 Badge 手机适配 */
+            .badge { font-size: 0.7rem; padding: 0.2em 0.4em; }
+
+            /* 输入组与搜索栏手机适配 */
+            .input-group { flex-wrap: wrap; }
+            .input-group > * { border-radius: 4px !important; margin-bottom: 4px; }
+
+            /* 隐藏桌面端专有元素 */
+            .d-none.d-md-inline { display: none !important; }
+            .d-none.d-lg-inline { display: none !important; }
+        }
+
+        /* 超小屏幕适配（360px 以下） */
+        @media (max-width: 360px) {
+            html { font-size: 13px; }
+            .container { padding-left: 4px; padding-right: 4px; }
+            .main-container { padding-left: 4px; padding-right: 4px; }
+            .card-body { padding: 0.5rem !important; }
+            .table { font-size: 0.72rem; }
+            .btn { font-size: 0.75rem; padding: 0.25rem 0.4rem; }
+        }
+
+        /* 横屏适配 */
+        @media (max-width: 992px) and (orientation: landscape) {
+            .main-container { padding-top: 4px; padding-bottom: 4px; }
+        }
+
+        /* ===== 原有移动端响应式（保留兼容） ===== */
         @media (max-width: 767.98px) {
             .main-container { padding-top: 12px; padding-bottom: 24px; padding-left: 10px; padding-right: 10px; }
             .card-body { padding: 1rem !important; }
@@ -37,27 +235,100 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     {% if current_user.is_authenticated %}
+                    {% if current_user.is_admin or current_user.can_access_menu('ledger') %}
                     <li class="nav-item">
                         <a class="nav-link active" href="{{ url_for('index') }}"><i class="fa-solid fa-list me-1"></i>礼金账本</a>
                     </li>
-                    {% if current_user.is_admin %}
+                    {% endif %}
+                    {% if current_user.is_admin or current_user.can_access_menu('dashboard') %}
                     <li class="nav-item">
-                        <a class="nav-link text-warning" href="{{ url_for('admin_users') }}"><i class="fa-solid fa-users-gear me-1"></i>用户管理</a>
+                        <a class="nav-link text-primary" href="{{ url_for('dashboard_view') }}"><i class="fa-solid fa-chart-line me-1"></i>数据分析</a>
                     </li>
+                    {% endif %}
+                    {% if current_user.is_admin or current_user.can_access_menu('family') %}
                     <li class="nav-item">
-                        <a class="nav-link text-warning" href="{{ url_for('admin_logs') }}"><i class="fa-solid fa-clipboard-list me-1"></i>操作审计日志</a>
+                        <a class="nav-link text-warning" href="{{ url_for('family_view') }}"><i class="fa-solid fa-people-roof me-1"></i>家庭记账</a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_admin or current_user.can_access_menu('banquets') %}
+                    <li class="nav-item">
+                        <a class="nav-link text-warning" href="{{ url_for('banquets_view') }}"><i class="fa-solid fa-champagne-glasses me-1"></i>专属宴席</a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_admin or current_user.can_access_menu('reconciliation') %}
+                    <li class="nav-item">
+                        <a class="nav-link text-info" href="{{ url_for('reconciliation_view') }}"><i class="fa-solid fa-scale-balanced me-1"></i>人情对账</a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_admin or current_user.can_access_menu('reminders') %}
+                    <li class="nav-item">
+                        <a class="nav-link text-light" href="{{ url_for('reminders_view') }}"><i class="fa-solid fa-bell me-1"></i>纪念日备忘</a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_admin or current_user.can_access_menu('recycle_bin') %}
+                    <li class="nav-item">
+                        <a class="nav-link text-secondary" href="{{ url_for('recycle_bin_view') }}"><i class="fa-solid fa-trash-arrow-up me-1"></i>回收站</a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.can_use_ai() %}
+                    <li class="nav-item">
+                        <a class="nav-link text-success" href="{{ url_for('ai_assistant_page') }}"><i class="fa-solid fa-robot me-1"></i>AI 助手</a>
+                    </li>
+                    {% endif %}
+                    {% if not current_user.is_admin and current_user.can_use_backup() %}
+                    <li class="nav-item">
+                        <a class="nav-link text-info" href="{{ url_for('admin_backups') }}"><i class="fa-solid fa-cloud-arrow-up me-1"></i>备份</a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_admin %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-warning" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fa-solid fa-shield-halved me-1"></i>系统管理
+                        </a>
+                        <ul class="dropdown-menu shadow">
+                            <li><a class="dropdown-item" href="{{ url_for('admin_users') }}"><i class="fa-solid fa-users-gear me-2"></i>用户管理</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_logs') }}"><i class="fa-solid fa-clipboard-list me-2"></i>操作审计日志</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('permission_tickets_view') }}"><i class="fa-solid fa-ticket me-2"></i>权限审批</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_ai_config_page') }}"><i class="fa-solid fa-robot me-2"></i>AI 助手配置</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_broadcasts') }}"><i class="fa-solid fa-bullhorn me-2"></i>系统广播发布</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_webhooks') }}"><i class="fa-solid fa-satellite-dish me-2"></i>Webhook 通知</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_backups') }}"><i class="fa-solid fa-cloud-arrow-up me-2"></i>WebDAV 备份</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+                    {% if not current_user.is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link text-primary" href="{{ url_for('permission_tickets_view') }}"><i class="fa-solid fa-ticket me-1"></i>权限申请</a>
                     </li>
                     {% endif %}
                     {% endif %}
                 </ul>
-                <ul class="navbar-nav ms-auto">
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item me-2">
+                        <button class="btn btn-sm btn-outline-light rounded-pill px-2 py-1" type="button" onclick="toggleTheme()" id="themeToggleBtn" title="切换黑夜/白天模式">
+                            <i class="fa-solid fa-moon me-1" id="themeIcon"></i><span class="small d-none d-md-inline" id="themeBtnText">黑夜</span>
+                        </button>
+                    </li>
                     {% if current_user.is_authenticated %}
+                    <li class="nav-item me-2">
+                        <button class="btn btn-sm btn-outline-light rounded-pill px-2 py-1" type="button" onclick="togglePrivacyMode()" id="privacyToggleBtn" title="一键切换防偷窥遮罩模式">
+                            <i class="fa-solid fa-eye-slash me-1" id="privacyIcon"></i><span class="small d-none d-md-inline" id="privacyBtnText">防偷窥</span>
+                        </button>
+                    </li>
+                    <li class="nav-item me-2">
+                        <button class="btn btn-sm btn-outline-warning rounded-pill px-2 py-1 position-relative" type="button" data-bs-toggle="modal" data-bs-target="#broadcastsDrawerModal" id="broadcastBellBtn" title="查看系统广播与通知">
+                            <i class="fa-solid fa-bell"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle d-none" id="unreadBroadcastDot"></span>
+                        </button>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle active" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fa-solid fa-circle-user me-1"></i>{{ current_user.username }}
                             {% if current_user.is_admin %}<span class="badge bg-danger ms-1">管理员</span>{% endif %}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end shadow">
+                            <li><a class="dropdown-item" href="{{ url_for('profile_security') }}"><i class="fa-solid fa-shield-halved me-2 text-warning"></i>个人安全设置</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('export_csv') }}"><i class="fa-solid fa-file-csv me-2 text-success"></i>导出数据(CSV)</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fa-solid fa-right-from-bracket me-2"></i>退出登录</a></li>
@@ -73,10 +344,26 @@
     </nav>
 
     <div class="container main-container">
+        <!-- 活跃广播提示条 -->
+        {% if active_broadcasts %}
+            {% for bc in active_broadcasts %}
+            <div class="alert alert-{{ bc.level or 'info' }} alert-dismissible fade show shadow-sm broadcast-banner mb-3" role="alert" id="broadcast-alert-{{ bc.id }}">
+                <div class="d-flex align-items-center">
+                    <i class="fa-solid fa-bullhorn fa-lg me-2"></i>
+                    <div>
+                        <strong>{{ bc.title }}</strong>: {{ bc.content }}
+                        <small class="text-muted ms-2">({{ bc.created_at.strftime('%Y-%m-%d %H:%M') if bc.created_at else '' }})</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" onclick="markBroadcastRead({{ bc.id }})"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+            <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm auto-dismiss-alert" role="alert">
                 {{ message }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
@@ -88,9 +375,263 @@
     </div>
 
     <footer class="text-center text-muted">
-        <div class="container"><span>© 2026 人情礼金记账系统 - Web预览版</span></div>
+        <div class="container"><span>© 2026 人情礼金记账系统 - 移动端 APK 版 v2.0</span></div>
     </footer>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.0/js/bootstrap.bundle.min.js') }}"></script>
+    <script>
+        // 全局提示语（Flash Alerts）自动淡出并消失逻辑（3.5秒自动清理，保证操作体验流畅）
+        // V10.10.14：本段脚本从带 src 的 <script> 中拆出独立执行（浏览器规范：script 带 src 时内嵌代码被忽略，
+        // 原自动消失逻辑从未生效，导致消息框需手动点击才能关闭）
+        document.addEventListener('DOMContentLoaded', function() {
+            const flashAlerts = document.querySelectorAll('.auto-dismiss-alert, .alert-dismissible:not(.broadcast-banner)');
+            flashAlerts.forEach(function(alertEl) {
+                setTimeout(function() {
+                    if (window.bootstrap && bootstrap.Alert) {
+                        try {
+                            const inst = bootstrap.Alert.getInstance(alertEl) || new bootstrap.Alert(alertEl);
+                            inst.close();
+                            return;
+                        } catch(e) {}
+                    }
+                    alertEl.classList.remove('show');
+                    setTimeout(() => { if (alertEl && alertEl.parentNode) alertEl.remove(); }, 300);
+                }, 3500);
+            });
+
+            // V10.10.14：活跃广播横幅 8 秒后自动淡出（保留手动 × 关闭与标为已读），不再需要手动点击取消
+            const broadcastBanners = document.querySelectorAll('.broadcast-banner');
+            broadcastBanners.forEach(function(bannerEl) {
+                setTimeout(function() {
+                    if (window.bootstrap && bootstrap.Alert) {
+                        try {
+                            const inst = bootstrap.Alert.getInstance(bannerEl) || new bootstrap.Alert(bannerEl);
+                            inst.close();
+                            return;
+                        } catch(e) {}
+                    }
+                    bannerEl.classList.remove('show');
+                    setTimeout(() => { if (bannerEl && bannerEl.parentNode) bannerEl.remove(); }, 300);
+                }, 8000);
+            });
+        });
+
+    </script>
+    <script>
+        // PWA Service Worker 注册
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js').catch(err => {
+                    console.log('SW registration skipped or failed:', err);
+                });
+            });
+        }
+
+        // 全局通用密码明密文切换
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (icon) {
+                    icon.className = 'fa-regular fa-eye-slash';
+                }
+            } else {
+                input.type = 'password';
+                if (icon) {
+                    icon.className = 'fa-regular fa-eye';
+                }
+            }
+        }
+        window.togglePassVisibility = togglePasswordVisibility;
+
+        // 全局 Fetch 拦截器：捕获 401 认证失效并优雅跳转登录
+        // V10.7：若 401 响应的 JSON 含 need_verify 字段，视为业务性校验失败（如凭证二次验证），
+        //        不触发登录失效跳转，避免误伤业务 401
+        const _originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+            try {
+                const response = await _originalFetch.apply(this, args);
+                if (response.status === 401) {
+                    let msg = '登录状态已失效，请重新登录！';
+                    let isBusinessVerify = false;
+                    try {
+                        const cloneRes = response.clone();
+                        const data = await cloneRes.json();
+                        if (data && data.message) msg = data.message;
+                        if (data && data.need_verify) isBusinessVerify = true;
+                    } catch(e) {}
+                    if (isBusinessVerify) {
+                        return response;
+                    }
+                    alert(msg);
+                    window.location.href = '/login';
+                }
+                return response;
+            } catch (err) {
+                throw err;
+            }
+        };
+
+
+
+        // 黑夜/白天模式切换与持久化（Bootstrap 5.3 data-bs-theme）
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-bs-theme') === 'dark';
+            const next = isDark ? 'light' : 'dark';
+            html.setAttribute('data-bs-theme', next);
+            localStorage.setItem('gift_theme', next);
+            updateThemeBtn(next === 'dark');
+            const meta = document.getElementById('themeColorMeta');
+            if (meta) meta.setAttribute('content', next === 'dark' ? '#121417' : '#0d6efd');
+        }
+
+        function updateThemeBtn(isDark) {
+            const icon = document.getElementById('themeIcon');
+            const text = document.getElementById('themeBtnText');
+            if (icon) {
+                icon.className = isDark ? 'fa-solid fa-sun me-1' : 'fa-solid fa-moon me-1';
+            }
+            if (text) {
+                text.textContent = isDark ? '白天' : '黑夜';
+            }
+        }
+
+        // 防偷窥遮罩模式切换与持久化
+        function togglePrivacyMode() {
+            const isPrivacy = document.body.classList.toggle('privacy-mode');
+            localStorage.setItem('privacy_mode', isPrivacy ? '1' : '0');
+            updatePrivacyBtn(isPrivacy);
+        }
+
+        function updatePrivacyBtn(isPrivacy) {
+            const icon = document.getElementById('privacyIcon');
+            const text = document.getElementById('privacyBtnText');
+            if (icon) {
+                icon.className = isPrivacy ? 'fa-solid fa-eye me-1' : 'fa-solid fa-eye-slash me-1';
+            }
+            if (text) {
+                text.textContent = isPrivacy ? '已防偷窥' : '防偷窥';
+            }
+        }
+
+        function markBroadcastRead(bcId) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+            fetch('/api/broadcast/mark_read/' + bcId, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': csrfToken,
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.json())
+            .then(() => {
+                const banner = document.getElementById('broadcast-alert-' + bcId);
+                if (banner) banner.remove();
+                refreshBroadcasts();
+            })
+            .catch(() => {});
+        }
+
+        function markAllBroadcastsRead() {
+            fetch('/api/broadcast/mark_all_read', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.json())
+            .then(() => {
+                refreshBroadcasts();
+            })
+            .catch(() => {});
+        }
+
+        function refreshBroadcasts() {
+            fetch('/api/broadcasts')
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.code === 200 && data.broadcasts) {
+                        const unread = data.broadcasts.filter(b => !b.is_read);
+                        const dot = document.getElementById('unreadBroadcastDot');
+                        if (dot) {
+                            if (unread.length > 0) {
+                                dot.classList.remove('d-none');
+                            } else {
+                                dot.classList.add('d-none');
+                            }
+                        }
+                        renderBroadcastsList(data.broadcasts);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // 初始化主题、防偷窥状态与广播通知红点
+        document.addEventListener('DOMContentLoaded', () => {
+            updateThemeBtn(document.documentElement.getAttribute('data-bs-theme') === 'dark');
+            if (localStorage.getItem('privacy_mode') === '1') {
+                document.body.classList.add('privacy-mode');
+                updatePrivacyBtn(true);
+            }
+            refreshBroadcasts();
+
+            // 注册 PWA Service Worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                    console.log('SW registration ignored:', err);
+                });
+            }
+        });
+
+        function renderBroadcastsList(broadcasts) {
+            const container = document.getElementById('broadcastsListContainer');
+            if (!container) return;
+            if (!broadcasts || broadcasts.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-4"><i class="fa-solid fa-bell-slash fa-2x mb-2 opacity-50"></i><p class="mb-0">暂无广播通知</p></div>';
+                return;
+            }
+            container.innerHTML = '';
+            broadcasts.forEach(b => {
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-3 mb-2 border ${b.is_read ? 'bg-light text-muted' : 'bg-white shadow-sm border-primary'}`;
+                div.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <strong class="${b.is_read ? 'text-secondary' : 'text-primary'}">${b.title}</strong>
+                        <span class="small text-muted">${b.created_at || ''}</span>
+                    </div>
+                    <p class="mb-2 small">${b.content}</p>
+                    ${!b.is_read ? `<button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="markBroadcastRead(${b.id})"><i class="fa-solid fa-check me-1"></i>标为已读</button>` : '<span class="badge bg-secondary-subtle text-secondary small">已读</span>'}
+                `;
+                container.appendChild(div);
+            });
+        }
+    </script>
+
+    <!-- 系统广播通知抽屉 Modal -->
+    <div class="modal fade" id="broadcastsDrawerModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-primary"><i class="fa-solid fa-bell me-2"></i>系统消息与广播通知</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3" id="broadcastsListContainer" style="max-height: 60vh; overflow-y: auto;">
+                    <div class="text-center py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i>加载通知中...</div>
+                </div>
+                <div class="modal-footer d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="markAllBroadcastsRead()">
+                        <i class="fa-solid fa-check-double me-1"></i>全部标为已读
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
     {% block extra_js %}{% endblock %}
+    {% block scripts %}{% endblock %}
 </body>
 </html>

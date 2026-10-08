@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+
+{% block title %}回收站 - 人情礼金记账系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center py-3 flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <h5 class="mb-0 text-secondary fw-bold">
+                        <i class="fa-solid fa-trash-arrow-up me-2"></i>全系统统一回收站
+                    </h5>
+                    <span class="badge bg-light text-muted border px-2 py-1 small">
+                        <i class="fa-regular fa-clock me-1 text-primary"></i>自动保留: <strong>{{ retention_days }}</strong> 天
+                        {% if current_user.is_admin %}
+                        <a href="#" class="ms-1 text-primary text-decoration-none" data-bs-toggle="modal" data-bs-target="#retentionModal" title="修改保留时长">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </a>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="d-flex gap-2">
+                    {# V10.4: 级别1可操作自身回收站数据，移除 == 1 仅查看模式 #}
+                    {% if can_clear_recycle and total_count > 0 %}
+                    <form action="{{ url_for('clear_recycle_bin') }}" method="POST" class="d-inline" onsubmit="return confirm('警告：清空回收站将彻底永久删除当前所有已删除的数据且无法恢复！是否确认彻底清空？');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="fa-solid fa-dumpster-fire me-1"></i>清空回收站
+                        </button>
+                    </form>
+                    {% endif %}
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa-solid fa-arrow-left me-1"></i>返回账本
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-light border d-flex align-items-center mb-4 shadow-sm">
+                    <i class="fa-solid fa-circle-info text-info me-2 fa-lg"></i>
+                    <span class="small text-muted">回收站支持集中保留<strong>礼金账本、专属宴席、亲友纪念日</strong>等各业务模块已删除的数据。您可以随时还原回原业务页面，或彻底永久删除。超过保留天数的数据系统将自动清理。</span>
+                </div>
+
+                <!-- 模块标签页过滤 Tabs -->
+                <ul class="nav nav-pills mb-4 border-bottom pb-2">
+                    <li class="nav-item">
+                        <a class="nav-link px-3 py-1 me-2 rounded-pill {% if not module_filter or module_filter == 'all' %}active bg-secondary text-white{% else %}text-muted{% endif %}" 
+                           href="{{ url_for('recycle_bin_view', module='all', search=search, sort=sort_by, per_page=per_page) }}">
+                            <i class="fa-solid fa-layer-group me-1"></i>全部数据 <span class="badge bg-light text-dark ms-1">{{ counts.all }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3 py-1 me-2 rounded-pill {% if module_filter == 'ledger' %}active bg-success text-white{% else %}text-muted{% endif %}" 
+                           href="{{ url_for('recycle_bin_view', module='ledger', search=search, sort=sort_by, per_page=per_page) }}">
+                            <i class="fa-solid fa-list me-1"></i>礼金账本 <span class="badge bg-light text-dark ms-1">{{ counts.ledger }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3 py-1 me-2 rounded-pill {% if module_filter == 'banquets' %}active bg-warning text-dark{% else %}text-muted{% endif %}" 
+                           href="{{ url_for('recycle_bin_view', module='banquets', search=search, sort=sort_by, per_page=per_page) }}">
+                            <i class="fa-solid fa-champagne-glasses me-1"></i>专属宴席 <span class="badge bg-light text-dark ms-1">{{ counts.banquets }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3 py-1 rounded-pill {% if module_filter == 'reminders' %}active bg-info text-white{% else %}text-muted{% endif %}" 
+                           href="{{ url_for('recycle_bin_view', module='reminders', search=search, sort=sort_by, per_page=per_page) }}">
+                            <i class="fa-solid fa-bell me-1"></i>纪念日备忘 <span class="badge bg-light text-dark ms-1">{{ counts.reminders }}</span>
+                        </a>
+                    </li>
+                </ul>
+
+                <!-- 搜索与筛选 Bar -->
+                <div class="card border-0 shadow-sm mb-4 bg-light">
+                    <div class="card-body p-3">
+                        <form method="GET" action="{{ url_for('recycle_bin_view') }}" class="row g-2 align-items-center">
+                            <input type="hidden" name="module" value="{{ module_filter or 'all' }}">
+                            
+                            <!-- 关键词搜索 -->
+                            <div class="col-md-5">
+                                <div class="input-group shadow-sm border rounded-3 overflow-hidden bg-white">
+                                    <span class="input-group-text bg-white text-muted border-0 pe-2"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
+                                    <input type="text" name="search" class="form-control border-0 ps-1 py-2 shadow-none" placeholder="搜索名称、事由、电话、备注..." value="{{ search }}" aria-label="搜索">
+                                    {% if search %}
+                                    <a href="{{ url_for('recycle_bin_view', module=module_filter, sort=sort_by, per_page=per_page) }}" class="btn btn-light border-0 d-flex align-items-center text-secondary px-2" title="清空搜索">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </a>
+                                    {% endif %}
+                                    <button type="submit" class="btn btn-secondary px-3 border-0">
+                                        <i class="fa-solid fa-magnifying-glass me-1"></i> 查询
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- 排序规则 -->
+                            <div class="col-md-4">
+                                <select class="form-select shadow-sm py-2" name="sort" onchange="this.form.submit()">
+                                    <option value="deleted_desc" {% if sort_by == 'deleted_desc' %}selected{% endif %}>按删除时间倒序 (最新删除)</option>
+                                    <option value="deleted_asc" {% if sort_by == 'deleted_asc' %}selected{% endif %}>按删除时间正序 (最早删除)</option>
+                                    <option value="amount_desc" {% if sort_by == 'amount_desc' %}selected{% endif %}>按涉及金额从高到低</option>
+                                    <option value="amount_asc" {% if sort_by == 'amount_asc' %}selected{% endif %}>按涉及金额从低到高</option>
+                                </select>
+                            </div>
+                            
+                            <!-- 分页条数设置 -->
+                            <div class="col-md-3">
+                                <select class="form-select shadow-sm py-2" name="per_page" onchange="this.form.submit()">
+                                    <option value="10" {% if per_page == 10 %}selected{% endif %}>每页 10 条 (默认)</option>
+                                    <option value="20" {% if per_page == 20 %}selected{% endif %}>每页 20 条</option>
+                                    <option value="50" {% if per_page == 50 %}selected{% endif %}>每页 50 条</option>
+                                    <option value="100" {% if per_page == 100 %}selected{% endif %}>每页 100 条</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                {% if items %}
+                <!-- 批量操作 Bar -->
+                <form id="batchRecycleForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-2 bg-light rounded-3 border">
+                        <div class="d-flex align-items-center ps-2">
+                            <div class="form-check me-3">
+                                <input class="form-check-input" type="checkbox" id="selectAll">
+                                <label class="form-check-label fw-bold" for="selectAll">本页全选</label>
+                            </div>
+                            <span class="text-muted small">已选 <span id="selectedCount" class="fw-bold text-primary">0</span> 项</span>
+                        </div>
+                        <div class="pe-2">
+                            {% if can_batch_restore %}
+                            <button type="button" class="btn btn-sm btn-outline-success me-2 rounded-pill px-3" onclick="doBatchAction('restore')">
+                                <i class="fa-solid fa-rotate-left me-1"></i>批量还原
+                            </button>
+                            {% endif %}
+                            {% if can_batch_purge %}
+                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="doBatchAction('purge')">
+                                <i class="fa-solid fa-trash-can me-1"></i>批量彻底删除
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- 数据表格 -->
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 40px;" class="ps-3"></th>
+                                    <th>所属标签页</th>
+                                    <th>名称 / 标题</th>
+                                    <th>类型性质</th>
+                                    <th>分类 / 事由</th>
+                                    <th>涉及金额</th>
+                                    <th>联系电话 / 场地</th>
+                                    <th>删除时间</th>
+                                    <th>备注说明</th>
+                                    <th class="text-end pe-3">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                <tr>
+                                    <td class="ps-3">
+                                        {% if item.can_edit or item.can_delete %}
+                                        <input class="form-check-input item-checkbox" type="checkbox" name="selected_items" value="{{ item.entity_type }}:{{ item.id }}">
+                                        <input type="hidden" name="record_ids" value="{{ item.id }}">
+                                        {% else %}
+                                        <span class="text-muted small">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge {{ item.module_badge }}"><i class="fa-solid fa-tag me-1"></i>{{ item.module_name }}</span>
+                                    </td>
+                                    <td class="fw-bold text-dark">{{ item.title }}</td>
+                                    <td>
+                                        <span class="badge {{ item.type_badge }}">{{ item.type_label }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">{{ item.category }}</span>
+                                    </td>
+                                    <td class="fw-bold text-dark privacy-blur">
+                                        {% if item.amount is not none and item.amount > 0 %}
+                                        ¥{{ "%.2f"|format(item.amount) }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="small text-muted">{{ item.phone or '-' }}</td>
+                                    <td class="small text-danger">{{ item.deleted_at.strftime('%Y-%m-%d %H:%M') if item.deleted_at else '-' }}</td>
+                                    <td class="text-muted small text-truncate" style="max-width: 150px;" title="{{ item.notes }}">{{ item.notes or '-' }}</td>
+                                    <td class="text-end pe-3">
+                                        {% if item.can_edit %}
+                                        <button type="button" class="btn btn-outline-success btn-sm me-1" title="还原此条记录" onclick="singleAction('restore', '{{ item.entity_type }}', {{ item.id }}, '{{ item.title }}')">
+                                            <i class="fa-solid fa-rotate-left"></i> 还原
+                                        </button>
+                                        {% endif %}
+                                        {% if item.can_delete %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm" title="彻底删除此条记录" onclick="singleAction('purge', '{{ item.entity_type }}', {{ item.id }}, '{{ item.title }}')">
+                                            <i class="fa-solid fa-trash-can"></i> 彻底删除
+                                        </button>
+                                        {% endif %}
+                                        {% if not item.can_edit and not item.can_delete %}
+                                        <span class="badge bg-secondary text-white small">只读</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+
+                <!-- 分页组件 -->
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-4 gap-3">
+                    <div class="text-muted small">
+                        显示第 <span class="fw-bold">{{ (page - 1) * per_page + 1 if total_count > 0 else 0 }}</span> 至
+                        <span class="fw-bold">{{ [page * per_page, total_count]|min }}</span> 条，
+                        共 <span class="fw-bold text-danger">{{ total_count }}</span> 条已删除记录
+                    </div>
+                    {% if total_pages > 1 %}
+                    <nav aria-label="回收站分页导航">
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('recycle_bin_view', page=1, per_page=per_page, module=module_filter, search=search, sort=sort_by) }}">首页</a>
+                            </li>
+                            <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('recycle_bin_view', page=page-1, per_page=per_page, module=module_filter, search=search, sort=sort_by) }}">上一页</a>
+                            </li>
+
+                            {% set start_page = [1, page - 2]|max %}
+                            {% set end_page = [total_pages, page + 2]|min %}
+                            {% for p in range(start_page, end_page + 1) %}
+                            <li class="page-item {% if p == page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('recycle_bin_view', page=p, per_page=per_page, module=module_filter, search=search, sort=sort_by) }}">{{ p }}</a>
+                            </li>
+                            {% endfor %}
+
+                            <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('recycle_bin_view', page=page+1, per_page=per_page, module=module_filter, search=search, sort=sort_by) }}">下一页</a>
+                            </li>
+                            <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('recycle_bin_view', page=total_pages, per_page=per_page, module=module_filter, search=search, sort=sort_by) }}">末页</a>
+                            </li>
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fa-solid fa-trash-can text-muted fa-3x mb-3 opacity-50"></i>
+                    <p class="text-muted fs-6">回收站空空如也，暂无已删除数据！</p>
+                    {% if search or (module_filter and module_filter != 'all') %}
+                    <a href="{{ url_for('recycle_bin_view') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa-solid fa-rotate-left me-1"></i>重置所有筛选条件
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 单条操作专用独立隐藏表单 -->
+<form id="singleActionForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="id" id="singleActionId" value="">
+    <input type="hidden" name="entity_type" id="singleActionType" value="">
+</form>
+
+{% if current_user.is_admin %}
+<!-- 管理员设置保留时长 Modal -->
+<div class="modal fade" id="retentionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ url_for('admin_set_recycle_retention') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-primary"><i class="fa-solid fa-clock-rotate-left me-2"></i>设置回收站数据保留时长</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <p class="text-muted small mb-3">系统将自动永久清理删除时间超过该天数的数据。设置为 <strong>0</strong> 表示永久保留不自动清理。</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">保留天数 (天)</label>
+                        <input type="number" class="form-control" name="retention_days" value="{{ retention_days }}" min="0" max="3650" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-bold">保存设置</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 全选与反选
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.item-checkbox');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const batchForm = document.getElementById('batchRecycleForm');
+    const singleForm = document.getElementById('singleActionForm');
+    const singleIdInput = document.getElementById('singleActionId');
+    const singleTypeInput = document.getElementById('singleActionType');
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateSelectedCount();
+        });
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', function() {
+                updateSelectedCount();
+                if (selectAll) {
+                    selectAll.checked = checkboxes.length > 0 && Array.from(checkboxes).every(c => c.checked);
+                }
+            });
+        });
+    }
+
+    function updateSelectedCount() {
+        const count = document.querySelectorAll('.item-checkbox:checked').length;
+        if (selectedCountSpan) selectedCountSpan.innerText = count;
+    }
+
+    // 批量操作处理函数
+    window.doBatchAction = function(action) {
+        const checked = document.querySelectorAll('.item-checkbox:checked');
+        if (checked.length === 0) {
+            alert('请先在左侧勾选要操作的记录！');
+            return;
+        }
+
+        if (action === 'restore') {
+            if (!confirm(`确定要还原选中的 ${checked.length} 条数据回原业务页面吗？`)) return;
+            batchForm.action = "{{ url_for('batch_restore_items') }}";
+            batchForm.submit();
+        } else if (action === 'purge') {
+            if (!confirm(`⚠️ 警告：确定要永久彻底删除选中的 ${checked.length} 条记录吗？\n此操作不可逆，数据将无法恢复！`)) return;
+            batchForm.action = "{{ url_for('batch_purge_items') }}";
+            batchForm.submit();
+        }
+    };
+
+    // 单条操作处理函数（使用独立隐藏表单）
+    window.singleAction = function(action, entityType, id, name) {
+        if (!singleForm || !singleIdInput) return;
+        singleIdInput.value = id;
+        if (singleTypeInput) singleTypeInput.value = entityType;
+
+        if (action === 'restore') {
+            if (!confirm(`确定要还原 [${name}] 回原业务页面吗？`)) return;
+            singleForm.action = "/recycle_bin/restore/" + encodeURIComponent(entityType) + "/" + id;
+            singleForm.submit();
+        } else if (action === 'purge') {
+            if (confirm(`⚠️ 警告：确定要彻底删除 [${name}] 的记录吗？\n彻底删除后无法恢复！`)) {
+                singleForm.action = "/recycle_bin/purge/" + encodeURIComponent(entityType) + "/" + id;
+                singleForm.submit();
+            }
+        }
+    };
+</script>
+{% endblock %}

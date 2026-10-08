@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block title %}家庭协作记账 - 人情礼金记账系统{% endblock %}
+
+{% block content %}
+{% if not current_user.is_admin and not current_user.can_access_menu('family') %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow border-0 text-center">
+            <div class="card-body p-5">
+                <i class="fa-solid fa-lock fa-3x text-muted opacity-50 mb-3 d-block"></i>
+                <h4 class="fw-bold mb-2">暂无访问权限</h4>
+                <p class="text-muted mb-3">您当前尚未获得家庭协作记账的访问权限。<br>请提交权限申请工单，管理员审批后即可使用。</p>
+                <a href="{{ url_for('permission_tickets_view') }}" class="btn btn-primary shadow-sm">
+                    <i class="fa-solid fa-ticket me-1"></i> 前往申请权限
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="fa-solid fa-people-roof text-warning me-2"></i>家庭多成员协作记账</h3>
+        <p class="text-muted mb-0 small">创建家庭组、邀请家庭成员、主子账本切换与协作权限管理</p>
+    </div>
+    <button type="button" class="btn btn-warning shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#createGroupModal">
+        <i class="fa-solid fa-plus me-1"></i>创建家庭组
+    </button>
+</div>
+
+<!-- 我所在的家庭组列表 -->
+<div id="familyGroupsContainer">
+    <div class="text-center py-5 text-muted">
+        <i class="fa-solid fa-spinner fa-spin me-1"></i>加载中...
+    </div>
+</div>
+
+<!-- 创建家庭组 Modal -->
+<div class="modal fade" id="createGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-plus-circle me-2"></i>创建家庭组</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">家庭名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="groupName" placeholder="例如：张家、李家" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">家庭描述</label>
+                    <textarea class="form-control" id="groupDesc" rows="2" placeholder="选填，例如：三代同堂，共同记录人情往来"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="createGroup()"><i class="fa-solid fa-check me-1"></i>创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 邀请成员 Modal -->
+<div class="modal fade" id="inviteMemberModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-user-plus me-2"></i>邀请家庭成员</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="inviteGroupId">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">选择用户 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="inviteUserId">
+                        <option value="">-- 请选择已注册用户 --</option>
+                    </select>
+                    <div class="form-text small text-muted">仅可邀请已注册的系统用户</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">角色</label>
+                    <select class="form-select" id="inviteRole">
+                        <option value="member">成员（可记账与查看自己数据）</option>
+                        <option value="head">家长（可管理成员与查看全家数据）</option>
+                        <option value="viewer">只读（仅可查看家庭汇总数据）</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">家庭昵称</label>
+                    <input type="text" class="form-control" id="inviteNickname" placeholder="选填，例如：爸爸、妈妈、大伯">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="inviteMember()"><i class="fa-solid fa-check me-1"></i>邀请</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 获取 CSRF Token
+var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+
+// ===== 加载我的家庭组列表 =====
+function loadMyGroups() {
+    fetch('/api/family/my-groups', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        var container = document.getElementById('familyGroupsContainer');
+        if (data.code !== 200 || !data.groups || data.groups.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-5">' +
+                '<i class="fa-solid fa-people-roof fa-3x mb-3 opacity-50 d-block"></i>' +
+                '<h5 class="fw-bold">暂无家庭组</h5>' +
+                '<p class="mb-0">点击右上角「创建家庭组」开始多成员协作记账</p>' +
+                '</div>';
+            return;
+        }
+        var html = '';
+        data.groups.forEach(function(g) {
+            var isOwner = g.owner_id === {{ current_user.id }};
+            var membersHtml = '';
+            if (g.members && g.members.length > 0) {
+                membersHtml = '<div class="d-flex flex-wrap gap-2 mt-2">';
+                g.members.forEach(function(m) {
+                    var roleBadge = m.role === 'head' ? '<span class="badge bg-warning text-dark">家长</span>' :
+                                    m.role === 'viewer' ? '<span class="badge bg-secondary">只读</span>' :
+                                    '<span class="badge bg-info">成员</span>';
+                    membersHtml += '<span class="badge bg-light border text-dark p-2">' + roleBadge + ' ' + (m.nickname || m.username) + '</span>';
+                });
+                membersHtml += '</div>';
+            }
+            html += '<div class="card border-0 shadow-sm mb-3">' +
+                '<div class="card-body">' +
+                '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                '<div><h5 class="fw-bold mb-0"><i class="fa-solid fa-people-roof text-warning me-2"></i>' + g.name + '</h5>' +
+                (g.description ? '<p class="text-muted small mb-0">' + g.description + '</p>' : '') + '</div>' +
+                '<div class="d-flex gap-2">' +
+                (isOwner || {{ 'true' if current_user.is_admin else 'false' }} ? '<button class="btn btn-sm btn-outline-primary" onclick="openInviteModal(' + g.id + ')"><i class="fa-solid fa-user-plus me-1"></i>邀请成员</button>' : '') +
+                (isOwner ? '<button class="btn btn-sm btn-outline-danger" onclick="dissolveGroup(' + g.id + ', \'' + g.name.replace(/'/g, "\\'") + '\')"><i class="fa-solid fa-trash me-1"></i>解散</button>' : '') +
+                '</div></div>' +
+                '<div class="text-muted small mb-1"><i class="fa-solid fa-users me-1"></i>成员 (' + (g.members ? g.members.length : 0) + '人)</div>' +
+                membersHtml +
+                '</div></div>';
+        });
+        container.innerHTML = html;
+    })
+    .catch(function(err) {
+        console.error('Load groups error:', err);
+    });
+}
+
+// ===== 创建家庭组 =====
+function createGroup() {
+    var name = document.getElementById('groupName').value.trim();
+    var desc = document.getElementById('groupDesc').value.trim();
+    if (!name) { alert('请输入家庭名称'); return; }
+    fetch('/api/family/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ name: name, description: desc })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.code === 200) {
+            bootstrap.Modal.getInstance(document.getElementById('createGroupModal')).hide();
+            document.getElementById('groupName').value = '';
+            document.getElementById('groupDesc').value = '';
+            loadMyGroups();
+        } else {
+            alert(data.message || '创建失败');
+        }
+    });
+}
+
+// ===== 打开邀请弹窗 =====
+function openInviteModal(groupId) {
+    document.getElementById('inviteGroupId').value = groupId;
+    // 加载可选用户列表
+    fetch('/api/family/' + groupId + '/invitable-users', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        var sel = document.getElementById('inviteUserId');
+        sel.innerHTML = '<option value="">-- 请选择已注册用户 --</option>';
+        if (data.code === 200 && data.users) {
+            data.users.forEach(function(u) {
+                sel.innerHTML += '<option value="' + u.id + '">' + u.username + '</option>';
+            });
+        }
+    });
+    new bootstrap.Modal(document.getElementById('inviteMemberModal')).show();
+}
+
+// ===== 邀请成员 =====
+function inviteMember() {
+    var groupId = document.getElementById('inviteGroupId').value;
+    var userId = document.getElementById('inviteUserId').value;
+    var role = document.getElementById('inviteRole').value;
+    var nickname = document.getElementById('inviteNickname').value.trim();
+    if (!userId) { alert('请选择用户'); return; }
+    fetch('/api/family/' + groupId + '/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ user_id: parseInt(userId), role: role, nickname: nickname })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.code === 200) {
+            bootstrap.Modal.getInstance(document.getElementById('inviteMemberModal')).hide();
+            document.getElementById('inviteNickname').value = '';
+            loadMyGroups();
+        } else {
+            alert(data.message || '邀请失败');
+        }
+    });
+}
+
+// ===== 解散家庭组 =====
+function dissolveGroup(groupId, groupName) {
+    if (!confirm('确定要解散家庭组「' + groupName + '」吗？此操作不可恢复。')) return;
+    fetch('/api/family/' + groupId + '/dissolve', {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.code === 200) {
+            loadMyGroups();
+        } else {
+            alert(data.message || '解散失败');
+        }
+    });
+}
+
+// ===== 页面初始化 =====
+document.addEventListener('DOMContentLoaded', function() {
+    {% if current_user.is_admin or current_user.can_access_menu('family') %}
+    loadMyGroups();
+    {% endif %}
+});
+</script>
+{% endblock %}

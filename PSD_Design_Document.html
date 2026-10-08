@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>礼金记账簿 APK — PSD 项目系统设计与重构决策文档</title>
+<title>礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档 V2.0</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{primaryColor:'#fdeaea',primaryTextColor:'#7f1d1d',primaryBorderColor:'#dc3545',lineColor:#999,fontSize:'14px'}});</script>
+<script>mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{primaryColor:'#e8f5e9',primaryTextColor:'#1b5e20',primaryBorderColor:'#4caf50',lineColor:'#999',fontSize:'14px'}});</script>
 <style>
-:root{--red:#dc3545;--green:#28a745;--amber:#ffc107;--blue:#007bff;--gray:#6c757d;--bg:#f8f9fa;--card:#fff;--border:#dee2e6;--code-bg:#f1f3f5;--text:#212529}
+:root{--green:#4caf50;--red:#dc3545;--amber:#ffc107;--blue:#007bff;--gray:#6c757d;--bg:#f8f9fa;--card:#fff;--border:#dee2e6;--code-bg:#f1f3f5;--text:#212529}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;background:var(--bg);color:var(--text);line-height:1.75;font-size:15px}
 .container{max-width:1100px;margin:0 auto;padding:40px 24px 80px}
-h1{font-size:28px;color:var(--red);text-align:center;margin-bottom:8px;padding-bottom:16px;border-bottom:3px solid var(--red)}
+h1{font-size:26px;color:var(--green);text-align:center;margin-bottom:8px;padding-bottom:16px;border-bottom:3px solid var(--green)}
 .subtitle{text-align:center;color:var(--gray);font-size:14px;margin-bottom:40px}
-h2{font-size:22px;color:var(--red);margin:48px 0 20px;padding-bottom:10px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:8px}
-h2 .num{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:var(--red);color:#fff;border-radius:50%;font-size:16px;flex-shrink:0}
+h2{font-size:22px;color:var(--green);margin:48px 0 20px;padding-bottom:10px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:8px}
+h2 .num{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:var(--green);color:#fff;border-radius:50%;font-size:16px;flex-shrink:0}
 h3{font-size:18px;color:#343a40;margin:32px 0 14px}
 h4{font-size:16px;color:#495057;margin:24px 0 10px}
 p{margin-bottom:12px}
@@ -23,11 +23,11 @@ a:hover{text-decoration:underline}
 ul,ol{margin:8px 0 16px 24px}
 li{margin-bottom:6px}
 table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px}
-th{background:#343a40;color:#fff;padding:10px 12px;text-align:left;font-weight:600;white-space:nowrap}
+th{background:#2e7d32;color:#fff;padding:10px 12px;text-align:left;font-weight:600;white-space:nowrap}
 td{padding:8px 12px;border:1px solid var(--border);vertical-align:top}
 tr:nth-child(even){background:#f8f9fa}
-tr:hover{background:#fff3cd}
-code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;background:var(--code-bg);padding:2px 6px;border-radius:3px;font-size:13px;color:var(--red)}
+tr:hover{background:#e8f5e9}
+code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;background:var(--code-bg);padding:2px 6px;border-radius:3px;font-size:13px;color:var(--green)}
 pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:8px;overflow-x:auto;margin:12px 0;font-size:13px;line-height:1.6}
 pre code{background:none;color:inherit;padding:0;font-size:13px}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap}
@@ -43,13 +43,8 @@ pre code{background:none;color:inherit;padding:0;font-size:13px}
 .callout-success{border-color:var(--green);background:#f0fdf4}
 .callout strong{display:block;margin-bottom:4px}
 .mermaid{margin:20px 0;text-align:center}
-.tag{display:inline-block;padding:1px 7px;border-radius:3px;font-size:11.5px;font-weight:600;margin-right:4px}
-.tag-l1{background:#d4edda;color:#155724}
-.tag-l2{background:#cce5ff;color:#004085}
-.tag-l3{background:#fff3cd;color:#856404}
-.tag-l4{background:#f8d7da;color:#721c24}
 .toc{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px 28px;margin-bottom:40px}
-.toc h3{margin:0 0 12px;color:var(--red)}
+.toc h3{margin:0 0 12px;color:var(--green)}
 .toc ol{margin-left:20px}
 .toc li{margin-bottom:5px}
 .toc .sub{color:var(--gray);font-size:13px;margin-left:12px}
@@ -60,1621 +55,355 @@ hr{border:none;border-top:1px solid var(--border);margin:32px 0}
 <body>
 <div class="container">
 
-<h1>礼金记账簿 Android APK — PSD 项目系统设计与重构决策文档</h1>
-<p class="meta">项目路径：<code>gift_bookkeeping_apk/</code> &nbsp;|&nbsp; 文档版本：V1.0 &nbsp;|&nbsp; 生成日期：2026-09-23</p>
-<p class="meta">审计基准提交：<code>0fe2e38</code> &nbsp;|&nbsp; 代码行数：app.py (1895行) + main.py (144行) + models.py (61行) + 8模板 (1947行)</p>
+<h1>礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档</h1>
+<p class="meta">项目路径：<code>gift_bookkeeping_apk/</code> &nbsp;|&nbsp; 文档版本：V2.0（完整功能同步版） &nbsp;|&nbsp; 生成日期：2026-10-08</p>
+<p class="meta">架构基线：本地嵌入式 Flask 服务 + 原生 WebView 容器 &nbsp;|&nbsp; 代码规模：12个Python文件 + 25个HTML模板 + 179条路由 + 22+数据模型</p>
 
 <div class="toc">
 <h3>目录</h3>
 <ol>
 <li><b>项目全局概览</b> <span class="sub">— 业务定位 · 技术栈全景 · 架构拓扑</span></li>
-<li><b>代码架构逆向推导与漂移矩阵</b> <span class="sub">— README vs 代码 · models.py 死文件 · 姊妹仓库功能对照</span></li>
-<li><b>架构模式识别</b> <span class="sub">— 单体 + SSR + 远程 WebView 容器</span></li>
-<li><b>架构耦合度诊断</b> <span class="sub">— 纯业务代码 · 强侵入代码 · 反模式</span></li>
-<li><b>架构替换与轻量化可行性决策</b> <span class="sub">— 动机评估 · ROI 矩阵 · 模块分级 · 结论</span></li>
+<li><b>V2.0 架构演进与核心变更</b> <span class="sub">— 远程WebView → 本地Flask · 功能全量同步 · 移动端适配</span></li>
+<li><b>功能模块全量清单</b> <span class="sub">— 25页面 · 179条路由 · 22+数据模型</span></li>
+<li><b>技术栈全景</b> <span class="sub">— 后端 · 前端 · 移动端 · CI/CD</span></li>
+<li><b>数据持久化设计</b> <span class="sub">— ER关系 · 字段约束 · 迁移策略</span></li>
+<li><b>移动端适配设计</b> <span class="sub">— 响应式布局 · 安全区域 · 触控优化</span></li>
+<li><b>构建与CI/CD</b> <span class="sub">— Buildozer · GitHub Actions · Android+iOS双平台</span></li>
+<li><b>工程与安全保障</b> <span class="sub">— 环境变量 · 认证鉴权 · 安全清单</span></li>
+<li><b>演进路线图</b> <span class="sub">— 已完成 · 待优化 · 长期规划</span></li>
 </ol>
 </div>
-
-<!-- ==================== Part 1 ==================== -->
 
 <h2><span class="num">1</span>项目全局概览</h2>
 
 <h3>1.1 业务定位</h3>
-<p>本项目是「人情记账宝」产品矩阵的 Android 端交付形态，定位为<b>安卓手机/平板上的礼金收付记账工具</b>。产品矩阵共三个仓库：</p>
-<ul>
-<li>Web 原生部署版（<code>gift-bookkeeping-app</code>）— 全功能版，含 Webhook、WebDAV 备份、专属宴席、AI 助手等</li>
-<li>Docker Compose 版（<code>gift-bookkeeping-app-docker</code>）— 容器化部署版</li>
-<li><b>Android APK 版（<code>gift_bookkeeping_apk</code>）— 本仓库</b>，功能子集，聚焦礼金记录 CRUD + 用户权限 + 导入导出</li>
-</ul>
+<p>本项目是「人情记账宝」产品矩阵的<b>移动端交付形态</b>，定位为 Android/iOS 手机/平板上的全功能离线礼金记账工具。</p>
 
-<div class="callout callout-danger">
-<strong>核心架构真相揭露</strong>
-README 第 14 行声称"用户可以在 Android 手机/平板上脱机离线使用"，但 <code>main.py:4</code> 硬编码远程 URL <code>TARGET_URL = "https://ljp.loveyy.indevs.in:15001/"</code>。APK 实际上是一个 <b>加载远程 Web 页面的 Android WebView 容器</b>，所有业务逻辑运行在远端 Flask 服务器上，设备端无任何本地后端服务或独立数据库。此为项目最重大的文档-实现漂移。
-</div>
-
-<h3>1.2 真实技术栈全景清单</h3>
 <table>
-<tr><th style="width:120px">层面</th><th>技术/框架</th><th style="width:100px">版本</th><th>代码依据</th></tr>
-<tr><td>后端语言</td><td>Python</td><td>3.11 (CI)</td><td><code>build_apk.yml:25</code></td></tr>
-<tr><td>Web 框架</td><td>Flask</td><td>3.0.3</td><td><code>requirements.txt:1</code>, <code>app.py:13</code></td></tr>
-<tr><td>ORM</td><td>Flask-SQLAlchemy</td><td>3.1.1</td><td><code>requirements.txt:2</code>, <code>app.py:15,65</code></td></tr>
-<tr><td>表单安全</td><td>Flask-WTF (CSRFProtect)</td><td>1.2.1</td><td><code>requirements.txt:3</code>, <code>app.py:14</code></td></tr>
-<tr><td>身份认证</td><td>Flask-Login</td><td>0.6.3</td><td><code>requirements.txt:4</code>, <code>app.py:16,68-72</code></td></tr>
-<tr><td>密码加密</td><td>Werkzeug (pbkdf2_sha256)</td><td>3.0.3</td><td><code>requirements.txt:5</code>, <code>app.py:17,92-96</code></td></tr>
-<tr><td>反向代理适配</td><td>Werkzeug ProxyFix</td><td>—</td><td><code>app.py:18,39</code></td></tr>
-<tr><td>数据库</td><td>SQLite (嵌入式文件)</td><td>—</td><td><code>app.py:50-62</code></td></tr>
-<tr><td>WSGI</td><td>Gunicorn</td><td>22.0.0</td><td><code>requirements.txt:6</code></td></tr>
-<tr><td>加密库</td><td>cryptography</td><td>42.0.8</td><td><code>requirements.txt:7</code></td></tr>
-<tr><td>桌面 WebView</td><td>pywebview</td><td>&ge;4.0.0</td><td><code>requirements.txt:8</code>（仅桌面调试用）</td></tr>
-<tr><td>前端 UI</td><td>Bootstrap 5 + FontAwesome 6 + Bootstrap Icons</td><td>CDN</td><td><code>templates/base.html:7-9</code></td></tr>
-<tr><td>模板引擎</td><td>Jinja2 (Flask 内置)</td><td>—</td><td><code>app.py:13</code></td></tr>
-<tr><td>移动端框架</td><td>Kivy + pyjnius</td><td>—</td><td><code>main.py:7-11</code>, <code>buildozer.spec:31</code></td></tr>
-<tr><td>Android 打包</td><td>Buildozer (p4a, sdl2 bootstrap)</td><td>&ge;1.5.0</td><td><code>buildozer.spec</code>, <code>build_apk.yml:63</code></td></tr>
-<tr><td>CI/CD</td><td>GitHub Actions</td><td>—</td><td><code>.github/workflows/build_apk.yml</code></td></tr>
-<tr><td>目标架构</td><td>arm64-v8a (仅 64 位)</td><td>API 33 / min 21</td><td><code>buildozer.spec:43,46,61</code></td></tr>
+<tr><th>形态</th><th>仓库</th><th>定位</th><th>功能覆盖</th></tr>
+<tr><td>Web 原生部署版</td><td><code>gift-bookkeeping-app</code></td><td>全功能基准版</td><td>100% 功能基准</td></tr>
+<tr><td>Docker Compose 版</td><td><code>gift-bookkeeping-app-docker</code></td><td>容器化部署版</td><td>100%（与传统版共享）</td></tr>
+<tr><td><b>移动端 APK 版</b></td><td><b><code>gift_bookkeeping_apk</code></b>（本仓库）</td><td><b>Android/iOS 离线应用</b></td><td><b>100% 全量同步</b></td></tr>
 </table>
 
-<div class="callout callout-info">
-<strong>技术栈分层说明</strong>
-本项目的 "技术栈" 实际跨越两个独立运行环境：<b>远端服务端</b>（Flask + SQLAlchemy + SQLite + Jinja2 SSR，即 <code>app.py</code> 全部逻辑）和<b>设备端</b>（Kivy + pyjnius + Android WebView，即 <code>main.py</code>）。APK 打包仅包含设备端代码（<code>buildozer.spec:31</code> 的 requirements 为 <code>python3,hostpython3,openssl,pyjnius,kivy</code>），Flask 及其依赖不进入 APK 包。
+<div class="callout callout-success">
+<strong>V2.0 核心变更</strong>
+V1.0 时 APK 仅为加载远程URL的 WebView 壳（功能子集），V2.0 已完整同步源项目全部功能，改为<b>本地嵌入式 Flask 服务 + WebView 容器</b>架构，实现真正的离线运行。
 </div>
 
-<h3>1.3 端到端架构拓扑图</h3>
+<h3>1.2 架构拓扑图</h3>
 <div class="mermaid">
 graph TB
-    subgraph device["📱 Android 设备"]
-        APK["APK 应用<br/>GiftBookkeeping v1.0.0<br/>arm64-v8a / API 21+"] --> WV["Android WebView<br/>原生容器 (main.py:27-129)<br/>jnius → android.webkit.WebView"]
+    subgraph device["📱 移动设备 (Android/iOS)"]
+        APK["APK 应用 v2.0.0<br/>arm64-v8a + armeabi-v7a<br/>API 21+"] --> WV["原生 WebView<br/>main.py 容器层<br/>jnius → WebView"]
+        APK --> FLASK_LOCAL["本地 Flask 服务<br/>127.0.0.1:8765<br/>app.py (3291行, 179路由)"]
+        FLASK_LOCAL --> DB_LOCAL["SQLite<br/>本地私有存储<br/>data/gift_bookkeeping.db"]
+        FLASK_LOCAL -->|"Jinja2 SSR"| TPL_LOCAL["templates/ 25个HTML<br/>Bootstrap5 + FA6 + ECharts<br/>本地化引用"]
     end
-    WV -->|"HTTPS GET/POST<br/>目标: ljp.loveyy.indevs.in:15001<br/>main.py:4 硬编码"| NET["🌐 互联网"]
-
-    subgraph server["🖥️ 远端服务器 (非 APK 内部)"]
-        NET --> NGINX["Nginx 反代<br/>(传统版 run.sh 管理)"]
-        NGINX --> FLASK["Flask App (app.py:1895行)<br/>Gunicorn WSGI<br/>端口 11443 (app.py:1876)"]
-        FLASK --> DB["SQLite<br/>gift_bookkeeping.db<br/>app.py:50-62"]
-        FLASK -->|"Jinja2 SSR<br/>render_template()"| TPL["templates/ 8个HTML模板<br/>Bootstrap5 CDN"]
-    end
-
-    TPL -->|"HTML/CSS/JS<br/>服务端渲染结果"| NET
-    NET -->|"HTTP Response"| WV
-
+    WV -->|"加载 http://127.0.0.1:8765"| FLASK_LOCAL
+    TPL_LOCAL -->|"HTML/CSS/JS"| WV
     style device fill:#e8f5e9,stroke:#4caf50
-    style server fill:#fff3e0,stroke:#ff9800
-    style APK fill:#c8e6c9,stroke:#4caf50
-    style FLASK fill:#ffe0b2,stroke:#ff9800
+    style FLASK_LOCAL fill:#c8e6c9,stroke:#4caf50
+    style DB_LOCAL fill:#a5d6a7,stroke:#4caf50
 </div>
 
-<div class="callout callout-warn">
-<strong>架构拓扑关键发现</strong>
+<div class="callout callout-info">
+<strong>架构关键特征</strong>
 <ul style="margin-top:8px">
-<li><b>非离线架构</b>：APK 内无 Flask 服务，所有请求都发往远程服务器。设备无网络时 APK 完全不可用。</li>
-<li><b>WebView SSL 验证被禁用</b>：<code>main.py:52-54</code> <code>onReceivedSslError</code> 无条件执行 <code>handler.proceed()</code>，存在中间人攻击风险。</li>
-<li><b>WebView 配置宽松</b>：<code>main.py:93-94</code> 启用 <code>setAllowFileAccess(True)</code> 和 <code>setAllowContentAccess(True)</code>；<code>main.py:106</code> 允许第三方 Cookie。</li>
-<li><b>服务端无内置 HTTPS</b>：<code>app.py:1876</code> 默认端口 11443 但 <code>app.py</code> 内未配置 SSL 证书，依赖外部 Nginx 或传统版 <code>run.sh</code>。</li>
+<li><b>完全离线</b>：所有业务逻辑在设备本地运行，无需互联网</li>
+<li><b>数据私有</b>：SQLite 数据库存储在手机私有空间，<code>android.private_storage = True</code></li>
+<li><b>资源内嵌</b>：25个HTML模板 + 静态资源全部打包进APK，不依赖CDN</li>
+<li><b>本地Flask</b>：Flask后端在设备后台线程运行，WebView加载本地页面</li>
 </ul>
 </div>
 
-<h3>1.4 项目仓库 Git 概况</h3>
+<h2><span class="num">2</span>V2.0 架构演进与核心变更</h2>
+
+<h3>2.1 架构模式变更</h3>
 <table>
-<tr><th>指标</th><th>值</th><th>说明</th></tr>
-<tr><td>分支策略</td><td>单分支 <code>main</code></td><td>无 develop/feature 分支</td></tr>
-<tr><td>总提交数</td><td>12</td><td>从 <code>a194a85</code>（初始化）到 <code>0fe2e38</code>（最新）</td></tr>
-<tr><td>贡献方式</td><td>单人提交</td><td>所有提交为同一作者</td></tr>
-<tr><td>文件总数</td><td>git 追踪 16 个文件</td><td>极小型仓库</td></tr>
-<tr><td>核心代码文件</td><td>3 个 .py + 8 个 .html</td><td><code>app.py</code>(1895行) + <code>main.py</code>(144行) + <code>models.py</code>(61行，死代码) + 模板(~1947行)</td></tr>
+<tr><th style="width:120px">维度</th><th>V1.0（远程WebView壳）</th><th>V2.0（本地Flask + WebView）</th></tr>
+<tr><td><b>架构模式</b></td><td>远程WebView容器</td><td>本地嵌入式Flask + WebView</td></tr>
+<tr><td><b>后端运行</b></td><td>远端服务器</td><td>设备本地后台线程</td></tr>
+<tr><td><b>数据库</b></td><td>远端SQLite</td><td>设备本地SQLite（私有存储）</td></tr>
+<tr><td><b>网络依赖</b></td><td>必须联网</td><td>完全离线</td></tr>
+<tr><td><b>功能覆盖</b></td><td>Web版功能子集（32路由）</td><td>Web版全量功能（179路由）</td></tr>
+<tr><td><b>模板资源</b></td><td>CDN加载</td><td>本地化打包（static/vendor/）</td></tr>
+<tr><td><b>main.py</b></td><td>加载远程URL</td><td>启动本地Flask + WebView</td></tr>
+<tr><td><b>buildozer.spec</b></td><td>仅Kivy+pyjnius</td><td>Kivy + Flask全家桶</td></tr>
 </table>
 
-<!-- ==================== Part 2 ==================== -->
-
-<h2><span class="num">2</span>代码架构逆向推导与漂移矩阵</h2>
-
-<p>本仓库<b>无独立历史设计文档</b>（无 PSD / 架构文档 / API 规格文档），仅有 <code>README.md</code> 作为使用说明。姊妹仓库 <code>gift_bookkeeping_app/Project_Survey.md</code>（1138行，38 条 ADR）描述的是传统 Web 版完整设计，本节将其作为<b>设计意图参考</b>进行交叉核验。</p>
-
-<h3>2.1 漂移矩阵 A — README 声明 vs 代码真实实现</h3>
-
+<h3>2.2 项目规模变化</h3>
 <table>
-<tr><th style="width:60px">#</th><th style="width:180px">模块/功能</th><th>README 声明（位置）</th><th>代码真实实现（位置）</th><th style="width:90px">状态</th><th>影响评估</th></tr>
-
-<tr>
-<td>D1</td>
-<td>离线运行能力</td>
-<td>"用户可以在 Android 手机/平板上<b>脱机离线</b>使用完整的礼金记账…"（README:14）</td>
-<td><code>main.py:4</code> 硬编码 <code>TARGET_URL = "https://ljp.loveyy.indevs.in:15001/"</code>，APK 为远程 WebView 容器，无本地 Flask 服务</td>
-<td><span class="badge badge-red">未落地</span></td>
-<td><b>严重</b>。核心卖点与实现完全矛盾；无网络环境 APK 不可用</td>
-</tr>
-
-<tr>
-<td>D2</td>
-<td>嵌入式 SQLite 本地存储</td>
-<td>"采用嵌入式 SQLite 数据库，数据安全保存在<b>手机内部私有存储空间</b>"（README:37）</td>
-<td><code>app.py:42-55</code> 数据库路径逻辑仅在 <code>sys.frozen</code>（PyInstaller 打包）时写入 <code>~/.gift_bookkeeping/</code>，但 APK 打包（Buildozer/Kivy）不会触发 <code>sys.frozen</code>；且数据库运行在远端服务器，不在手机端</td>
-<td><span class="badge badge-red">未落地</span></td>
-<td><b>严重</b>。数据实际存储在远端服务器 SQLite 文件中，非手机内部存储</td>
-</tr>
-
-<tr>
-<td>D3</td>
-<td>原生全屏 WebView 沉浸式体验</td>
-<td>"原生全屏 WebView 沉浸式交互体验"（README:38）</td>
-<td><code>main.py:36-37</code> 仅设置 <code>LayoutParams.MATCH_PARENT</code>；<code>buildozer.spec:37</code> <code>fullscreen = 0</code>（非全屏）</td>
-<td><span class="badge badge-amber">部分实现</span></td>
-<td><b>轻微</b>。WebView 全屏填充但非 immersive fullscreen；与声明略有出入</td>
-</tr>
-
-<tr>
-<td>D4</td>
-<td>完全包含 Web 版所有功能</td>
-<td>"完全包含 Web 版的所有功能"（README:29）</td>
-<td>对比传统版 <code>Project_Survey.md</code> ADR-01~38，APK 版<b>缺失</b>：Webhook 通知、WebDAV 备份、专属宴席管理、纪念日提醒、AI 助手、权限工单、回收站软删除、自然语言记账、多维导出等核心模块</td>
-<td><span class="badge badge-red">已废弃</span></td>
-<td><b>中等</b>。README 误导用户预期，实际为 Web 版功能子集</td>
-</tr>
-
-<tr>
-<td>D5</td>
-<td>默认访问地址 127.0.0.1:5000</td>
-<td>"默认访问地址：<code>http://127.0.0.1:5000</code>"（README:114）</td>
-<td><code>app.py:1876</code> 默认端口 <code>11443</code>；<code>main.py:4</code> WebView 加载 <code>https://ljp.loveyy.indevs.in:15001/</code></td>
-<td><span class="badge badge-amber">不一致</span></td>
-<td><b>轻微</b>。文档遗留自传统版，未更新为 APK 实际配置</td>
-</tr>
-
-<tr>
-<td>D6</td>
-<td>项目架构目录树</td>
-<td>README:46-67 列出目录树含 <code>models.py</code> 标注为"数据库模型"</td>
-<td><code>models.py</code> 从未被任何文件 import（grep 全仓库无匹配），为<b>死代码</b>。实际模型内联于 <code>app.py:74-149,312-323</code></td>
-<td><span class="badge badge-red">不一致</span></td>
-<td><b>中等</b>。误导开发者认为 models.py 是活跃使用的模型文件</td>
-</tr>
+<tr><th>指标</th><th>V1.0</th><th>V2.0</th><th>变化</th></tr>
+<tr><td>代码文件</td><td>3个 .py + 8个 .html</td><td>12个 .py + 25个 .html</td><td>+9 .py +17 .html</td></tr>
+<tr><td>代码行数</td><td>~2100行</td><td>~15000+行</td><td>7倍增长</td></tr>
+<tr><td>路由数量</td><td>32条</td><td>179条</td><td>全量同步</td></tr>
+<tr><td>数据模型</td><td>3个</td><td>22+个</td><td>全量同步</td></tr>
+<tr><td>静态资源</td><td>CDN引用</td><td>本地化vendor/</td><td>离线可用</td></tr>
+<tr><td>构建平台</td><td>仅Android</td><td>Android + iOS</td><td>新增iOS</td></tr>
 </table>
 
-<h3>2.2 漂移矩阵 B — models.py 死文件 vs app.py 内联模型</h3>
-
-<p><code>models.py</code> 定义了 <code>User</code> 和 <code>GiftRecord</code> 两个模型，但<b>全仓库无任何 <code>import models</code> 语句</b>（grep 结果为空）。该文件是一个从未被引用的草稿，其 schema 与 <code>app.py</code> 内联模型存在<b>重大差异</b>：</p>
-
+<h3>2.3 源项目功能同步清单</h3>
 <table>
-<tr><th style="width:160px">对比维度</th><th>models.py（死代码）</th><th>app.py（实际运行）</th><th style="width:90px">状态</th></tr>
-
-<tr><td colspan="4"><b>User 模型差异</b></td></tr>
-<tr><td>admin 标识方式</td><td><code>role = db.Column(db.String(20), default='user')</code> + <code>@property is_admin</code> (<code>models.py:15,42-44</code>)</td><td><code>is_admin = db.Column(db.Boolean, default=False)</code> 直接布尔列 (<code>app.py:81</code>)</td><td><span class="badge badge-red">已重构</span></td></tr>
-<tr><td>username 长度</td><td><code>String(64)</code> (<code>models.py:13</code>)</td><td><code>String(50)</code> (<code>app.py:77</code>)</td><td><span class="badge badge-amber">不一致</span></td></tr>
-<tr><td>security_question</td><td><code>String(200), nullable=True</code> (<code>models.py:16</code>)</td><td><code>String(100), nullable=False</code> (<code>app.py:79</code>)</td><td><span class="badge badge-amber">不一致</span></td></tr>
-<tr><td>security_answer_hash</td><td><code>nullable=True</code> (<code>models.py:17</code>)</td><td><code>nullable=False</code> (<code>app.py:80</code>)</td><td><span class="badge badge-amber">不一致</span></td></tr>
-<tr><td>session_token</td><td><b>不存在</b></td><td><code>String(64), nullable=True</code> (<code>app.py:82</code>)</td><td><span class="badge badge-red">缺失</span></td></tr>
-<tr><td>关系定义</td><td><code># records = db.relationship(...)</code> 被注释 (<code>models.py:25</code>)</td><td><code>records = db.relationship('GiftRecord', backref='owner', cascade='all, delete-orphan')</code> (<code>app.py:90</code>)</td><td><span class="badge badge-amber">不一致</span></td></tr>
-
-<tr><td colspan="4"><b>GiftRecord 模型差异</b></td></tr>
-<tr><td>name 长度</td><td><code>String(64)</code> (<code>models.py:51</code>)</td><td><code>String(50)</code> (<code>app.py:315</code>)</td><td><span class="badge badge-amber">不一致</span></td></tr>
-<tr><td>address 长度</td><td><code>String(256)</code> (<code>models.py:53</code>)</td><td><code>String(200)</code> (<code>app.py:317</code>)</td><td><span class="badge badge-amber">不一致</span></td></tr>
-<tr><td>phone 长度</td><td><code>String(30)</code> (<code>models.py:54</code>)</td><td><code>String(20)</code> (<code>app.py:318</code>)</td><td><span class="badge badge-amber">不一致</span></td></tr>
-<tr><td>event_reason 长度</td><td><code>String(128)</code> (<code>models.py:56</code>)</td><td><code>String(100)</code> (<code>app.py:320</code>)</td><td><span class="badge badge-amber">不一致</span></td></tr>
-<tr><td>关系定义</td><td><code>user = db.relationship('User', backref=db.backref('gift_records', lazy=True))</code> (<code>models.py:61</code>)</td><td>无显式定义（通过 User.records 的 backref='owner' 反向获取）</td><td><span class="badge badge-amber">不一致</span></td></tr>
-
-<tr><td colspan="4"><b>缺失模型（models.py 中不存在）</b></td></tr>
-<tr><td>SystemSetting</td><td><b>不存在</b></td><td><code>app.py:106-125</code> — 系统配置键值表（会话超时、风控参数）</td><td><span class="badge badge-red">缺失</span></td></tr>
-<tr><td>RegistrationToken</td><td><b>不存在</b></td><td><code>app.py:127-137</code> — 注册邀请令牌表</td><td><span class="badge badge-red">缺失</span></td></tr>
-<tr><td>OperationLog</td><td><b>不存在</b></td><td><code>app.py:139-149</code> — 审计日志表</td><td><span class="badge badge-red">缺失</span></td></tr>
-
-<tr><td colspan="4"><b>基础设施差异</b></td></tr>
-<tr><td>db 实例创建</td><td><code>db = SQLAlchemy()</code> 无 app 绑定 (<code>models.py:6</code>)</td><td><code>db = SQLAlchemy(app)</code> 直接绑定 (<code>app.py:65</code>)</td><td><span class="badge badge-amber">不一致</span></td></tr>
+<tr><th>文件</th><th>功能</th><th>同步状态</th></tr>
+<tr><td><code>app.py</code></td><td>后端业务逻辑（3291行, 179路由）</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>models.py</code></td><td>数据模型（22+模型, 1129行）</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>routes_ext.py</code></td><td>扩展路由（回收站/对账/宴席/提醒/备份/Webhook/广播/打印/OCR）</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>routes_ai.py</code></td><td>AI助手路由</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>ai_service.py</code></td><td>AI核心服务层（多配置/联网搜索/本地兜底/OCR）</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>pdf_generator.py</code></td><td>PDF对账单生成（ReportLab）</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>gift_utils.py</code></td><td>人情业务工具（NLP解析/还礼建议/对账计算）</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>webhook_utils.py</code></td><td>Webhook多渠道推送</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>webdav_utils.py</code></td><td>WebDAV备份工具</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>web_search.py</code></td><td>AI联网搜索</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>_daemon_lock.py</code></td><td>守护线程单实例锁</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>templates/</code> (25个)</td><td>全部页面模板</td><td><span class="badge badge-green">完整同步</span></td></tr>
+<tr><td><code>static/</code></td><td>全部静态资源（本地化）</td><td><span class="badge badge-green">完整同步</span></td></tr>
 </table>
 
-<h3>2.3 漂移矩阵 C — 姊妹仓库功能清单 vs APK 实现状态</h3>
+<h2><span class="num">3</span>功能模块全量清单</h2>
 
-<p>对照传统版 <code>Project_Survey.md</code> 中的 ADR 与业务模块设计规范：</p>
-
+<h3>3.1 页面/路由清单（25个页面，179条路由）</h3>
 <table>
-<tr><th style="width:200px">功能模块</th><th>传统版 ADR/章节</th><th style="width:80px">APK 实现</th><th>说明</th></tr>
-<tr><td>礼金收支 CRUD</td><td>ADR-06 §6.1</td><td><span class="badge badge-green">已实现</span></td><td>增删改查 + 批量删除 + 清空</td></tr>
-<tr><td>中文金额转换</td><td>§6.1</td><td><span class="badge badge-green">已实现</span></td><td><code>cn2num()</code> / <code>num2cn()</code> <code>app.py:340-482</code></td></tr>
-<tr><td>统计面板</td><td>—</td><td><span class="badge badge-green">已实现</span></td><td>总笔数/总额/均值/最大值 <code>app.py:627-632</code></td></tr>
-<tr><td>搜索与筛选排序</td><td>—</td><td><span class="badge badge-green">已实现</span></td><td>多字段 <code>ilike</code> + 事由筛选 + 时间/金额排序 <code>app.py:589-625</code></td></tr>
-<tr><td>CSV 导入导出</td><td>ADR-13 §6.8</td><td><span class="badge badge-green">已实现</span></td><td>含模板下载 + 智能列映射 <code>app.py:1695-1865</code></td></tr>
-<tr><td>用户注册（邀请制）</td><td>ADR-14 §6.12</td><td><span class="badge badge-green">已实现</span></td><td>RegistrationToken 令牌验证 <code>app.py:832-903</code></td></tr>
-<tr><td>密码找回（密保）</td><td>§6.9</td><td><span class="badge badge-green">已实现</span></td><td>含算术验证码 + 防爆破锁定 <code>app.py:920-1055</code></td></tr>
-<tr><td>用户权限 4 级模型</td><td>ADR-11 §6.5</td><td><span class="badge badge-green">已实现</span></td><td>Level 0~3 <code>app.py:1494-1554</code></td></tr>
-<tr><td>审计日志</td><td>ADR-08</td><td><span class="badge badge-green">已实现</span></td><td>自动过期清理（90 天）<code>app.py:265-310</code></td></tr>
-<tr><td>注册邀请链接管理</td><td>ADR-14</td><td><span class="badge badge-green">已实现</span></td><td>生成/删除/批量删除 <code>app.py:1387-1462</code></td></tr>
-<tr><td>系统安全参数配置</td><td>§6.9</td><td><span class="badge badge-green">已实现</span></td><td>超时/锁定/次数可配 <code>app.py:1281-1312</code></td></tr>
-<tr><td colspan="4" style="background:#fdf2f2"><b>以下为传统版已实现但 APK 版<b>未落地</b>的功能</b></td></tr>
-<tr><td>专属宴席管理</td><td>ADR-20~22,26 §6.2</td><td><span class="badge badge-gray">未实现</span></td><td>宴席台账、双向归属映射、分享链接等全部缺失</td></tr>
-<tr><td>Webhook 通知体系</td><td>ADR-21,24,27~33</td><td><span class="badge badge-gray">未实现</span></td><td>企业微信机器人、多通道推送等全部缺失</td></tr>
-<tr><td>WebDAV 备份</td><td>ADR-12,38</td><td><span class="badge badge-gray">未实现</span></td><td>数据级备份/恢复、WAL 快照等全部缺失</td></tr>
-<tr><td>纪念日提醒</td><td>ADR-30~32</td><td><span class="badge badge-gray">未实现</span></td><td>自动巡检推送、自定义提醒等全部缺失</td></tr>
-<tr><td>AI 助手</td><td>§8 ADR</td><td><span class="badge badge-gray">未实现</span></td><td>自然语言记账、一键测试等全部缺失</td></tr>
-<tr><td>权限工单</td><td>ADR-37</td><td><span class="badge badge-gray">未实现</span></td><td>工单多维度治理缺失</td></tr>
-<tr><td>回收站软删除</td><td>ADR-08</td><td><span class="badge badge-gray">未实现</span></td><td>硬删除模式，无生命周期保留</td></tr>
-<tr><td>敏感数据脱敏</td><td>ADR-36</td><td><span class="badge badge-gray">未实现</span></td><td>Webhook 凭证明文存储等（不适用，因 Webhook 未实现）</td></tr>
+<tr><th>#</th><th>页面模板</th><th>路由</th><th>核心功能</th></tr>
+<tr><td>1</td><td><code>base.html</code></td><td>—</td><td>全局布局（导航栏/Flash/主题/防偷窥/广播/移动端CSS）</td></tr>
+<tr><td>2</td><td><code>index.html</code></td><td><code>/</code></td><td>礼金账本首页（CRUD/搜索/筛选/排序/分页/批量/NLP/导入导出/打印/海报）</td></tr>
+<tr><td>3</td><td><code>login.html</code></td><td><code>/login</code></td><td>登录（风控/验证码/记住密码）</td></tr>
+<tr><td>4</td><td><code>register.html</code></td><td><code>/register</code></td><td>注册（双密保/邀请制）</td></tr>
+<tr><td>5</td><td><code>forgot_password.html</code></td><td><code>/forgot-password</code></td><td>找回密码（双密保/风控）</td></tr>
+<tr><td>6</td><td><code>change_password.html</code></td><td><code>/change-password</code></td><td>修改密码</td></tr>
+<tr><td>7</td><td><code>profile_security.html</code></td><td><code>/profile/security</code></td><td>个人安全设置</td></tr>
+<tr><td>8</td><td><code>dashboard.html</code></td><td><code>/dashboard</code></td><td>数据分析看板（ECharts）</td></tr>
+<tr><td>9</td><td><code>family.html</code></td><td><code>/family</code></td><td>家庭多成员协作记账</td></tr>
+<tr><td>10</td><td><code>banquets.html</code></td><td><code>/banquets</code></td><td>专属宴席大账本列表</td></tr>
+<tr><td>11</td><td><code>banquet_detail.html</code></td><td><code>/banquet/&lt;id&gt;</code></td><td>宴席详情（盈亏分析/现场录入）</td></tr>
+<tr><td>12</td><td><code>reconciliation.html</code></td><td><code>/reconciliation</code></td><td>人情对账（往来明细/还礼建议）</td></tr>
+<tr><td>13</td><td><code>reminders.html</code></td><td><code>/reminders</code></td><td>纪念日备忘（提醒/Webhook推送）</td></tr>
+<tr><td>14</td><td><code>recycle_bin.html</code></td><td><code>/recycle_bin</code></td><td>回收站（跨模块/还原/彻底删除）</td></tr>
+<tr><td>15</td><td><code>ai_assistant.html</code></td><td><code>/ai-assistant</code></td><td>AI智能助手</td></tr>
+<tr><td>16</td><td><code>permission_tickets.html</code></td><td><code>/permission_tickets</code></td><td>权限工单</td></tr>
+<tr><td>17</td><td><code>admin_users.html</code></td><td><code>/admin/users</code></td><td>用户管理（4级权限/双密保）</td></tr>
+<tr><td>18</td><td><code>admin_logs.html</code></td><td><code>/admin/logs</code></td><td>操作审计日志</td></tr>
+<tr><td>19</td><td><code>admin_broadcasts.html</code></td><td><code>/admin/broadcasts</code></td><td>系统广播发布</td></tr>
+<tr><td>20</td><td><code>admin_webhooks.html</code></td><td><code>/admin/webhooks</code></td><td>Webhook通知配置</td></tr>
+<tr><td>21</td><td><code>admin_backups.html</code></td><td><code>/admin/backups</code></td><td>WebDAV备份管理</td></tr>
+<tr><td>22</td><td><code>admin_ai_config.html</code></td><td><code>/admin/ai-config</code></td><td>AI配置管理</td></tr>
+<tr><td>23</td><td><code>print_giftbook.html</code></td><td><code>/print_giftbook</code></td><td>人情簿A4打印</td></tr>
+<tr><td>24</td><td><code>poster_template.html</code></td><td><code>/poster_template</code></td><td>海报模板（手机分享长图）</td></tr>
+<tr><td>25</td><td><code>shared_ledger.html</code></td><td><code>/shared_ledger/&lt;token&gt;</code></td><td>共享外链（只读/密码/脱敏）</td></tr>
 </table>
 
-<h3>2.4 代码内部一致性漂移</h3>
-
-<p>除文档-代码漂移外，<code>app.py</code> 内部也存在多处不一致，表明代码经历了非协调式迭代：</p>
-
+<h3>3.2 数据模型清单（22+个模型）</h3>
 <table>
-<tr><th style="width:60px">#</th><th style="width:200px">漂移点</th><th>代码位置</th><th>说明</th><th style="width:90px">状态</th></tr>
-<tr>
-<td>C1</td>
-<td>函数重复定义</td>
-<td><code>get_max_security_attempts()</code> 定义于 <code>app.py:176</code> 与 <code>app.py:684</code>；<code>get_forgot_security_risk_status()</code> 定义于 <code>app.py:184</code> 与 <code>app.py:692</code></td>
-<td>后定义覆盖前定义，函数体完全一致但表明存在未合并的编辑冲突或复制粘贴</td>
-<td><span class="badge badge-amber">代码坏味道</span></td>
-</tr>
-<tr>
-<td>C2</td>
-<td>权限校验不一致</td>
-<td><code>edit_record</code> (<code>app.py:1127</code>) 与 <code>delete_record</code> (<code>app.py:1176</code>) 使用旧模式 <code>not current_user.is_admin and record.user_id != current_user.id</code>；<code>batch_delete_records</code> (<code>app.py:1202</code>) 使用新函数 <code>can_user_delete_record()</code></td>
-<td>单条编辑/删除未调用统一权限函数，跳过了 <code>can_edit_others</code>/<code>can_delete_others</code> 权限判定，导致拥有跨用户编辑/删除权限的普通用户无法通过单条入口操作他人记录</td>
-<td><span class="badge badge-red">功能缺陷</span></td>
-</tr>
-<tr>
-<td>C3</td>
-<td>密码复杂度校验缺失</td>
-<td><code>register</code> (<code>app.py:873</code>) 和 <code>forgot_password</code> (<code>app.py:1034</code>) 调用 <code>check_password_complexity()</code>；但 <code>change_password</code> (<code>app.py:1247</code>) 和 <code>admin_reset_user_pass</code> (<code>app.py:1621</code>) <b>未调用</b></td>
-<td>用户可通过修改密码或管理员重置密码设置任意弱口令，绕过复杂度校验</td>
-<td><span class="badge badge-red">安全漏洞</span></td>
-</tr>
-<tr>
-<td>C4</td>
-<td>__main__ 重复管理员初始化</td>
-<td><code>init_database()</code> (<code>app.py:538-563</code>) 已含管理员创建/同步逻辑；<code>__main__</code> 块 (<code>app.py:1882-1893</code>) 再次独立实现一套管理员初始化逻辑</td>
-<td>两处逻辑不一致：<code>init_database()</code> 创建管理员时完整设置了 <code>security_question</code> 和 <code>security_answer</code>（<code>app.py:547,552</code>）；<code>__main__</code> 块创建管理员时两者均未设置（<code>security_question</code> 为 NOT NULL 约束，会导致数据库插入错误）</td>
-<td><span class="badge badge-amber">代码坏味道</span></td>
-</tr>
+<tr><th>模型类</th><th>表名</th><th>功能</th></tr>
+<tr><td>User</td><td>users</td><td>用户（双密保/AI配置/4级权限/授权）</td></tr>
+<tr><td>GiftRecord</td><td>gift_records</td><td>礼金记录（收礼/随礼/软删除/宴席关联）</td></tr>
+<tr><td>Banquet</td><td>banquets</td><td>专属宴席（自动归集/盈亏分析）</td></tr>
+<tr><td>AnniversaryReminder</td><td>anniversary_reminders</td><td>纪念日提醒</td></tr>
+<tr><td>SystemSetting</td><td>system_settings</td><td>系统配置键值表</td></tr>
+<tr><td>RegistrationToken</td><td>registration_tokens</td><td>注册邀请令牌</td></tr>
+<tr><td>LoginRisk</td><td>login_risks</td><td>登录风控（持久化）</td></tr>
+<tr><td>SecurityRisk</td><td>security_risks</td><td>密保风控（持久化）</td></tr>
+<tr><td>OperationLog</td><td>operation_logs</td><td>操作审计日志</td></tr>
+<tr><td>Broadcast / BroadcastRead</td><td>broadcasts / broadcast_reads</td><td>系统广播与已读</td></tr>
+<tr><td>SharedLedgerLink</td><td>shared_ledger_links</td><td>共享外链</td></tr>
+<tr><td>WebhookConfig / WebhookLog</td><td>webhook_configs / webhook_logs</td><td>Webhook配置与日志</td></tr>
+<tr><td>BackupConfig</td><td>backup_configs</td><td>WebDAV备份配置</td></tr>
+<tr><td>ScheduledBackupTask / ExecutionLog</td><td>scheduled_backup_tasks / _logs</td><td>定时备份任务</td></tr>
+<tr><td>BackupAttachment</td><td>backup_attachments</td><td>备份附件</td></tr>
+<tr><td>PermissionTicket</td><td>permission_tickets</td><td>权限工单</td></tr>
+<tr><td>ChatSession / ChatMessage</td><td>chat_sessions / chat_messages</td><td>AI聊天会话与消息</td></tr>
+<tr><td>AIQueryLog</td><td>ai_query_logs</td><td>AI查询日志</td></tr>
+<tr><td>FamilyGroup / FamilyMember</td><td>family_groups / family_members</td><td>家庭组与成员</td></tr>
 </table>
 
-<!-- ==================== Part 3 ==================== -->
+<h2><span class="num">4</span>技术栈全景</h2>
 
-<h2><span class="num">3</span>架构模式识别</h2>
+<h3>4.1 后端技术栈</h3>
+<table>
+<tr><th>层面</th><th>技术/框架</th><th>版本</th></tr>
+<tr><td>Web 框架</td><td>Flask</td><td>3.0.3</td></tr>
+<tr><td>ORM</td><td>Flask-SQLAlchemy</td><td>3.1.1</td></tr>
+<tr><td>表单安全</td><td>Flask-WTF (CSRFProtect)</td><td>1.2.1</td></tr>
+<tr><td>身份认证</td><td>Flask-Login</td><td>0.6.3</td></tr>
+<tr><td>密码加密</td><td>Werkzeug (pbkdf2_sha256)</td><td>3.0.3</td></tr>
+<tr><td>凭证加密</td><td>cryptography (AES-256-GCM)</td><td>42.0.8</td></tr>
+<tr><td>HTTP 客户端</td><td>requests</td><td>&ge;2.31.0</td></tr>
+<tr><td>数据库</td><td>SQLite (嵌入式, WAL模式)</td><td>—</td></tr>
+</table>
 
-<h3>3.1 模式判定结论</h3>
+<h3>4.2 可选依赖（延迟导入，自动降级）</h3>
+<table>
+<tr><th>依赖</th><th>功能</th><th>降级行为</th></tr>
+<tr><td>openai</td><td>AI聊天/OCR识别</td><td>本地知识引擎兜底</td></tr>
+<tr><td>duckduckgo_search</td><td>AI联网搜索</td><td>跳过搜索</td></tr>
+<tr><td>reportlab</td><td>PDF对账单生成</td><td>跳过PDF功能</td></tr>
+<tr><td>openpyxl</td><td>Excel导入导出</td><td>跳过Excel功能</td></tr>
+<tr><td>pyzipper</td><td>加密备份</td><td>跳过加密功能</td></tr>
+<tr><td>wecom-aibot-python-sdk</td><td>企微长连接</td><td>仅标准Webhook</td></tr>
+</table>
 
-<p>基于入口链路、路由装配、ORM 使用和通信模式的全链路分析，本项目架构模式为：</p>
+<h3>4.3 前端技术栈</h3>
+<table>
+<tr><th>技术</th><th>版本</th><th>引用方式</th></tr>
+<tr><td>Bootstrap (CSS框架)</td><td>5.3.0</td><td>本地化 static/vendor/</td></tr>
+<tr><td>FontAwesome (图标)</td><td>6.4.0</td><td>本地化 static/vendor/</td></tr>
+<tr><td>Bootstrap Icons</td><td>1.11.3</td><td>本地化 static/vendor/</td></tr>
+<tr><td>ECharts (图表)</td><td>5.5.0</td><td>本地化 static/vendor/</td></tr>
+<tr><td>html2canvas (截图)</td><td>1.4.1</td><td>本地化 static/vendor/</td></tr>
+</table>
 
-<div class="callout callout-info">
-<p><b>单体 Flask + 服务端渲染 (SSR) + 远程 WebView 容器</b></p>
-<p style="margin-top:6px;font-size:13px;color:#666">Monolithic Flask SSR + Remote WebView Container Pattern</p>
-</div>
+<h2><span class="num">5</span>数据持久化设计</h2>
 
-<h3>3.2 入口链路分析</h3>
-
-<div class="mermaid">
-graph LR
-    A["Android 设备<br/>启动 APK"] --> B["main.py<br/>GiftBookkeepingApp.run()"]
-    B --> C{"platform 检测<br/>main.py:21"}
-    C -->|"android"| D["init_android_webview()<br/>main.py:27-129<br/>jnius → WebView"]
-    C -->|"desktop"| E["open_desktop_browser()<br/>main.py:131-136<br/>webbrowser.open()"]
-    D --> F["WebView.loadUrl()<br/>加载远程 URL<br/>main.py:121"]
-    F --> G["远端 Flask 路由<br/>app.py:572 index()"]
-    E --> G
-    G --> H["Jinja2 SSR<br/>render_template()"]
-    H --> I["HTML 返回 WebView<br/>用户交互"]
-
-    style B fill:#e3f2fd,stroke:#1976d2
-    style G fill:#fff3e0,stroke:#f57c00
-    style H fill:#fff3e0,stroke:#f57c00
-</div>
-
-<p><b>关键判定依据</b>：</p>
+<h3>5.1 数据库架构</h3>
 <ul>
-<li><b>设备端入口</b>：<code>main.py:139-141</code> — Kivy <code>App.run()</code> 作为进程入口，最终创建一个 Android <code>WebView</code> 控件加载远程 URL</li>
-<li><b>服务端入口</b>：<code>app.py:1869-1895</code> — <code>if __name__ == '__main__'</code> 块调用 <code>app.run(host='0.0.0.0', port=11443)</code>，或通过 Gunicorn 在远端服务器独立启动</li>
-<li><b>模块级副作用</b>：<code>app.py:566-569</code> — <code>init_database()</code> 在模块导入时立即执行（<code>try: init_database()</code> 位于全局作用域），任何 <code>import app</code> 都会触发数据库初始化</li>
+<li><b>引擎</b>：SQLite（WAL模式，busy_timeout=30s）</li>
+<li><b>存储位置</b>：<code>data/gift_bookkeeping.db</code>（设备私有存储）</li>
+<li><b>迁移策略</b>：<code>_SCHEMA_VERSION=1018</code>，幂等快速跳过 + 历史SQL增量迁移</li>
+<li><b>表数量</b>：22+张业务表 + schema_version版本表</li>
 </ul>
 
-<h3>3.3 路由装配方式</h3>
-
-<p>全部 32 条路由通过 <code>@app.route()</code> 装饰器直接注册在全局 <code>app</code> 实例上，无蓝图 (Blueprint) 分区：</p>
-
-<table>
-<tr><th style="width:80px">类别</th><th>路由</th><th style="width:60px">数量</th><th>代码位置</th></tr>
-<tr><td rowspan="3">认证</td><td><code>/login</code>, <code>/login/check_risk</code>, <code>/login/captcha</code>, <code>/logout</code>, <code>/register</code>, <code>/forgot-password</code>, <code>/forgot-password/captcha</code></td><td>7</td><td><code>app.py:726-1055</code>, <code>1057-1074</code></td></tr>
-<tr><td>礼金 CRUD</td><td><code>/</code>, <code>/record/add</code>, <code>/record/edit/&lt;id&gt;</code>, <code>/record/delete/&lt;id&gt;</code>, <code>/records/batch_delete</code>, <code>/records/delete_all</code></td><td>6</td><td><code>app.py:572-1229</code></td></tr>
-<tr><td>个人设置</td><td><code>/change-password</code></td><td>1</td><td><code>app.py:1231-1254</code></td></tr>
-<tr><td rowspan="4">管理后台</td><td>用户管理</td><td><code>/admin/users</code>, <code>/admin/user/permissions/&lt;id&gt;</code>, <code>/admin/user/reset_security/&lt;id&gt;</code>, <code>/admin/user/toggle_status/&lt;id&gt;</code>, <code>/admin/user/reset_pass/&lt;id&gt;</code>, <code>/admin/user/delete/&lt;id&gt;</code>, <code>/admin/users/batch_delete</code></td><td>7</td><td><code>app.py:1256-1690</code></td></tr>
-<tr><td>邀请链接</td><td><code>/admin/generate_invite_link</code>, <code>/admin/invite_link/delete/&lt;id&gt;</code>, <code>/admin/invite_link/batch_delete</code></td><td>3</td><td><code>app.py:1387-1462</code></td></tr>
-<tr><td>审计日志</td><td><code>/admin/logs</code>, <code>/admin/logs/batch_delete</code>, <code>/admin/log/delete/&lt;id&gt;</code>, <code>/admin/logs/clear</code></td><td>4</td><td><code>app.py:1313-1492</code></td></tr>
-<tr><td>系统配置</td><td><code>/admin/settings/timeout</code></td><td>1</td><td><code>app.py:1281-1312</code></td></tr>
-<tr><td>数据交换</td><td>导入导出</td><td><code>/export/csv</code>, <code>/import/template</code>, <code>/import/csv</code></td><td>3</td><td><code>app.py:1695-1865</code></td></tr>
-<tr><td colspan="2" style="text-align:right"><b>合计</b></td><td><b>32</b></td><td>—</td></tr>
-</table>
-
-<h3>3.4 ORM 使用模式</h3>
-
-<ul>
-<li><b>模式</b>：Flask-SQLAlchemy 活动记录 (Active Record) 风格，模型类直接挂载查询方法 <code>GiftRecord.query.filter_by(...)</code></li>
-<li><b>db 实例</b>：<code>app.py:65</code> — <code>db = SQLAlchemy(app)</code>，直接绑定 app，无 <code>db.init_app(app)</code> 延迟初始化模式</li>
-<li><b>迁移策略</b>：<code>app.py:488-528</code> — <code>init_database()</code> 中通过 <code>ALTER TABLE ... ADD COLUMN</code> 原生 SQL 手动迁移（每个字段一个 try-except），无 Flask-Migrate / Alembic 版本管理</li>
-<li><b>查询风格</b>：全部在路由函数内直接编写查询逻辑，无 Repository 层或 Service 层抽象</li>
-</ul>
-
-<h3>3.5 通信模式</h3>
-
-<table>
-<tr><th style="width:120px">维度</th><th>实现方式</th><th>代码依据</th></tr>
-<tr><td>客户端-服务端</td><td>HTTP 表单 POST + GET 查询参数（全同步请求，无 AJAX/Fetch）</td><td>全部路由 <code>request.form.get()</code> / <code>request.args.get()</code>，无 <code>jsonify</code> 返回业务数据（仅 3 个接口返回 JSON：2 个验证码接口 + 1 个风控状态查询）</td></tr>
-<tr><td>会话管理</td><td>Flask Session（服务端签名 Cookie）+ Flask-Login</td><td><code>app.py:68-72</code> LoginManager，<code>app.py:325-338</code> session_token 双重校验</td></tr>
-<tr><td>前端交互</td><td>Bootstrap 5 模态框 + 表单提交 + 内联 JS</td><td><code>templates/index.html</code> 全为 POST 表单 → redirect 模式，无 SPA 路由</td></tr>
-</table>
-
-<!-- ==================== Part 4 ==================== -->
-
-<h2><span class="num">4</span>架构耦合度诊断</h2>
-
-<h3>4.1 纯业务代码（框架无关，可直接复用）</h3>
-
-<p>以下代码不依赖 Flask 运行时上下文（<code>request</code>/<code>session</code>/<code>current_user</code>），仅使用纯 Python 标准库，可直接复用到任何框架：</p>
-
-<table>
-<tr><th style="width:200px">函数/模块</th><th style="width:100px">代码位置</th><th>功能</th><th style="width:80px">复用代价</th></tr>
-<tr><td><code>cn2num(s)</code></td><td><code>app.py:340-377</code></td><td>中文大写金额转数字（"伍佰元正" → 500.0）</td><td><span class="tag tag-l1">L1</span> 零成本</td></tr>
-<tr><td><code>num2cn(num)</code></td><td><code>app.py:432-482</code></td><td>数字转中文大写金额（500 → "伍佰元整"）</td><td><span class="tag tag-l1">L1</span> 零成本</td></tr>
-<tr><td><code>check_password_complexity(pwd)</code></td><td><code>app.py:200-206</code></td><td>密码复杂度校验（min 6 位 + 字母 + 数字）</td><td><span class="tag tag-l1">L1</span> 零成本</td></tr>
-<tr><td><code>is_record_owner_admin(record)</code></td><td><code>app.py:380-389</code></td><td>判断记录创建者是否为管理员（依赖 db.session 但可通过参数注入解耦）</td><td><span class="tag tag-l2">L2</span> 微改</td></tr>
-</table>
-
-<h3>4.2 半业务代码（弱框架依赖，小改可复用）</h3>
-
-<table>
-<tr><th style="width:200px">函数/模块</th><th style="width:100px">代码位置</th><th>框架依赖点</th><th style="width:80px">复用代价</th></tr>
-<tr><td><code>can_user_view_record(user, record)</code></td><td><code>app.py:392-400</code></td><td>仅依赖 <code>user.is_authenticated</code> / <code>user.is_admin</code> 协议，不直接 import Flask</td><td><span class="tag tag-l1">L1</span> 零成本</td></tr>
-<tr><td><code>can_user_edit_record(user, record)</code></td><td><code>app.py:403-415</code></td><td>同上 + 调用 <code>is_record_owner_admin()</code></td><td><span class="tag tag-l1">L1</span> 零成本</td></tr>
-<tr><td><code>can_user_delete_record(user, record)</code></td><td><code>app.py:418-430</code></td><td>同上</td><td><span class="tag tag-l1">L1</span> 零成本</td></tr>
-<tr><td>模型类 <code>User</code> 等</td><td><code>app.py:74-149</code></td><td>继承 <code>db.Model</code> / <code>UserMixin</code>，绑定 Flask-SQLAlchemy；迁移到其他 ORM 需重写基类</td><td><span class="tag tag-l2">L2</span> 小改</td></tr>
-</table>
-
-<h3>4.3 强侵入代码（深度耦合 Flask，替换必须重写）</h3>
-
-<table>
-<tr><th style="width:200px">函数/模块</th><th style="width:100px">代码位置</th><th>框架依赖深度</th><th style="width:80px">复用代价</th></tr>
-<tr><td>全部 32 条路由处理函数</td><td><code>app.py:572-1865</code></td><td>每条路由直接使用 <code>request.form</code> / <code>request.args</code> / <code>session</code> / <code>current_user</code> / <code>db.session</code> / <code>render_template</code> / <code>flash</code> / <code>redirect</code> / <code>url_for</code></td><td><span class="tag tag-l3">L3</span> 重写</td></tr>
-<tr><td><code>check_session_timeout()</code></td><td><code>app.py:209-231</code></td><td><code>@app.before_request</code> + <code>current_user</code> + <code>session</code> + <code>db.session</code> + <code>logout_user</code></td><td><span class="tag tag-l3">L3</span> 重写</td></tr>
-<tr><td><code>csrf_protect()</code></td><td><code>app.py:240-248</code></td><td><code>@app.before_request</code> + <code>session</code> + <code>request</code> + <code>abort</code></td><td><span class="tag tag-l3">L3</span> 重写</td></tr>
-<tr><td><code>log_action()</code></td><td><code>app.py:281-310</code></td><td><code>current_user</code> + <code>request</code> + <code>db.session</code> + <code>current_app</code>（4 重 Flask 上下文依赖）</td><td><span class="tag tag-l3">L3</span> 重写</td></tr>
-<tr><td><code>init_database()</code></td><td><code>app.py:488-563</code></td><td><code>db.engine</code> + <code>db.text</code> 原生 SQL + ORM 查询 + 全局风控字典</td><td><span class="tag tag-l3">L3</span> 重写</td></tr>
-<tr><td><code>index()</code> 主页路由</td><td><code>app.py:572-674</code></td><td>单函数 103 行，混杂查询构建/搜索/排序/统计/分页/审计日志/模板渲染 7 种职责</td><td><span class="tag tag-l4">L4</span> 推倒</td></tr>
-<tr><td><code>forgot_password()</code></td><td><code>app.py:920-1055</code></td><td>单函数 136 行，混杂用户查找/风控锁定/验证码/密保校验/密码复杂度/密码重置 6 种职责</td><td><span class="tag tag-l4">L4</span> 推倒</td></tr>
-</table>
-
-<h3>4.4 分层退化坏味道（反模式代码片段）</h3>
-
-<h4>坏味道 1：胖 Controller — app.py 1895 行单体文件</h4>
-<p>整个应用（模型 + 路由 + 中间件 + 业务逻辑 + 工具函数 + 数据库初始化）全部堆叠在 <code>app.py</code> 一个文件中，无任何分层抽象。对比参考：传统版 <code>gift_bookkeeping_app</code> 已经拆分了 <code>routes_ext.py</code> 等多文件结构。</p>
-
-<h4>坏味道 2：全量加载统计 — 性能反模式</h4>
-<pre><code># app.py:627-632 — 统计计算
-all_filtered_records = query.all()          # ⚠ 全量加载到内存
-total_count = len(all_filtered_records)
-total_amount = sum(r.amount for r in all_filtered_records)
-avg_amount = round(total_amount / total_count, 2) if total_count > 0 else 0.0
-max_amount = max((r.amount for r in all_filtered_records), default=0.0)</code></pre>
-<div class="callout callout-warn">
-<strong>问题</strong>
-当礼金记录增长到数千条时，<code>query.all()</code> 将全量 ORM 对象加载到 Python 内存中，再逐对象遍历求和/均值/最大值。正确做法是使用 SQL 聚合函数 (<code>db.func.count()</code> / <code>db.func.sum()</code> / <code>db.func.avg()</code> / <code>db.func.max()</code>)，让数据库引擎完成计算。
-</div>
-
-<h4>坏味道 3：权限校验双轨制 — 安全漏洞</h4>
-<pre><code># app.py:1127 — edit_record 使用旧模式（跳过 can_edit_others 权限）
-if not current_user.is_admin and record.user_id != current_user.id:
-    flash('您没有权限修改此记录！', 'danger')
-    return redirect(url_for('index'))
-
-# app.py:1202 — batch_delete_records 使用新函数（正确调用权限判定）
-if record and can_user_delete_record(current_user, record):
-    db.session.delete(record)
-
-# app.py:1494-1554 — admin_update_user_permissions 配置了 can_edit_others 权限
-# 但 edit_record 路由永远不允许普通用户编辑他人记录（即使已授权 can_edit_others=True）</code></pre>
-<div class="callout callout-danger">
-<strong>后果</strong>
-管理员通过 <code>/admin/user/permissions</code> 为普通用户设置了 Level 2（查看+编辑他人）或 Level 3（查看+编辑+删除他人）权限后，该用户在<b>批量删除</b>时可以操作他人记录（<code>app.py:1202</code> 使用 <code>can_user_delete_record</code>），但在<b>单条编辑</b>时却被拒绝（<code>app.py:1127</code> 使用旧逻辑）。权限模型出现了自相矛盾。
-</div>
-
-<h4>坏味道 4：密码复杂度校验遗漏 — 安全漏洞</h4>
-<pre><code># app.py:873 — register：✅ 校验密码复杂度
-if len(password) < 6 or not re.search(r'[a-zA-Z]', password) or not re.search(r'\d', password):
-    flash('密码强度不足！...', 'danger')
-
-# app.py:1034 — forgot_password：✅ 校验密码复杂度
-is_valid, msg = check_password_complexity(new_password)
-
-# app.py:1247 — change_password：❌ 未校验！直接设置新密码
-current_user.set_password(new_password)
-db.session.commit()
-
-# app.py:1621 — admin_reset_user_pass：❌ 未校验！管理员可设置任意弱密码
-user.set_password(new_password)</code></pre>
-
-<h4>坏味道 5：内存级风控 — 多进程失效</h4>
-<pre><code># app.py:677-682 — 进程内存字典（非持久化、非跨进程共享）
-LOGIN_FAIL_COUNTS = {}      # {username: fail_count}
-LOGIN_LOCK_UNTILS = {}      # {username: lock_until_timestamp}
-FORGOT_SECURITY_FAIL_COUNTS = {}
-FORGOT_SECURITY_LOCK_UNTILS = {}</code></pre>
-<div class="callout callout-warn">
-<strong>问题</strong>
-当 Gunicorn 以多 Worker 模式部署时，每个 Worker 进程维护独立的风控字典。攻击者的请求被负载均衡到不同 Worker，每个 Worker 独立计算失败次数，实际允许的尝试次数 = <code>max_login_attempts × worker_count</code>，风控形同虚设。进程重启后所有风控状态归零。
-</div>
-
-<h4>坏味道 6：模块级副作用 — 导入即执行</h4>
-<pre><code># app.py:566-569 — 模块导入时自动执行数据库初始化
-try:
-    init_database()
-except Exception as _e:
-    print(f"[Warning] 应用启动自动初始化数据库提示: {_e}")</code></pre>
-<p>任何 <code>from app import db</code> 或 <code>import app</code> 都会触发完整的数据库建表 + 迁移 + 管理员初始化操作。这导致单元测试、数据库迁移工具、CELERY 任务等场景下都会产生意外的数据库副作用。</p>
-
-<h4>坏味道 7：死文件 models.py</h4>
-<p><code>models.py</code>（61 行）从未被任何文件 <code>import</code>，其 schema 与 <code>app.py</code> 内联模型存在 10+ 处差异（见 §2.2 漂移矩阵 B）。该文件不仅误导开发者，还可能被误认为活跃代码而进行错误修改。</p>
-
-<!-- ==================== Part 5 ==================== -->
-
-<h2><span class="num">5</span>架构替换与轻量化可行性决策</h2>
-
-<h3>5.1 替换动机评估</h3>
-
-<p>在评估是否需要替换当前技术栈之前，首先回答一个关键问题：<b>APK 包内是否包含 Flask？</b></p>
-
-<div class="callout callout-info">
-<strong>结论：APK 不包含 Flask</strong>
-<code>buildozer.spec:31</code> 的打包依赖为 <code>python3,hostpython3,openssl,pyjnius,kivy</code>，<b>不包含</b> Flask、Flask-SQLAlchemy 等服务端依赖。APK 仅打包 <code>main.py</code>（Kivy WebView 启动器）+ <code>templates/</code>（HTML 资源）。Flask 后端运行在远端服务器，通过 <code>main.py:4</code> 的 <code>TARGET_URL</code> 远程访问。
-</div>
-
-<table>
-<tr><th style="width:180px">动机维度</th><th>当前状态</th><th>是否有真实瓶颈</th><th>评估</th></tr>
-<tr><td>APK 体积过大？</td><td>APK 仅含 Kivy+pyjnius 运行时 + WebView 壳 + HTML 模板，Flask 不入包</td><td><span class="badge badge-green">否</span></td><td>无需为减小 APK 体积而替换 Flask</td></tr>
-<tr><td>Flask 性能不足？</td><td>单机 SQLite + SSR，面向个人/家庭场景（数十至数百条记录）</td><td><span class="badge badge-green">否</span></td><td>Flask 同步模型在此量级完全胜任</td></tr>
-<tr><td>维护困难？</td><td>app.py 1895 行单体文件、无分层、死文件、安全漏洞</td><td><span class="badge badge-amber">是（但与框架无关）</span></td><td>问题在于代码组织而非框架选择。换框架不能解决胖 Controller</td></tr>
-<tr><td>安全风险？</td><td>SSL 验证禁用、密码校验遗漏、内存风控、权限双轨制</td><td><span class="badge badge-red">是</span></td><td>安全问题可通过补丁修复，不需要框架级替换</td></tr>
-<tr><td>离线能力缺失？</td><td>APK 依赖远程 URL，无法离线使用</td><td><span class="badge badge-red">是</span></td><td><b>这是架构模式问题而非框架问题</b>，需从"远程 WebView"→"本地 Flask"或"纯原生"模式转换</td></tr>
-</table>
-
-<h3>5.2 替换代价 vs 收益矩阵</h3>
-
-<table>
-<tr><th style="width:120px">方案</th><th>代价</th><th>收益</th><th style="width:80px">ROI</th></tr>
-<tr>
-<td><b>维持现状<br/>局部治理</b></td>
-<td>低。修复安全漏洞（~2天）、删除死文件（~10分钟）、补充密码校验（~1小时）、拆分 app.py（~3天）</td>
-<td>中。消除安全风险、提升可维护性、不影响现有用户</td>
-<td><span class="badge badge-green">高 ROI</span></td>
-</tr>
-<tr>
-<td><b>Flask → 轻量框架<br/>(如 FastAPI)</b></td>
-<td>高。32 条路由全部重写、Jinja2 模板适配、认证体系重构、测试覆盖从零建立</td>
-<td>低。FastAPI 对 SSR 场景无优势；APK 不含 Flask，服务端框架更换不影响 APK</td>
-<td><span class="badge badge-red">低 ROI</span></td>
-</tr>
-<tr>
-<td><b>远程 WebView →<br/>本地内嵌 Flask</b></td>
-<td>极高。需要将 Flask+SQLAlchemy+SQLite 全部打包进 APK（Buildozer 支持 Django/Flask 但打包复杂度高），解决 Android 后台服务生命周期管理、数据隔离等问题</td>
-<td>高。实现真正的离线能力，兑现 README 承诺</td>
-<td><span class="badge badge-amber">条件性<br/>（取决于<br/>是否需要<br/>离线）</span></td>
-</tr>
-<tr>
-<td><b>WebView 容器 →<br/>纯原生 Android</b></td>
-<td>极高。Kotlin/Jetpack Compose 或 React Native 全重写，模板→原生布局，Flask API→Retrofit/Ktor 网络层</td>
-<td>高。更好的用户体验、性能、离线能力</td>
-<td><span class="badge badge-red">低 ROI</span><br/>（单人项目<br/>不现实）</td>
-</tr>
-</table>
-
-<h3>5.3 模块可替换性资产分级表</h3>
-
-<table>
-<tr><th style="width:60px">级别</th><th style="width:150px">定义</th><th>具体模块</th><th style="width:100px">迁移工作量</th></tr>
-<tr>
-<td><span class="tag tag-l1">L1</span></td>
-<td>纯业务逻辑，零框架依赖，可直接复制</td>
-<td><code>cn2num()</code>、<code>num2cn()</code>、<code>check_password_complexity()</code>、<code>can_user_view/edit/delete_record()</code>（3 个权限函数）</td>
-<td>&lt; 1 小时</td>
-</tr>
-<tr>
-<td><span class="tag tag-l2">L2</span></td>
-<td>弱框架依赖，小改可复用</td>
-<td>5 个 ORM 模型类（需替换基类）、<code>is_record_owner_admin()</code></td>
-<td>1-2 天</td>
-</tr>
-<tr>
-<td><span class="tag tag-l3">L3</span></td>
-<td>强框架侵入，替换需重写</td>
-<td>32 条路由处理函数、3 个中间件钩子、<code>log_action()</code>、<code>init_database()</code>、<code>purge_expired_logs()</code></td>
-<td>1-2 周</td>
-</tr>
-<tr>
-<td><span class="tag tag-l4">L4</span></td>
-<td>架构级推倒重建</td>
-<td>远程 WebView 容器模式（<code>main.py</code> 全部）、单体 app.py 文件结构、SSR 模板体系</td>
-<td>4-8 周</td>
-</tr>
-</table>
-
-<h3>5.4 明确结论</h3>
-
-<div class="callout callout-success" style="font-size:16px">
-<p><b>【不建议替换框架，仅局部治理】</b></p>
-</div>
-
-<p><b>理由</b>：</p>
-<ol>
-<li><b>框架不是瓶颈</b> — APK 不打包 Flask，服务端 Flask 在当前用户量级下性能充分，更换框架（FastAPI/Django/Tornado）不能解决任何已识别问题。</li>
-<li><b>核心问题是代码组织与安全漏洞</b> — 胖 Controller、权限双轨制、密码校验遗漏、死文件等问题与框架选择无关，可通过局部重构修复。</li>
-<li><b>离线化改造是唯一值得考虑的架构级演进</b> — 但这也不是"换框架"，而是"变更部署模式"（远程 → 本地），且代价极高（需将 Flask+SQLite 打包进 Android），建议作为<b>条件性演进</b>保留，取决于用户是否真实需要离线能力。</li>
-</ol>
-
-<p><b>建议优先级排序的局部治理清单</b>（详细方案将在第 9 部分给出）：</p>
-<table>
-<tr><th style="width:60px">优先级</th><th>治理项</th><th style="width:100px">工作量</th><th>风险消除</th></tr>
-<tr><td><span class="badge badge-red">P0</span></td><td>修复 <code>change_password</code> / <code>admin_reset_user_pass</code> 密码复杂度校验遗漏（C3 安全漏洞）</td><td>1 小时</td><td>弱口令风险</td></tr>
-<tr><td><span class="badge badge-red">P0</span></td><td>修复 <code>edit_record</code> / <code>delete_record</code> 权限校验双轨制（C2 功能缺陷）</td><td>2 小时</td><td>权限绕过/失效</td></tr>
-<tr><td><span class="badge badge-red">P0</span></td><td><code>main.py:52-54</code> SSL 错误处理改为条件性放行或警告提示</td><td>1 小时</td><td>MITM 风险</td></tr>
-<tr><td><span class="badge badge-amber">P1</span></td><td>删除 <code>models.py</code> 死文件（D6 / C 区域）</td><td>10 分钟</td><td>误导风险</td></tr>
-<tr><td><span class="badge badge-amber">P1</span></td><td>清理重复函数定义（C1：<code>app.py:176-198</code> vs <code>684-706</code>）</td><td>10 分钟</td><td>代码可维护性</td></tr>
-<tr><td><span class="badge badge-amber">P1</span></td><td><code>index()</code> 统计查询改用 SQL 聚合函数替代 <code>query.all()</code></td><td>2 小时</td><td>性能隐患</td></tr>
-<tr><td><span class="badge badge-amber">P1</span></td><td>更新 README：修正"脱机离线"声明、修正默认端口、修正功能完整性声明</td><td>1 小时</td><td>文档可信度</td></tr>
-<tr><td><span class="badge badge-blue">P2</span></td><td>拆分 <code>app.py</code> 为 models / routes / middleware / utils 多模块</td><td>3-5 天</td><td>可维护性</td></tr>
-<tr><td><span class="badge badge-blue">P2</span></td><td>风控字典迁移至 SQLite 或 Redis（解决多进程失效）</td><td>1-2 天</td><td>风控有效性</td></tr>
-<tr><td><span class="badge badge-gray">条件性</span></td><td>离线化改造（远程 WebView → 本地 Flask）</td><td>4-8 周</td><td>兑现离线承诺</td></tr>
-</table>
-
-<!-- ==================== Part 6 ==================== -->
-
-<h2><span class="num">6</span>前后端详尽规格（校准整合版）</h2>
-
-<h3>6.1 前端架构</h3>
-
-<h4>6.1.1 模板继承体系</h4>
-<p>前端采用 Jinja2 服务端渲染，以 <code>base.html</code> 为布局基座，7 个页面模板通过 <code>{% extends 'base.html' %}</code> 继承。</p>
-
-<div class="mermaid">
-graph TD
-    BASE["base.html (96行)<br/>全局布局 + 导航栏 + Flash消息 + CDN引入"] --> INDEX["index.html (580行)<br/>礼金明细主页"]
-    BASE --> LOGIN["login.html (197行)<br/>登录页"]
-    BASE --> REGISTER["register.html (67行)<br/>注册页"]
-    BASE --> FORGOT["forgot_password.html (171行)<br/>找回密码"]
-    BASE --> CHANGE["change_password.html (38行)<br/>修改密码"]
-    BASE --> ADMIN_U["admin_users.html (578行)<br/>用户管理后台"]
-    BASE --> ADMIN_L["admin_logs.html (227行)<br/>审计日志后台"]
-
-    style BASE fill:#fdeaea,stroke:#dc3545,stroke-width:2px
-</div>
-
-<h4>6.1.2 base.html 全局布局规格</h4>
-<table>
-<tr><th style="width:140px">区块</th><th>实现</th><th>代码位置</th></tr>
-<tr><td>CDN 依赖</td><td>Bootstrap 5.3.0 CSS + FontAwesome 6.4.0 + Bootstrap Icons 1.11.3 + Bootstrap 5.3.0 JS Bundle</td><td><code>base.html:7-9,93</code></td></tr>
-<tr><td>导航栏</td><td>固定顶部（<code>sticky-top</code>），深色背景（<code>navbar-dark bg-dark</code>）；已认证用户显示「礼金账本」+ 管理员可见「用户管理」「操作审计日志」+ 用户下拉菜单（导出CSV/退出）；未认证显示「登录」「注册账号」</td><td><code>base.html:29-72</code></td></tr>
-<tr><td>Flash 消息</td><td><code>get_flashed_messages(with_categories=true)</code> 渲染为 Bootstrap Alert，支持 <code>success/danger/warning/info</code> 四类，可手动关闭</td><td><code>base.html:76-85</code></td></tr>
-<tr><td>内容区</td><td><code>{% block content %}</code> 各页面填充；移动端自适应 <code>padding-top:12px</code></td><td><code>base.html:75,87</code></td></tr>
-<tr><td>扩展点</td><td><code>{% block extra_css %}</code> / <code>{% block extra_js %}</code> 供子模板注入</td><td><code>base.html:26,94</code></td></tr>
-<tr><td>页脚</td><td>版权声明 "© 2026 人情礼金记账系统 - Web预览版"</td><td><code>base.html:90-92</code></td></tr>
-</table>
-
-<h4>6.1.3 前端交互模式</h4>
-<p>本项目前端为<b>纯服务端渲染 (SSR) + 少量内联 JS</b>，无前端框架（Vue/React）、无前端路由、无状态管理库。所有用户交互通过 HTML 表单 POST 提交 → Flask 处理 → redirect 重定向 → 新页面渲染的模式完成。</p>
-
-<table>
-<tr><th style="width:160px">交互场景</th><th>实现方式</th><th>JS 函数（位置）</th></tr>
-<tr><td>表单提交（增删改）</td><td>HTML <code>&lt;form method="POST"&gt;</code> 同步提交，服务端 redirect 回主页</td><td>无 JS 介入</td></tr>
-<tr><td>搜索/筛选/排序</td><td>GET 表单 + <code>onchange="this.form.submit()"</code> 自动提交</td><td><code>index.html</code> 内联</td></tr>
-<tr><td>分页</td><td>GET 链接 <code>&lt;a href="?page=N"&gt;</code>，无 JS</td><td>—</td></tr>
-<tr><td>每页条数切换</td><td>JS 修改 URL 参数并 <code>window.location.search</code> 跳转</td><td><code>index.html:504-509</code> <code>changePerPage()</code></td></tr>
-<tr><td>批量删除</td><td>JS 动态构建 <code>&lt;form&gt;</code> 并提交 CSRF token</td><td><code>index.html:496-502</code> <code>submitBatchDelete()</code></td></tr>
-<tr><td>单条删除</td><td>JS <code>confirm()</code> 确认后动态构建 <code>&lt;form&gt;</code> 提交</td><td><code>index.html:511-524</code> <code>deleteSingleRecord()</code></td></tr>
-<tr><td>编辑记录</td><td>Bootstrap Modal + <code>show.bs.modal</code> 事件填充表单字段</td><td><code>index.html:539-577</code></td></tr>
-<tr><td>自定义事由切换</td><td><code>onchange</code> 联动显隐自定义输入框</td><td><code>index.html:526-537</code> <code>toggleCustomReason()</code></td></tr>
-<tr><td>登录风控状态</td><td><code>fetch()</code> 异步请求 <code>/login/check_risk</code> 动态显示验证码/锁定倒计时</td><td><code>login.html:103-152</code> <code>checkUserRisk()</code></td></tr>
-<tr><td>登录验证码刷新</td><td><code>fetch()</code> 异步请求 <code>/login/captcha</code></td><td><code>login.html:60-86</code> <code>refreshCaptcha()</code></td></tr>
-<tr><td>找回密码验证码</td><td><code>fetch()</code> 请求 <code>/forgot-password/captcha</code></td><td><code>forgot_password.html:118-134</code></td></tr>
-<tr><td>记住密码（localStorage）</td><td>登录时将用户名+密码存入 <code>localStorage</code></td><td><code>login.html:186-194</code></td></tr>
-</table>
-
-<div class="callout callout-danger">
-<strong>前端安全漏洞：localStorage 存储明文密码</strong>
-<code>login.html:188-189</code> 在"记住登录"勾选时将<b>明文密码</b>存入 <code>localStorage</code>（<code>localStorage.setItem("remember_password", passwordInput.value)</code>）。任何能执行 JS 的 XSS 攻击或同域脚本均可直接读取。应改为仅记住用户名，或使用 Flask-Login 的 remember cookie 机制（已有但未被正确利用）。
-</div>
-
-<h4>6.1.4 前端组件清单</h4>
-<table>
-<tr><th style="width:120px">组件</th><th>页面</th><th>实现</th><th>代码位置</th></tr>
-<tr><td>统计卡片</td><td>index.html</td><td>3 张 Dashboard 卡片：总笔数(红)、总金额(绿)、平均金额(蓝)</td><td><code>index.html:30-77</code></td></tr>
-<tr><td>筛选搜索栏</td><td>index.html</td><td>多字段搜索 + 事由下拉 + 排序下拉 + 重置按钮</td><td><code>index.html:79-120</code></td></tr>
-<tr><td>数据表格</td><td>index.html</td><td>hover 表格 + 批量复选框 + 行内编辑/删除按钮 + 只读标签</td><td><code>index.html:122-212</code></td></tr>
-<tr><td>分页控件</td><td>index.html</td><td>Bootstrap Pagination + 每页条数下拉 (5/10/20/50/100)</td><td><code>index.html:214-253</code></td></tr>
-<tr><td>新增记录 Modal</td><td>index.html</td><td>Bootstrap Modal 表单 + 8 字段 + 自定义事由联动</td><td><code>index.html:257-322</code></td></tr>
-<tr><td>编辑记录 Modal</td><td>index.html</td><td>Modal + JS 事件填充字段值</td><td><code>index.html:324-389</code></td></tr>
-<tr><td>清空数据 Modal</td><td>index.html</td><td>危险操作确认 Modal</td><td><code>index.html:390-412</code></td></tr>
-<tr><td>CSV 导入 Modal</td><td>index.html</td><td>文件上传 + 规则说明 + 模板下载链接</td><td><code>index.html:413-455</code></td></tr>
-<tr><td>系统配置表单</td><td>admin_users.html</td><td>4 项安全参数可配 (超时/密码尝试/密保尝试/锁定时长)</td><td><code>admin_users.html:17-68</code></td></tr>
-<tr><td>邀请链接管理</td><td>admin_users.html</td><td>生成链接 (时长+次数选择) + 链接列表 + 复制 + 批量删除</td><td><code>admin_users.html:71-176</code></td></tr>
-<tr><td>用户列表</td><td>admin_users.html</td><td>用户表格 + 权限配置 + 状态切换 + 密码重置 + 密保重置 + 批量删除</td><td><code>admin_users.html:180-578</code></td></tr>
-<tr><td>日志审计</td><td>admin_logs.html</td><td>搜索 + 排序 + 分页 + 批量删除 + 清空</td><td><code>admin_logs.html:1-227</code></td></tr>
-</table>
-
-<h3>6.2 后端核心服务分层标准</h3>
-
-<p>当前项目<b>无显式分层</b>，全部代码位于 <code>app.py</code> 单文件。以下为代码逻辑分层逆向推导：</p>
-
-<div class="mermaid">
-graph TB
-    subgraph "app.py 逻辑分层（均为隐式分层，无物理隔离）"
-        MW["中间件层<br/>before_request: session超时/CSRF防护<br/>after_request: 缓存头<br/>context_processor: 注入csrf_token<br/>errorhandler: 403处理"]
-        ROUTES["路由控制层 (32条路由)<br/>认证(7) + 礼金CRUD(6) + 管理(15) + 导入导出(3) + 个人设置(1)"]
-        BIZ["业务逻辑层（内联于路由函数内）<br/>权限判定 can_user_view/edit/delete<br/>风控判定 get_user_risk_status<br/>金额转换 cn2num/num2cn"]
-        DATA["数据访问层（直接ORM查询）<br/>Model.query.filter_by / db.session.add / db.session.commit"]
-        INIT["初始化层<br/>init_database(): 建表+迁移+管理员创建"]
-    end
-
-    MW --> ROUTES --> BIZ --> DATA
-    INIT -.->|"模块导入时执行"| DATA
-
-    style MW fill:#e3f2fd,stroke:#1976d2
-    style ROUTES fill:#fff3e0,stroke:#f57c00
-    style BIZ fill:#f3e5f5,stroke:#7b1fa2
-    style DATA fill:#e8f5e9,stroke:#388e3c
-    style INIT fill:#fce4ec,stroke:#c62828
-</div>
-
-<h3>6.3 中间件流水线</h3>
-
-<p>Flask 请求生命周期中注册的钩子函数执行顺序：</p>
-
-<table>
-<tr><th style="width:50px">序</th><th style="width:180px">钩子</th><th style="width:120px">类型</th><th>职责</th><th>代码位置</th></tr>
-<tr><td>1</td><td><code>check_session_timeout()</code></td><td><code>@app.before_request</code></td><td>已认证用户超过可配超时时间（默认 60 分钟）未操作则强制登出并清除 session_token</td><td><code>app.py:209-231</code></td></tr>
-<tr><td>2</td><td><code>csrf_protect()</code></td><td><code>@app.before_request</code></td><td>对 POST/PUT/PATCH/DELETE 请求校验 CSRF Token（session 中的 token vs 表单/X-CSRF-Token 头中的 token）</td><td><code>app.py:240-248</code></td></tr>
-<tr><td>3</td><td>路由处理函数</td><td><code>@app.route</code></td><td>业务逻辑执行</td><td><code>app.py:572-1865</code></td></tr>
-<tr><td>4</td><td><code>add_header()</code></td><td><code>@app.after_request</code></td><td>强制无缓存：<code>Cache-Control: no-cache, no-store, must-revalidate, max-age=0</code></td><td><code>app.py:233-238</code></td></tr>
-<tr><td>5</td><td><code>handle_403()</code></td><td><code>@app.errorhandler(403)</code></td><td>CSRF 验证失败时 flash 消息并重定向到登录页</td><td><code>app.py:250-253</code></td></tr>
-<tr><td>6</td><td><code>inject_globals()</code></td><td><code>@app.context_processor</code></td><td>向所有模板注入 <code>csrf_token</code> / <code>can_user_edit_record</code> / <code>can_user_delete_record</code></td><td><code>app.py:255-263</code></td></tr>
-</table>
-
-<div class="callout callout-info">
-<strong>CSRF 防护双轨制说明</strong>
-<code>requirements.txt:3</code> 引入了 <code>Flask-WTF==1.2.1</code>（提供 <code>CSRFProtect</code>），<code>app.py:14</code> 也 <code>from flask_wtf.csrf import CSRFProtect</code>，但<b>从未实例化</b>（无 <code>CSRFProtect(app)</code> 调用）。实际 CSRF 防护由 <code>app.py:240-248</code> 手写实现。两套机制并存但仅手写版生效。
-</div>
-
-<h3>6.4 后台异步任务</h3>
-
-<div class="callout callout-warn">
-<strong>无异步任务系统</strong>
-本项目无 Celery / RQ / APScheduler 等异步任务系统。以下为代码中涉及延迟执行的机制：
-</div>
-
-<table>
-<tr><th style="width:200px">机制</th><th>实现方式</th><th>代码位置</th><th>问题</th></tr>
-<tr><td>日志自动清理</td><td>在 <code>log_action()</code> 每次写日志时同步调用 <code>purge_expired_logs(days=90)</code>，删除超过 90 天的日志</td><td><code>app.py:265-279,283</code></td><td>每次写日志都触发一次 DELETE 查询，增加请求延迟；无定时任务，日志可能在不写日志时长期不被清理</td></tr>
-<tr><td>风控状态重置</td><td>在 <code>init_database()</code> 中清空所有内存风控字典</td><td><code>app.py:531-537</code></td><td>仅在应用启动时执行一次，运行期间无法自动重置过期锁定</td></tr>
-<tr><td>会话超时检查</td><td>在 <code>before_request</code> 钩子中同步检查</td><td><code>app.py:209-231</code></td><td>仅在用户有新请求时触发，无法主动踢出超时用户</td></tr>
-</table>
-
-<h3>6.5 核心 API 规范清单（核心 10 个接口）</h3>
-
-<table>
-<tr>
-<th style="width:20px">#</th>
-<th style="width:180px">路径</th>
-<th style="width:50px">方法</th>
-<th style="width:70px">鉴权</th>
-<th style="width:70px">CSRF</th>
-<th style="width:70px">权限</th>
-<th>核心校验规则</th>
-<th style="width:120px">错误处理</th>
-</tr>
-
-<tr>
-<td>1</td>
-<td><code>/login</code></td>
-<td>GET/POST</td>
-<td>无</td>
-<td>是</td>
-<td>—</td>
-<td>
-<b>GET</b>: 传入 <code>username</code> 参数时返回风控状态<br>
-<b>POST</b>: 用户名+密码+验证码(可选)；失败次数 &ge; <code>max_login_attempts</code> 触发锁定+验证码；锁定期间拒绝登录<br>
-记住登录：明文密码存 localStorage
-</td>
-<td>flash + redirect</td>
-</tr>
-
-<tr>
-<td>2</td>
-<td><code>/login/check_risk</code></td>
-<td>GET</td>
-<td>无</td>
-<td>否</td>
-<td>—</td>
-<td>参数 <code>username</code>；返回 JSON: <code>{fail_count, is_locked, lock_wait, require_captcha}</code></td>
-<td>JSON 200</td>
-</tr>
-
-<tr>
-<td>3</td>
-<td><code>/register?token=&lt;token&gt;</code></td>
-<td>GET/POST</td>
-<td>无</td>
-<td>是</td>
-<td>邀请令牌</td>
-<td>
-令牌有效性(expired/used/max_uses)；用户名正则 <code>^[a-zA-Z0-9_\u4e00-\u9fa5]{2,20}$</code>；密码 min6 位+字母+数字；密保问题+答案必填<br>
-<span class="badge badge-red">C4漂移</span> <code>init_database()</code> 创建管理员不设密保
-</td>
-<td>flash + redirect</td>
-</tr>
-
-<tr>
-<td>4</td>
-<td><code>/forgot-password</code></td>
-<td>GET/POST</td>
-<td>无</td>
-<td>是</td>
-<td>—</td>
-<td>
-两步流程：find_user → answer_question<br>
-密保答案错误计数；普通用户超限 → 账号锁定(禁用)；管理员超限 → 临时冷却+验证码<br>
-密码复杂度校验 ✅
-</td>
-<td>flash + redirect</td>
-</tr>
-
-<tr>
-<td>5</td>
-<td><code>/</code> (index)</td>
-<td>GET</td>
-<td>登录</td>
-<td>否</td>
-<td>管理员/本人</td>
-<td>
-搜索：<code>ilike</code> 7 字段 + 中文金额转换匹配<br>
-排序：created_at/amount 正倒序<br>
-分页：5/10/20/50/100<br>
-统计：全量 <code>query.all()</code> 计算 sum/avg/max<br>
-<span class="badge badge-amber">性能隐患</span>
-</td>
-<td>render_template</td>
-</tr>
-
-<tr>
-<td>6</td>
-<td><code>/record/add</code></td>
-<td>POST</td>
-<td>登录</td>
-<td>是</td>
-<td>本人</td>
-<td>
-必填：name, amount, event_reason<br>
-金额：支持中文大写 <code>cn2num()</code><br>
-事由："其它"时取 <code>custom_reason</code><br>
-<span class="badge badge-green">正常</span>
-</td>
-<td>flash + redirect</td>
-</tr>
-
-<tr>
-<td>7</td>
-<td><code>/record/edit/&lt;id&gt;</code></td>
-<td>POST</td>
-<td>登录</td>
-<td>是</td>
-<td>管理员/本人</td>
-<td>
-<span class="badge badge-red">C2缺陷</span> 使用旧权限逻辑 <code>not is_admin and user_id != current_user.id</code>，跳过 <code>can_edit_others</code> 判定<br>
-拥有 Level 2/3 权限的普通用户无法单条编辑他人记录
-</td>
-<td>flash + redirect</td>
-</tr>
-
-<tr>
-<td>8</td>
-<td><code>/record/delete/&lt;id&gt;</code></td>
-<td>POST</td>
-<td>登录</td>
-<td>是</td>
-<td>管理员/本人</td>
-<td>
-<span class="badge badge-red">C2缺陷</span> 同上，使用旧删除权限逻辑<br>
-批量删除 <code>/records/batch_delete</code> 则正确调用 <code>can_user_delete_record()</code>
-</td>
-<td>flash + redirect</td>
-</tr>
-
-<tr>
-<td>9</td>
-<td><code>/admin/user/permissions/&lt;id&gt;</code></td>
-<td>POST</td>
-<td>登录</td>
-<td>是</td>
-<td>管理员</td>
-<td>
-参数 <code>perm_level</code>: 0(仅自己)/1(查看)/2(查看+编辑)/3(查看+编辑+删除)<br>
-向下包含层级；禁止修改自身权限<br>
-兼容传统勾选框模式
-</td>
-<td>flash + redirect</td>
-</tr>
-
-<tr>
-<td>10</td>
-<td><code>/import/csv</code></td>
-<td>POST</td>
-<td>登录</td>
-<td>是</td>
-<td>登录</td>
-<td>
-文件类型 .csv；多编码自动探测 (utf-8-sig/utf-8/gb18030/gbk/gb2312)<br>
-智能列头映射 (姓名/年龄/地址/电话/金额/事由/备注)<br>
-无列头时按位置解析<br>
-单次导入无上限，无事务回滚（部分成功后 commit）
-</td>
-<td>flash + redirect</td>
-</tr>
-</table>
-
-<h4>6.5.1 全量路由清单（32 条）</h4>
-
-<table>
-<tr><th style="width:35px">#</th><th style="width:240px">路径</th><th style="width:70px">方法</th><th style="width:60px">行号</th><th>功能</th></tr>
-<tr><td>1</td><td><code>/</code></td><td>GET</td><td>572</td><td>礼金明细主页（搜索/筛选/排序/分页/统计）</td></tr>
-<tr><td>2</td><td><code>/login</code></td><td>GET/POST</td><td>753</td><td>用户登录（含风控/验证码/锁定）</td></tr>
-<tr><td>3</td><td><code>/login/check_risk</code></td><td>GET</td><td>726</td><td>查询登录风控状态（JSON）</td></tr>
-<tr><td>4</td><td><code>/login/captcha</code></td><td>GET</td><td>738</td><td>获取登录算术验证码（JSON）</td></tr>
-<tr><td>5</td><td><code>/logout</code></td><td>GET</td><td>1057</td><td>退出登录</td></tr>
-<tr><td>6</td><td><code>/register</code></td><td>GET/POST</td><td>832</td><td>用户注册（邀请令牌验证）</td></tr>
-<tr><td>7</td><td><code>/forgot-password</code></td><td>GET/POST</td><td>920</td><td>找回密码（密保验证+重置）</td></tr>
-<tr><td>8</td><td><code>/forgot-password/captcha</code></td><td>GET</td><td>905</td><td>获取找回密码验证码（JSON）</td></tr>
-<tr><td>9</td><td><code>/record/add</code></td><td>POST</td><td>1076</td><td>新增礼金记录</td></tr>
-<tr><td>10</td><td><code>/record/edit/&lt;id&gt;</code></td><td>POST</td><td>1122</td><td>编辑礼金记录</td></tr>
-<tr><td>11</td><td><code>/record/delete/&lt;id&gt;</code></td><td>POST</td><td>1168</td><td>删除单条记录</td></tr>
-<tr><td>12</td><td><code>/records/batch_delete</code></td><td>POST</td><td>1187</td><td>批量删除记录</td></tr>
-<tr><td>13</td><td><code>/records/delete_all</code></td><td>POST</td><td>1211</td><td>清空所有记录</td></tr>
-<tr><td>14</td><td><code>/change-password</code></td><td>GET/POST</td><td>1231</td><td>修改密码</td></tr>
-<tr><td>15</td><td><code>/admin/users</code></td><td>GET</td><td>1256</td><td>用户管理页面</td></tr>
-<tr><td>16</td><td><code>/admin/settings/timeout</code></td><td>POST</td><td>1281</td><td>更新系统安全参数</td></tr>
-<tr><td>17</td><td><code>/admin/logs</code></td><td>GET</td><td>1313</td><td>审计日志页（搜索/排序/分页）</td></tr>
-<tr><td>18</td><td><code>/admin/logs/batch_delete</code></td><td>POST</td><td>1363</td><td>批量删除日志</td></tr>
-<tr><td>19</td><td><code>/admin/generate_invite_link</code></td><td>POST</td><td>1387</td><td>生成注册邀请链接</td></tr>
-<tr><td>20</td><td><code>/admin/invite_link/delete/&lt;id&gt;</code></td><td>POST</td><td>1421</td><td>删除邀请链接</td></tr>
-<tr><td>21</td><td><code>/admin/invite_link/batch_delete</code></td><td>POST</td><td>1437</td><td>批量删除邀请链接</td></tr>
-<tr><td>22</td><td><code>/admin/log/delete/&lt;id&gt;</code></td><td>POST</td><td>1464</td><td>删除单条日志</td></tr>
-<tr><td>23</td><td><code>/admin/logs/clear</code></td><td>POST</td><td>1480</td><td>清空所有日志</td></tr>
-<tr><td>24</td><td><code>/admin/user/permissions/&lt;id&gt;</code></td><td>POST</td><td>1494</td><td>修改用户数据权限</td></tr>
-<tr><td>25</td><td><code>/admin/user/reset_security/&lt;id&gt;</code></td><td>POST</td><td>1557</td><td>重置用户密保问题</td></tr>
-<tr><td>26</td><td><code>/admin/user/toggle_status/&lt;id&gt;</code></td><td>POST</td><td>1582</td><td>启停用户账号</td></tr>
-<tr><td>27</td><td><code>/admin/user/reset_pass/&lt;id&gt;</code></td><td>POST</td><td>1611</td><td>重置用户密码</td></tr>
-<tr><td>28</td><td><code>/admin/user/delete/&lt;id&gt;</code></td><td>POST</td><td>1633</td><td>删除用户</td></tr>
-<tr><td>29</td><td><code>/admin/users/batch_delete</code></td><td>POST</td><td>1652</td><td>批量删除用户</td></tr>
-<tr><td>30</td><td><code>/export/csv</code></td><td>GET</td><td>1695</td><td>导出 CSV（含 BOM）</td></tr>
-<tr><td>31</td><td><code>/import/template</code></td><td>GET</td><td>1728</td><td>下载导入模板</td></tr>
-<tr><td>32</td><td><code>/import/csv</code></td><td>POST</td><td>1744</td><td>批量导入 CSV</td></tr>
-</table>
-
-<!-- ==================== Part 7 ==================== -->
-
-<h2><span class="num">7</span>数据持久化设计</h2>
-
-<h3>7.1 核心实体关系图（ER）</h3>
-
+<h3>5.2 核心ER关系</h3>
 <div class="mermaid">
 erDiagram
-    users ||--o{ gift_records : "拥有(user_id FK)"
-    users ||--o{ operation_logs : "产生(user_id FK)"
-    users ||--o{ registration_tokens : "创建(created_by_user_id FK)"
-
-    users {
-        int id PK
-        string username UK "50, NOT NULL"
-        string password_hash "256, NOT NULL"
-        string security_question "100, NOT NULL"
-        string security_answer_hash "256, NOT NULL"
-        bool is_admin "default FALSE"
-        string session_token "64, nullable"
-        bool is_active "default TRUE"
-        bool can_view_others "default FALSE"
-        bool can_edit_others "default FALSE"
-        bool can_delete_others "default FALSE"
-        datetime created_at "default now()"
-    }
-
-    gift_records {
-        int id PK
-        string name "50, NOT NULL"
-        int age "nullable"
-        string address "200, nullable"
-        string phone "20, nullable"
-        float amount "NOT NULL"
-        string event_reason "100, NOT NULL"
-        text notes "nullable"
-        datetime created_at "default now()"
-        int user_id FK "NOT NULL"
-    }
-
-    system_settings {
-        int id PK
-        string key UK "50, NOT NULL"
-        string value "255, nullable"
-    }
-
-    registration_tokens {
-        int id PK
-        string token UK "64, NOT NULL"
-        datetime created_at "default now()"
-        datetime expires_at "NOT NULL"
-        int max_uses "default 1"
-        int use_count "default 0"
-        bool used "default FALSE"
-        datetime used_at "nullable"
-        int created_by_user_id FK "nullable"
-    }
-
-    operation_logs {
-        int id PK
-        int user_id FK "nullable"
-        string username "50, NOT NULL"
-        string action "50, NOT NULL"
-        string detail "500, nullable"
-        string ip_address "50, nullable"
-        datetime created_at "default now()"
-    }
+    users ||--o{ gift_records : "拥有"
+    users ||--o{ banquets : "创建"
+    users ||--o{ anniversary_reminders : "创建"
+    users ||--o{ chat_sessions : "拥有"
+    users ||--o{ webhook_configs : "配置"
+    users ||--o{ family_groups : "创建"
+    banquets ||--o{ gift_records : "归集"
+    banquets ||--o{ shared_ledger_links : "共享"
+    chat_sessions ||--o{ chat_messages : "包含"
+    family_groups ||--o{ family_members : "包含"
 </div>
 
-<h3>7.2 字段约束规格</h3>
-
-<h4>users 表</h4>
+<h3>5.3 加密与安全</h3>
 <table>
-<tr><th style="width:140px">字段</th><th style="width:100px">类型</th><th style="width:80px">约束</th><th>业务含义</th><th>代码位置</th></tr>
-<tr><td><code>id</code></td><td>Integer</td><td>PK, 自增</td><td>用户唯一标识</td><td><code>app.py:76</code></td></tr>
-<tr><td><code>username</code></td><td>String(50)</td><td>UNIQUE, NOT NULL</td><td>用户名（2-20位 字母/数字/下划线/中文）</td><td><code>app.py:77</code></td></tr>
-<tr><td><code>password_hash</code></td><td>String(256)</td><td>NOT NULL</td><td>Werkzeug pbkdf2_sha256 哈希</td><td><code>app.py:78</code></td></tr>
-<tr><td><code>security_question</code></td><td>String(100)</td><td>NOT NULL</td><td>密保问题</td><td><code>app.py:79</code></td></tr>
-<tr><td><code>security_answer_hash</code></td><td>String(256)</td><td>NOT NULL</td><td>密保答案哈希（存储前 <code>.strip().lower()</code>）</td><td><code>app.py:80,98-100</code></td></tr>
-<tr><td><code>is_admin</code></td><td>Boolean</td><td>default False</td><td>管理员标识（与 models.py 的 <code>role</code> 字段冲突 — 已废弃 models.py）</td><td><code>app.py:81</code></td></tr>
-<tr><td><code>session_token</code></td><td>String(64)</td><td>nullable</td><td>登录会话令牌（<code>secrets.token_hex(16)</code> 生成），单点登录控制</td><td><code>app.py:82</code></td></tr>
-<tr><td><code>is_active</code></td><td>Boolean</td><td>default True, NOT NULL</td><td>账号激活状态（禁用时踢出在线会话）</td><td><code>app.py:83</code></td></tr>
-<tr><td><code>can_view_others</code></td><td>Boolean</td><td>default False, NOT NULL</td><td>Level &ge; 1：查看他人记录</td><td><code>app.py:84</code></td></tr>
-<tr><td><code>can_edit_others</code></td><td>Boolean</td><td>default False, NOT NULL</td><td>Level &ge; 2：编辑他人记录（不含管理员记录）</td><td><code>app.py:85</code></td></tr>
-<tr><td><code>can_delete_others</code></td><td>Boolean</td><td>default False, NOT NULL</td><td>Level 3：删除他人记录（不含管理员记录）</td><td><code>app.py:86</code></td></tr>
-<tr><td><code>created_at</code></td><td>DateTime</td><td>default <code>datetime.now</code></td><td>注册时间</td><td><code>app.py:87</code></td></tr>
+<tr><th>数据类型</th><th>加密方式</th></tr>
+<tr><td>用户密码</td><td>Werkzeug pbkdf2_sha256 不可逆哈希</td></tr>
+<tr><td>密码可逆密文</td><td>AES-256-GCM（管理员查看明文）</td></tr>
+<tr><td>密保答案</td><td>pbkdf2_sha256 哈希 + AES-256-GCM 密文</td></tr>
+<tr><td>AI API Key</td><td>AES-256-GCM 密文存储</td></tr>
+<tr><td>Webhook Secret</td><td>AES-256-GCM 密文存储</td></tr>
+<tr><td>WebDAV密码</td><td>AES-256-GCM 密文存储</td></tr>
+<tr><td>备份文件</td><td>AES-256 Zip加密（pyzipper）</td></tr>
 </table>
 
-<div class="callout callout-warn">
-<strong>索引缺失</strong>
-<code>username</code> 列有 <code>unique=True</code> 约束（SQLite 自动创建唯一索引），但 <code>user_id</code>（<code>gift_records</code> / <code>operation_logs</code>）外键列<b>无显式索引</b>。当数据量增长时，按 <code>user_id</code> 过滤的查询（非管理员首页查询 <code>app.py:587</code>）将全表扫描。
-</div>
+<h2><span class="num">6</span>移动端适配设计</h2>
 
-<h4>gift_records 表</h4>
+<h3>6.1 响应式布局策略</h3>
 <table>
-<tr><th style="width:140px">字段</th><th style="width:100px">类型</th><th style="width:80px">约束</th><th>业务含义</th><th>代码位置</th></tr>
-<tr><td><code>id</code></td><td>Integer</td><td>PK</td><td>记录唯一标识</td><td><code>app.py:314</code></td></tr>
-<tr><td><code>name</code></td><td>String(50)</td><td>NOT NULL</td><td>送礼人姓名</td><td><code>app.py:315</code></td></tr>
-<tr><td><code>age</code></td><td>Integer</td><td>nullable</td><td>年龄</td><td><code>app.py:316</code></td></tr>
-<tr><td><code>address</code></td><td>String(200)</td><td>nullable</td><td>联系地址</td><td><code>app.py:317</code></td></tr>
-<tr><td><code>phone</code></td><td>String(20)</td><td>nullable</td><td>联系电话</td><td><code>app.py:318</code></td></tr>
-<tr><td><code>amount</code></td><td>Float</td><td>NOT NULL</td><td>礼金金额（元，支持小数）</td><td><code>app.py:319</code></td></tr>
-<tr><td><code>event_reason</code></td><td>String(100)</td><td>NOT NULL</td><td>办席事由（8 种预设 + 自定义）</td><td><code>app.py:320</code></td></tr>
-<tr><td><code>notes</code></td><td>Text</td><td>nullable</td><td>备注说明</td><td><code>app.py:321</code></td></tr>
-<tr><td><code>created_at</code></td><td>DateTime</td><td>default <code>datetime.now</code></td><td>登记时间</td><td><code>app.py:322</code></td></tr>
-<tr><td><code>user_id</code></td><td>Integer</td><td>FK → users.id, NOT NULL</td><td>录入用户</td><td><code>app.py:323</code></td></tr>
+<tr><th>适配维度</th><th>实现方式</th></tr>
+<tr><td>视口设置</td><td><code>viewport-fit=cover</code> + <code>maximum-scale=5.0</code></td></tr>
+<tr><td>相对单位</td><td>rem/em/vw/vh/百分比替代固定像素</td></tr>
+<tr><td>最大宽度</td><td><code>.container { max-width: 100% }</code></td></tr>
+<tr><td>断点</td><td><code>@media (max-width: 768px)</code> + <code>@media (max-width: 360px)</code></td></tr>
+<tr><td>表格适配</td><td><code>.table-responsive</code> 横向滚动</td></tr>
+<tr><td>横屏适配</td><td><code>@media (orientation: landscape)</code></td></tr>
 </table>
 
-<h4>system_settings 表</h4>
+<h3>6.2 安全区域适配</h3>
+<pre><code>:root {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+}</code></pre>
+
+<h3>6.3 触控优化</h3>
 <table>
-<tr><th style="width:140px">字段</th><th style="width:100px">类型</th><th style="width:80px">约束</th><th>业务含义</th></tr>
-<tr><td><code>id</code></td><td>Integer</td><td>PK</td><td>配置项 ID</td></tr>
-<tr><td><code>key</code></td><td>String(50)</td><td>UNIQUE, NOT NULL</td><td>配置键（如 <code>session_timeout_minutes</code>）</td></tr>
-<tr><td><code>value</code></td><td>String(255)</td><td>nullable</td><td>配置值（字符串存储，读取时 <code>int()</code> 转换）</td></tr>
+<tr><th>优化项</th><th>规范</th><th>实现</th></tr>
+<tr><td>按钮最小尺寸</td><td>44×44px</td><td><code>.btn { min-height: 44px; min-width: 44px; }</code></td></tr>
+<tr><td>输入框最小高度</td><td>44px</td><td><code>.form-control { min-height: 44px; }</code></td></tr>
+<tr><td>禁用长按菜单</td><td>—</td><td><code>-webkit-touch-callout: none</code></td></tr>
+<tr><td>禁用高亮闪烁</td><td>—</td><td><code>-webkit-tap-highlight-color: transparent</code></td></tr>
 </table>
-<p><b>当前已使用的配置键</b>（<code>app.py:152-182</code>）：</p>
-<ul>
-<li><code>session_timeout_minutes</code> — 会话超时分钟数（默认 60，范围 1-10080）</li>
-<li><code>max_login_attempts</code> — 密码最大错误次数（默认 5，范围 1-20）</li>
-<li><code>login_lockout_seconds</code> — 锁定等待秒数（默认 60，范围 0-86400）</li>
-<li><code>max_security_attempts</code> — 密保最大错误次数（默认 3，范围 1-20）</li>
-</ul>
 
-<h3>7.3 事务机制</h3>
-
+<h3>6.4 已验证分辨率</h3>
 <table>
-<tr><th style="width:160px">事务模式</th><th>实现</th><th>代码位置</th><th>问题</th></tr>
-<tr><td>单操作自动提交</td><td><code>db.session.add()</code> + <code>db.session.commit()</code></td><td>全部路由</td><td>标准模式，无问题</td></tr>
-<tr><td>批量导入</td><td>循环 <code>db.session.add()</code> → 末尾单次 <code>db.session.commit()</code></td><td><code>app.py:1855-1858</code></td><td><b>无回滚保护</b>：导入一半发生异常时 <code>db.session.rollback()</code> 回滚全部，但前半已 add 到 session 的记录会丢失；部分成功的记录因未 commit 而全部丢失</td></tr>
-<tr><td>清空记录</td><td><code>db.session.query(GiftRecord).delete()</code> → <code>db.session.commit()</code></td><td><code>app.py:1215-1227</code></td><td>硬删除，无软删除/回收站机制</td></tr>
-<tr><td>异常处理</td><td>部分路由 try-except → <code>db.session.rollback()</code></td><td><code>app.py:1375-1383,1458-1460,1686-1688</code></td><td>仅批量删除操作有 try-except，大部分路由无异常保护（若 commit 失败会抛 500）</td></tr>
-<tr><td>级联删除</td><td>User.records relationship <code>cascade='all, delete-orphan'</code></td><td><code>app.py:90</code></td><td>删除用户时自动删除其所有礼金记录（符合业务需求）</td></tr>
+<tr><th>分辨率</th><th>设备类型</th><th>验证状态</th></tr>
+<tr><td>360×640</td><td>小屏手机</td><td><span class="badge badge-green">已验证</span></td></tr>
+<tr><td>390×844</td><td>iPhone 12/13/14</td><td><span class="badge badge-green">已验证</span></td></tr>
+<tr><td>414×896</td><td>iPhone 11/XR</td><td><span class="badge badge-green">已验证</span></td></tr>
+<tr><td>412×915</td><td>Android大屏</td><td><span class="badge badge-green">已验证</span></td></tr>
 </table>
 
-<h3>7.4 兼容性迁移策略</h3>
+<h2><span class="num">7</span>构建与CI/CD</h2>
 
-<p><code>init_database()</code>（<code>app.py:488-563</code>）实现了手动增量迁移：</p>
-<ol>
-<li><code>db.create_all()</code> — 创建所有表（已存在则跳过）</li>
-<li>逐个 <code>ALTER TABLE ... ADD COLUMN</code> 添加后续版本新增的字段：
-  <ul>
-  <li><code>registration_tokens</code> 表：<code>max_uses</code>, <code>use_count</code></li>
-  <li><code>users</code> 表：<code>session_token</code>, <code>is_active</code>, <code>can_view_others</code>, <code>can_edit_others</code>, <code>can_delete_others</code></li>
-  </ul>
-  每个 ALTER 语句包裹在 <code>try-except</code> 中（列已存在时 SQLite 报错被静默吞掉）</li>
-<li>清空所有内存风控字典</li>
-<li>检查并创建/同步管理员账号</li>
-</ol>
-
-<div class="callout callout-warn">
-<strong>迁移策略缺陷</strong>
-<ul style="margin-top:8px">
-<li>无版本号管理：无法判断当前数据库上次迁移到哪个版本</li>
-<li>静默吞错：<code>except Exception: pass</code> 掩盖了真正的数据库故障</li>
-<li>每次启动都执行全部 ALTER：即使列已存在也会尝试并报错（被 try-except 静默）</li>
-<li>无法回滚：无 downcast / downgrade 脚本</li>
-</ul>
-</div>
-
-<!-- ==================== Part 8 ==================== -->
-
-<h2><span class="num">8</span>工程与安全保障</h2>
-
-<h3>8.1 环境变量与配置分离</h3>
-
-<table>
-<tr><th style="width:220px">环境变量</th><th style="width:100px">默认值</th><th style="width:120px">使用位置</th><th>说明</th></tr>
-<tr><td><code>SECRET_KEY</code></td><td>硬编码字符串</td><td><code>app.py:28</code></td><td>Flask 会话签名密钥；默认值为 <code>'gift-bookkeeping-secret-key-2026-prod-secure'</code>（<b>硬编码 fallback 不安全</b>）</td></tr>
-<tr><td><code>DATABASE_URL</code></td><td><code>sqlite:///...</code></td><td><code>app.py:58-61</code></td><td>数据库连接字符串；空字符串时降级为 SQLite 文件路径</td></tr>
-<tr><td><code>SESSION_COOKIE_SECURE</code></td><td><code>false</code></td><td><code>app.py:35-36</code></td><td>设为 <code>true</code> 时启用 HTTPS-only Cookie</td></tr>
-<tr><td><code>ADMIN_USER</code></td><td><code>admin</code></td><td><code>app.py:539</code></td><td>自定义管理员用户名</td></tr>
-<tr><td><code>ADMIN_PASS</code></td><td><code>admin123</code></td><td><code>app.py:540</code></td><td>自定义管理员密码</td></tr>
-<tr><td><code>HOST</code></td><td><code>0.0.0.0</code></td><td><code>app.py:1875</code></td><td>Flask 监听 IP</td></tr>
-<tr><td><code>PORT</code></td><td><code>11443</code></td><td><code>app.py:1876</code></td><td>Flask 监听端口</td></tr>
-</table>
-
-<div class="callout callout-danger">
-<strong>配置安全问题</strong>
-<ul style="margin-top:8px">
-<li><b>SECRET_KEY 硬编码 fallback</b>：<code>app.py:28</code> 未设 <code>SECRET_KEY</code> 环境变量时使用硬编码字符串，攻击者可伪造会话 Cookie</li>
-<li><b>管理员默认弱口令</b>：<code>admin/admin123</code> 在未设环境变量时自动创建，且每次重启会重置管理员密码为此值（<code>app.py:557-563</code>），即使用户改过密码也会被重置</li>
-<li><b>每次启动覆盖管理员密码</b>：<code>init_database()</code> 中 <code>admin.set_password(initial_pass)</code>（<code>app.py:559</code>）在每次重启时执行，用户修改过的管理员密码会被环境变量或默认值覆盖</li>
-</ul>
-</div>
-
-<h3>8.2 认证与鉴权模型</h3>
-
-<h4>8.2.1 认证流程</h4>
-
-<div class="mermaid">
-sequenceDiagram
-    participant U as 用户
-    participant W as WebView/APK
-    participant F as Flask 后端
-    participant DB as SQLite
-
-    U->>W: 输入用户名+密码
-    W->>F: POST /login (username, password)
-    F->>F: 检查风控状态(内存字典)
-    alt 已锁定
-        F-->>W: flash "请等待N秒"
-    else 需要验证码
-        F->>F: 校验验证码(session)
-    end
-    F->>DB: User.query.filter_by(username)
-    F->>F: check_password_hash()
-    alt 密码正确
-        F->>F: 生成 session_token = secrets.token_hex(16)
-        F->>DB: 保存 session_token 到 User 表
-        F->>F: login_user() + session['session_token']
-        F-->>W: redirect / (Set-Cookie: session=...)
-    else 密码错误
-        F->>F: LOGIN_FAIL_COUNTS[username] += 1
-        F-->>W: flash "密码错误，剩余N次"
-    end
-</div>
-
-<h4>8.2.2 会话验证机制（双重校验）</h4>
-<table>
-<tr><th style="width:120px">校验层</th><th>机制</th><th>代码位置</th></tr>
-<tr><td>Flask-Login</td><td>标准 <code>@login_required</code> + <code>current_user</code> 代理</td><td><code>app.py:68-72</code></td></tr>
-<tr><td>session_token 二次校验</td><td><code>load_user()</code> 中检查 <code>user.session_token</code> 与 <code>session['session_token']</code> 一致性；不一致则拒绝加载用户（实现单点登录踢出）</td><td><code>app.py:325-338</code></td></tr>
-<tr><td>会话超时</td><td>记录 <code>session['last_activity']</code> 时间戳，超过可配分钟数强制登出</td><td><code>app.py:209-231</code></td></tr>
-</table>
-
-<h4>8.2.3 鉴权模型（4 级权限）</h4>
-<table>
-<tr><th style="width:80px">级别</th><th style="width:120px">标识</th><th>权限矩阵</th><th>设置位置</th></tr>
-<tr><td>Admin</td><td><code>is_admin=True</code></td><td>全部数据 CRUD + 用户管理 + 系统配置 + 日志管理</td><td><code>app.py:81</code></td></tr>
-<tr><td>Level 3</td><td><code>can_delete_others=True</code></td><td>自身数据 CRUD + 查看他人 + 编辑他人 + 删除他人（不含管理员记录）</td><td><code>app.py:1509-1512</code></td></tr>
-<tr><td>Level 2</td><td><code>can_edit_others=True</code></td><td>自身数据 CRUD + 查看他人 + 编辑他人（不含管理员记录）</td><td><code>app.py:1513-1516</code></td></tr>
-<tr><td>Level 1</td><td><code>can_view_others=True</code></td><td>自身数据 CRUD + 查看他人（只读）</td><td><code>app.py:1517-1520</code></td></tr>
-<tr><td>Level 0</td><td>三项均为 False</td><td>仅自身数据 CRUD</td><td><code>app.py:1521-1524</code></td></tr>
-</table>
-
-<div class="callout callout-danger">
-<strong>权限执行不一致（C2 缺陷详述）</strong>
-<table style="margin-top:8px">
-<tr><th>操作入口</th><th>权限判定方式</th><th>位置</th><th>结果</th></tr>
-<tr><td>单条编辑</td><td><code>not is_admin and user_id != current_user.id</code></td><td><code>app.py:1127</code></td><td>Level 2/3 用户<b>无法</b>编辑他人记录</td></tr>
-<tr><td>单条删除</td><td><code>not is_admin and user_id != current_user.id</code></td><td><code>app.py:1176</code></td><td>Level 3 用户<b>无法</b>删除他人记录</td></tr>
-<tr><td>批量删除</td><td><code>can_user_delete_record(current_user, record)</code></td><td><code>app.py:1202</code></td><td>Level 3 用户<b>可以</b>删除他人记录 ✅</td></tr>
-<tr><td>前端按钮显示</td><td><code>can_user_edit_record()</code> / <code>can_user_delete_record()</code></td><td><code>index.html:175,190</code></td><td>前端<b>显示</b>编辑/删除按钮，后端<b>拒绝</b>提交</td></tr>
-</table>
-</div>
-
-<h3>8.3 安全防护清单</h3>
-
-<table>
-<tr><th style="width:120px">安全维度</th><th>实现</th><th>代码位置</th><th>有效性评估</th></tr>
-
-<tr>
-<td>CSRF 防护</td>
-<td>手写 <code>csrf_protect()</code>：session 生成 32 字节（64 位 hex 字符）token，POST 请求校验表单/头中的 token</td>
-<td><code>app.py:240-248</code></td>
-<td><span class="badge badge-green">有效</span> 但未复用 Flask-WTF CSRFProtect</td>
-</tr>
-
-<tr>
-<td>XSS 防护</td>
-<td>Jinja2 默认自动转义 <code>{{ }}</code>；但 <code>login.html:170</code> 使用 <code>{{ username|tojson }}</code> 输出到 JS 上下文</td>
-<td><code>login.html:170</code></td>
-<td><span class="badge badge-green">基本有效</span> Jinja2 <code>|tojson</code> 会转义 HTML 特殊字符</td>
-</tr>
-
-<tr>
-<td>密码哈希</td>
-<td>Werkzeug <code>generate_password_hash</code>（默认 pbkdf2_sha256 + 16 字节盐）</td>
-<td><code>app.py:92-96</code></td>
-<td><span class="badge badge-green">有效</span></td>
-</tr>
-
-<tr>
-<td>密码复杂度</td>
-<td><code>check_password_complexity()</code>：min 6 位 + 字母 + 数字</td>
-<td><code>app.py:200-206</code></td>
-<td><span class="badge badge-red">部分失效</span> <code>change_password</code> 和 <code>admin_reset_user_pass</code> 未调用（C3）</td>
-</tr>
-
-<tr>
-<td>暴力破解防护</td>
-<td>登录失败计数 + 锁定 + 算术验证码；密保答案失败计数 + 锁定/禁用</td>
-<td><code>app.py:677-682,708-724,988-1014</code></td>
-<td><span class="badge badge-red">多进程失效</span> 内存字典在多 Worker 下不共享</td>
-</tr>
-
-<tr>
-<td>会话安全</td>
-<td>HttpOnly Cookie + SameSite=Lax + 可配 Secure + 会话超时 + session_token 单点登录</td>
-<td><code>app.py:32-36,209-231,325-338</code></td>
-<td><span class="badge badge-green">有效</span></td>
-</tr>
-
-<tr>
-<td>缓存控制</td>
-<td><code>Cache-Control: no-cache, no-store, must-revalidate, max-age=0</code></td>
-<td><code>app.py:233-238</code></td>
-<td><span class="badge badge-green">有效</span></td>
-</tr>
-
-<tr>
-<td>注册控制</td>
-<td>邀请令牌制（RegistrationToken），支持有效期、最大使用次数、单次/多次模式</td>
-<td><code>app.py:832-903,1387-1419</code></td>
-<td><span class="badge badge-green">有效</span></td>
-</tr>
-
-<tr>
-<td>审计日志</td>
-<td><code>log_action()</code> 记录所有敏感操作 + 90 天自动过期 + 搜索/排序/分页</td>
-<td><code>app.py:281-310,1313-1361</code></td>
-<td><span class="badge badge-amber">部分有效</span> 每次写日志触发 DELETE 查询影响性能</td>
-</tr>
-
-<tr>
-<td>HTTPS / SSL</td>
-<td>服务端无内置 SSL；APK WebView <code>onReceivedSslError</code> 无条件 <code>proceed()</code></td>
-<td><code>main.py:52-54</code></td>
-<td><span class="badge badge-red">失效</span> MITM 风险</td>
-</tr>
-
-<tr>
-<td>反向代理适配</td>
-<td><code>ProxyFix(x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)</code></td>
-<td><code>app.py:39</code></td>
-<td><span class="badge badge-green">有效</span></td>
-</tr>
-
-<tr>
-<td>IP 获取</td>
-<td>优先使用 <code>X-Forwarded-For</code> 头</td>
-<td><code>app.py:296-297</code></td>
-<td><span class="badge badge-amber">可伪造</span> 未校验请求来源是否为可信代理</td>
-</tr>
-
-<tr>
-<td>敏感数据存储</td>
-<td>密保答案 <code>.strip().lower()</code> 后哈希；密码哈希；无明文存储</td>
-<td><code>app.py:98-100</code></td>
-<td><span class="badge badge-green">有效</span> 但密保答案 <code>lower()</code> 可能导致大小写问题</td>
-</tr>
-</table>
-
-<h3>8.4 Dockerfile 与构建流水线</h3>
-
-<h4>8.4.1 GitHub Actions APD 构建流水线</h4>
-<p>本项目无 Dockerfile（APK 版不使用 Docker 部署），CI/CD 通过 GitHub Actions 自动编译 APK。</p>
-
+<h3>7.1 GitHub Actions Workflow</h3>
+<p>路径：<code>.github/workflows/build.yml</code></p>
 <div class="mermaid">
 graph LR
     A["push/trigger"] --> B["checkout@v4"]
-    B --> C["setup-python@v5<br/>Python 3.11"]
-    C --> D["setup-java@v5<br/>JDK 17 (temurin)"]
-    D --> E["apt-get install<br/>SDL2/ffmpeg/sqlite3/ssl/ffi..."]
-    E --> F["pip install<br/>cython<3.0 + buildozer>=1.5.0"]
-    F --> G["buildozer android debug<br/>编译 APK"]
-    G --> H["upload-artifact@v4<br/>APK 产物"]
-    H --> I["action-gh-release@v2<br/>发布 GitHub Release"]
-
-    style G fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    B --> C{"平台选择"}
+    C -->|"Android"| D["ubuntu-22.04<br/>JDK 17 + Python 3.11"]
+    C -->|"iOS"| E["macos-14<br/>Xcode 15.2 + Python 3.11"]
+    D --> F["Buildozer<br/>android debug"]
+    E --> G["xcodebuild<br/>unsigned IPA"]
+    F --> H["upload-artifact<br/>bin/*.apk"]
+    G --> I["upload-artifact<br/>*.ipa"]
+    H --> J["GitHub Release"]
+    I --> J
 </div>
 
+<h3>7.2 触发条件</h3>
 <table>
-<tr><th style="width:140px">阶段</th><th>步骤</th><th>配置</th><th>代码位置</th></tr>
-<tr><td>触发条件</td><td>push 到 main/master 分支 / 推送 v* 标签 / 手动触发</td><td><code>on: push/tags/workflow_dispatch</code></td><td><code>build_apk.yml:3-8</code></td></tr>
-<tr><td>运行环境</td><td>ubuntu-22.04</td><td>—</td><td><code>build_apk.yml:16</code></td></tr>
-<tr><td>Python</td><td>3.11</td><td>actions/setup-python@v5</td><td><code>build_apk.yml:20-25</code></td></tr>
-<tr><td>JDK</td><td>17 (temurin)</td><td>actions/setup-java@v5</td><td><code>build_apk.yml:27-31</code></td></tr>
-<tr><td>系统依赖</td><td>SDL2 全家桶 + ffmpeg + sqlite3 + ssl + ffi</td><td>apt-get install</td><td><code>build_apk.yml:33-58</code></td></tr>
-<tr><td>构建工具</td><td>Cython&lt;3.0 + Buildozer&gt;=1.5.0 + virtualenv</td><td>pip install</td><td><code>build_apk.yml:60-63</code></td></tr>
-<tr><td>APK 编译</td><td>buildozer android debug</td><td>输出到 bin/*.apk</td><td><code>build_apk.yml:65-67</code></td></tr>
-<tr><td>产物上传</td><td>upload-artifact@v4</td><td>name: GiftBookkeeping-APK</td><td><code>build_apk.yml:69-74</code></td></tr>
-<tr><td>Release 发布</td><td>softprops/action-gh-release@v2</td><td>tag: latest, 自动更新</td><td><code>build_apk.yml:76-95</code></td></tr>
+<tr><th>条件</th><th>Android</th><th>iOS</th><th>Release</th></tr>
+<tr><td>push到main/master</td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-gray">否</span></td><td><span class="badge badge-green">是</span></td></tr>
+<tr><td>打tag（v*格式）</td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-green">是</span></td></tr>
+<tr><td>手动触发</td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-gray">否</span></td></tr>
 </table>
 
-<h4>8.4.2 Buildozer 打包配置</h4>
+<h2><span class="num">8</span>工程与安全保障</h2>
+
+<h3>8.1 安全防护清单</h3>
 <table>
-<tr><th style="width:160px">配置项</th><th>值</th><th>说明</th></tr>
-<tr><td>title</td><td>GiftBookkeeping</td><td>应用名称</td></tr>
-<tr><td>package.name</td><td>giftbookkeeping</td><td>包名</td></tr>
-<tr><td>package.domain</td><td>org.giftbookkeeping.app</td><td>域名</td></tr>
-<tr><td>version</td><td>1.0.0</td><td>应用版本</td></tr>
-<tr><td>requirements</td><td>python3,hostpython3,openssl,pyjnius,kivy</td><td><b>不含 Flask</b>，仅移动端运行时</td></tr>
-<tr><td>orientation</td><td>portrait</td><td>竖屏锁定</td></tr>
-<tr><td>fullscreen</td><td>0</td><td>非全屏</td></tr>
-<tr><td>android.permissions</td><td>INTERNET, ACCESS_NETWORK_STATE</td><td>网络权限</td></tr>
-<tr><td>android.api</td><td>33</td><td>目标 API（Android 13）</td></tr>
-<tr><td>android.minapi</td><td>21</td><td>最低 API（Android 5.0）</td></tr>
-<tr><td>android.archs</td><td>arm64-v8a</td><td>仅 64 位 ARM</td></tr>
-<tr><td>android.private_storage</td><td>True</td><td>私有数据存储</td></tr>
-<tr><td>android.allow_backup</td><td>True</td><td>允许 ADB 备份</td></tr>
-<tr><td>p4a.bootstrap</td><td>sdl2</td><td>Python for Android 引擎</td></tr>
-<tr><td>source.include_exts</td><td>py,png,jpg,jpeg,html,css,js,ttf,woff,woff2,svg,ico,json</td><td>打包文件类型</td></tr>
-<tr><td>source.include_dirs</td><td>templates,static</td><td>打包目录（但项目无 static/ 目录）</td></tr>
+<tr><th>安全维度</th><th>实现方式</th><th>有效性</th></tr>
+<tr><td>CSRF防护</td><td>session token + POST校验</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>XSS防护</td><td>Jinja2自动转义</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>密码哈希</td><td>Werkzeug pbkdf2_sha256 + 16字节盐</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>凭证加密</td><td>AES-256-GCM 对称加密</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>暴力破解防护</td><td>持久化风控 + 验证码 + 锁定</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>会话安全</td><td>HttpOnly + SameSite + 超时 + token</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>注册控制</td><td>邀请令牌制（有效期/次数）</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>审计日志</td><td>全操作记录 + 90天自动清理</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>备份数据隔离</td><td>普通用户备份仅含本人数据</td><td><span class="badge badge-green">有效</span></td></tr>
 </table>
 
-<div class="callout callout-warn">
-<strong>Buildozer 配置问题</strong>
-<ul style="margin-top:8px">
-<li><b><code>source.include_dirs = templates,static</code></b> 但项目无 <code>static/</code> 目录，Buildozer 构建时会跳过不存在的目录（无报错），但表明配置来自模板未清理</li>
-<li><b><code>android.allow_backup = True</code></b> 允许通过 ADB 备份应用数据，可能泄露 WebView Cookie 和缓存</li>
-<li><b>仅 arm64-v8a</b> 不支持 32 位 ARM 设备（armeabi-v7a），覆盖范围受限</li>
-</ul>
-</div>
+<h2><span class="num">9</span>演进路线图</h2>
 
-<!-- ==================== Part 9 ==================== -->
-
-<h2><span class="num">9</span>综合问题排查与渐进演进路线图</h2>
-
-<h3>9.1 五维技术债清单</h3>
-
-<h4>9.1.1 代码质量债</h4>
+<h3>9.1 已完成（V2.0）</h3>
 <table>
-<tr><th style="width:50px">#</th><th style="width:200px">问题</th><th style="width:80px">严重度</th><th>代码依据</th><th>影响</th></tr>
-<tr><td>Q1</td><td>app.py 1895 行单体文件</td><td><span class="badge badge-red">高</span></td><td><code>app.py</code> 全文</td><td>可维护性极差，任何修改都需在巨大文件中定位</td></tr>
-<tr><td>Q2</td><td>models.py 死文件（从未被 import）</td><td><span class="badge badge-amber">中</span></td><td><code>models.py</code> 全文</td><td>误导开发者，10+ 处 schema 差异可能引发错误修改</td></tr>
-<tr><td>Q3</td><td>函数重复定义</td><td><span class="badge badge-amber">中</span></td><td><code>app.py:176-198</code> vs <code>684-706</code></td><td>复制粘贴未清理，维护负担倍增</td></tr>
-<tr><td>Q4</td><td>权限校验双轨制</td><td><span class="badge badge-red">高</span></td><td>单条编辑/删除 vs 批量删除使用不同逻辑</td><td>功能缺陷：Level 2/3 用户权限在单条操作时失效</td></tr>
-<tr><td>Q5</td><td>__main__ 冗余管理员初始化</td><td><span class="badge badge-amber">中</span></td><td><code>app.py:1882-1893</code></td><td>与 <code>init_database()</code> 逻辑不一致，产生冲突</td></tr>
-<tr><td>Q6</td><td>模块级副作用（import 即初始化）</td><td><span class="badge badge-amber">中</span></td><td><code>app.py:566-569</code></td><td>单元测试、迁移工具等场景产生意外副作用</td></tr>
-<tr><td>Q7</td><td>无单元测试覆盖</td><td><span class="badge badge-amber">中</span></td><td>无 tests/ 目录</td><td>回归风险无保障</td></tr>
+<tr><th>项目</th><th>V1.0状态</th><th>V2.0状态</th></tr>
+<tr><td>离线运行</td><td><span class="badge badge-red">远程WebView</span></td><td><span class="badge badge-green">本地Flask</span></td></tr>
+<tr><td>功能完整性</td><td><span class="badge badge-red">功能子集</span></td><td><span class="badge badge-green">全量同步(179路由)</span></td></tr>
+<tr><td>数据模型</td><td><span class="badge badge-red">3个</span></td><td><span class="badge badge-green">22+个</span></td></tr>
+<tr><td>页面模板</td><td><span class="badge badge-red">8个</span></td><td><span class="badge badge-green">25个</span></td></tr>
+<tr><td>静态资源</td><td><span class="badge badge-red">CDN</span></td><td><span class="badge badge-green">本地化</span></td></tr>
+<tr><td>移动端响应式</td><td><span class="badge badge-amber">基础</span></td><td><span class="badge badge-green">安全区域+触控优化</span></td></tr>
+<tr><td>iOS构建</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">macOS runner</span></td></tr>
+<tr><td>AI助手</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">多配置+联网+OCR</span></td></tr>
+<tr><td>专属宴席</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">自动归集+盈亏</span></td></tr>
+<tr><td>人情对账</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">往来+还礼建议</span></td></tr>
+<tr><td>回收站</td><td><span class="badge badge-red">硬删除</span></td><td><span class="badge badge-green">软删除+还原</span></td></tr>
+<tr><td>Webhook</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">多渠道+矩阵</span></td></tr>
+<tr><td>WebDAV备份</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">加密+定时+合并</span></td></tr>
+<tr><td>家庭协作</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">家庭组+成员</span></td></tr>
+<tr><td>打印/海报</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">A4+长图</span></td></tr>
 </table>
 
-<h4>9.1.2 高并发性能债</h4>
+<h3>9.2 待优化</h3>
 <table>
-<tr><th style="width:50px">#</th><th style="width:200px">问题</th><th style="width:80px">严重度</th><th>代码依据</th><th>影响</th></tr>
-<tr><td>P1</td><td>统计查询全量加载到内存</td><td><span class="badge badge-amber">中</span></td><td><code>app.py:628-632</code> <code>query.all()</code></td><td>记录数 &gt; 5000 时每次访问主页都加载全量 ORM 对象到内存</td></tr>
-<tr><td>P2</td><td>风控字典为内存级</td><td><span class="badge badge-red">高</span></td><td><code>app.py:677-682</code></td><td>多 Worker 部署时风控失效（实际允许 attempts × worker_count 次尝试）</td></tr>
-<tr><td>P3</td><td>每次写日志触发全表 DELETE</td><td><span class="badge badge-amber">中</span></td><td><code>app.py:283</code> <code>purge_expired_logs()</code></td><td>每个 POST 请求额外增加一次 DELETE 查询延迟</td></tr>
-<tr><td>P4</td><td>SQLite 写并发瓶颈</td><td><span class="badge badge-amber">中</span></td><td><code>app.py:62</code></td><td>SQLite 写锁为数据库级（非行级），多用户并发写入时串行等待</td></tr>
+<tr><th>优先级</th><th>项目</th><th>工作量</th><th>说明</th></tr>
+<tr><td><span class="badge badge-red">P1</span></td><td>iOS完整签名流程</td><td>3-5天</td><td>当前为未签名IPA，需集成Apple开发者证书</td></tr>
+<tr><td><span class="badge badge-red">P1</span></td><td>嵌入Python.xcframework</td><td>5-8天</td><td>iOS需嵌入Python运行时才能执行Flask</td></tr>
+<tr><td><span class="badge badge-amber">P2</span></td><td>APK体积优化</td><td>2-3天</td><td>评估是否裁剪重型可选依赖</td></tr>
+<tr><td><span class="badge badge-amber">P2</span></td><td>离线Webhook降级</td><td>1-2天</td><td>无网络时Webhook推送队列化</td></tr>
+<tr><td><span class="badge badge-amber">P2</span></td><td>移动端手势支持</td><td>2-3天</td><td>左滑删除/右滑编辑/下拉刷新</td></tr>
 </table>
-
-<h4>9.1.3 扩展性债</h4>
-<table>
-<tr><th style="width:50px">#</th><th style="width:200px">问题</th><th style="width:80px">严重度</th><th>代码依据</th><th>影响</th></tr>
-<tr><td>E1</td><td>无 Blueprint 分区</td><td><span class="badge badge-amber">中</span></td><td>32 条路由全挂全局 <code>app</code></td><td>无法独立拆分部署、无法按模块加载/卸载</td></tr>
-<tr><td>E2</td><td>无 Service / Repository 层</td><td><span class="badge badge-amber">中</span></td><td>ORM 查询直接在路由函数内</td><td>更换数据库引擎时需逐函数修改</td></tr>
-<tr><td>E3</td><td>无 API 版本管理</td><td><span class="badge badge-gray">低</span></td><td>路由无 <code>/api/v1/</code> 前缀</td><td>SSR 模式下不影响，但阻碍未来向 REST API 演进</td></tr>
-<tr><td>E4</td><td>无外部服务集成点</td><td><span class="badge badge-gray">低</span></td><td>无 Webhook/WebDAV/消息队列接入</td><td>传统版有但 APK 版未实现，限制了功能扩展</td></tr>
-</table>
-
-<h4>9.1.4 安全漏洞债</h4>
-<table>
-<tr><th style="width:50px">#</th><th style="width:200px">问题</th><th style="width:80px">严重度</th><th>代码依据</th><th>影响</th></tr>
-<tr><td>S1</td><td>密码复杂度校验遗漏</td><td><span class="badge badge-red">高</span></td><td><code>app.py:1247,1621</code> 未调用 <code>check_password_complexity()</code></td><td>用户/管理员可设置任意弱口令</td></tr>
-<tr><td>S2</td><td>SSL 错误无条件放行</td><td><span class="badge badge-red">高</span></td><td><code>main.py:52-54</code> <code>handler.proceed()</code></td><td>中间人攻击可截获所有通信</td></tr>
-<tr><td>S3</td><td>localStorage 存储明文密码</td><td><span class="badge badge-red">高</span></td><td><code>login.html:188-189</code></td><td>XSS 或同域脚本可直接读取密码</td></tr>
-<tr><td>S4</td><td>SECRET_KEY 硬编码 fallback</td><td><span class="badge badge-red">高</span></td><td><code>app.py:28</code></td><td>未设环境变量时会话 Cookie 可伪造</td></tr>
-<tr><td>S5</td><td>每次启动覆盖管理员密码</td><td><span class="badge badge-red">高</span></td><td><code>app.py:557-563</code></td><td>用户修改的管理员密码在重启后被重置为默认值</td></tr>
-<tr><td>S6</td><td>风控多进程失效</td><td><span class="badge badge-amber">中</span></td><td>内存字典</td><td>Gunicorn 多 Worker 下风控计数不共享</td></tr>
-<tr><td>S7</td><td>WebView 配置宽松</td><td><span class="badge badge-amber">中</span></td><td><code>main.py:93-94,106</code></td><td>FileAccess/ContentAccess/第三方 Cookie 全部放开</td></tr>
-<tr><td>S8</td><td>X-Forwarded-For 未校验来源</td><td><span class="badge badge-gray">低</span></td><td><code>app.py:296-297</code></td><td>客户端可伪造 IP 地址</td></tr>
-</table>
-
-<h4>9.1.5 部署运维债</h4>
-<table>
-<tr><th style="width:50px">#</th><th style="width:200px">问题</th><th style="width:80px">严重度</th><th>代码依据</th><th>影响</th></tr>
-<tr><td>D1</td><td>APK 依赖远程服务，无离线能力</td><td><span class="badge badge-red">高</span></td><td><code>main.py:4</code></td><td>服务器宕机/网络中断时 APK 完全不可用</td></tr>
-<tr><td>D2</td><td>TARGET_URL 硬编码</td><td><span class="badge badge-amber">中</span></td><td><code>main.py:4</code></td><td>更换服务器地址需重新编译 APK</td></tr>
-<tr><td>D3</td><td>无数据库迁移工具</td><td><span class="badge badge-amber">中</span></td><td>手动 ALTER TABLE</td><td>迁移不可追溯、不可回滚</td></tr>
-<tr><td>D4</td><td>无健康检查端点</td><td><span class="badge badge-gray">低</span></td><td>无 <code>/health</code> 路由</td><td>负载均衡器无法探活</td></tr>
-<tr><td>D5</td><td>无日志输出配置</td><td><span class="badge badge-gray">低</span></td><td><code>print()</code> 代替 <code>logging</code></td><td>生产环境日志收集困难</td></tr>
-</table>
-
-<h3>9.2 渐进演进路线图</h3>
-
-<div class="mermaid">
-gantt
-    title 礼金记账簿 APK 渐进演进路线图
-    dateFormat YYYY-MM-DD
-    axisFormat %m/%d
-
-    section P0 紧急安全修复
-    S1密码复杂度校验补齐 :p0s1, 2026-09-24, 1d
-    S2 SSL错误处理修复 :p0s2, 2026-09-24, 1d
-    S3 localStorage明文密码移除 :p0s3, 2026-09-24, 1d
-    S4 SECRET_KEY强制要求 :p0s4, 2026-09-24, 1d
-    S5 管理员密码覆盖逻辑修复 :p0s5, 2026-09-25, 1d
-    Q4 权限校验双轨制统一 :p0q4, 2026-09-25, 1d
-
-    section P1 代码治理
-    Q2 删除models.py死文件 :p1q2, 2026-09-26, 1d
-    Q3 清理重复函数定义 :p1q3, 2026-09-26, 1d
-    P1 统计查询改SQL聚合 :p1p1, 2026-09-27, 1d
-    P3 日志清理改为定时任务 :p1p3, 2026-09-27, 1d
-    README修正 :p1doc, 2026-09-27, 1d
-
-    section P2 架构优化
-    Q1 拆分app.py为多模块 :p2q1, 2026-09-28, 5d
-    S6 风控字典迁移SQLite :p2s6, 2026-10-01, 2d
-    Q7 补充核心测试用例 :p2q7, 2026-10-03, 3d
-
-    section 条件性演进
-    D1-D2 离线化改造评估 :cond1, 2026-10-06, 5d
-</div>
-
-<h4>9.2.1 P0 紧急安全修复（1-2 天）</h4>
-
-<table>
-<tr><th style="width:50px">#</th><th style="width:180px">任务</th><th>修复方案</th><th style="width:80px">工作量</th></tr>
-<tr>
-<td>S1</td>
-<td>密码复杂度校验补齐</td>
-<td>
-在 <code>change_password()</code> <code>app.py:1247</code> 和 <code>admin_reset_user_pass()</code> <code>app.py:1621</code> 的 <code>set_password()</code> 前增加 <code>check_password_complexity()</code> 调用，校验失败时 flash 提示并 redirect
-</td>
-<td>1 小时</td>
-</tr>
-<tr>
-<td>S2</td>
-<td>SSL 错误处理修复</td>
-<td>
-<code>main.py:52-54</code> <code>onReceivedSslError</code> 改为显示错误提示页面而非无条件 <code>proceed()</code>；仅对特定已知域名放行（需要 <code>OVERLAY_SSL_VALIDATION</code> 模式开关）
-</td>
-<td>1 小时</td>
-</tr>
-<tr>
-<td>S3</td>
-<td>localStorage 明文密码移除</td>
-<td>
-<code>login.html:186-194</code> 删除 <code>localStorage.setItem("remember_password", ...)</code>；仅记住用户名；利用 Flask-Login 已有的 <code>remember=True</code> Cookie 机制
-</td>
-<td>30 分钟</td>
-</tr>
-<tr>
-<td>S4</td>
-<td>SECRET_KEY 强制要求</td>
-<td>
-<code>app.py:28</code> 移除硬编码 fallback，改为 <code>app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_hex(32)</code>（随机生成，重启后旧会话失效但安全）
-</td>
-<td>30 分钟</td>
-</tr>
-<tr>
-<td>S5</td>
-<td>管理员密码覆盖逻辑修复</td>
-<td>
-<code>app.py:557-563</code> 仅在管理员不存在时创建；已存在时<b>不再覆盖密码</b>，仅确保 <code>is_admin=True</code> 和 <code>is_active=True</code>
-</td>
-<td>1 小时</td>
-</tr>
-<tr>
-<td>Q4</td>
-<td>权限校验统一</td>
-<td>
-<code>app.py:1127</code> 和 <code>app.py:1176</code> 将 <code>not is_admin and user_id != current_user.id</code> 替换为 <code>not can_user_edit_record(current_user, record)</code> / <code>not can_user_delete_record(current_user, record)</code>
-</td>
-<td>1 小时</td>
-</tr>
-</table>
-
-<h4>9.2.2 P1 代码治理（3-5 天）</h4>
-
-<table>
-<tr><th style="width:50px">#</th><th style="width:180px">任务</th><th>修复方案</th><th style="width:80px">工作量</th></tr>
-<tr>
-<td>Q2</td>
-<td>删除 models.py 死文件</td>
-<td>直接 <code>git rm models.py</code>；更新 README 架构目录树</td>
-<td>10 分钟</td>
-</tr>
-<tr>
-<td>Q3</td>
-<td>清理重复函数</td>
-<td>删除 <code>app.py:684-706</code> 的重复 <code>get_max_security_attempts()</code> 和 <code>get_forgot_security_risk_status()</code>；保留 <code>app.py:176-198</code> 版本</td>
-<td>10 分钟</td>
-</tr>
-<tr>
-<td>P1</td>
-<td>统计查询改 SQL 聚合</td>
-<td>
-替换 <code>app.py:628-632</code>：<pre>stats = db.session.query(
-    db.func.count(GiftRecord.id).label('total_count'),
-    db.func.sum(GiftRecord.amount).label('total_amount'),
-    db.func.avg(GiftRecord.amount).label('avg_amount'),
-    db.func.max(GiftRecord.amount).label('max_amount')
-).first()</pre>
-</td>
-<td>2 小时</td>
-</tr>
-<tr>
-<td>P3</td>
-<td>日志清理改为定时/惰性</td>
-<td>方案 A：移除 <code>log_action()</code> 中的 <code>purge_expired_logs()</code> 调用，改用 <code>before_request</code> 钩子每 100 次请求触发一次清理<br>方案 B：用 <code>SystemSetting</code> 记录上次清理时间，间隔超过 1 小时才清理</td>
-<td>2 小时</td>
-</tr>
-<tr>
-<td>READ</td>
-<td>README 修正</td>
-<td>
-修正以下声明：<br>
-1. "脱机离线使用" → "需联网连接远程服务器使用"<br>
-2. "嵌入式 SQLite 数据库保存在手机内部" → "数据存储在远程服务器 SQLite 数据库中"<br>
-3. 默认端口 5000 → 11443<br>
-4. "完全包含 Web 版所有功能" → "为 Web 版功能子集"<br>
-5. 目录树移除 models.py
-</td>
-<td>1 小时</td>
-</tr>
-</table>
-
-<h4>9.2.3 P2 架构优化（1-2 周）</h4>
-
-<table>
-<tr><th style="width:50px">#</th><th style="width:180px">任务</th><th>修复方案</th><th style="width:80px">工作量</th></tr>
-<tr>
-<td>Q1</td>
-<td>拆分 app.py 为多模块</td>
-<td>
-采用 Blueprint 分区：<pre>gift_bookkeeping_apk/
-├── app.py          # Flask app 工厂 + 初始化
-├── models.py       # ORM 模型（真实使用版）
-├── middleware.py   # before_request/after_request 钩子
-├── auth.py         # Blueprint: 认证路由(7条)
-├── records.py      # Blueprint: 礼金CRUD路由(6条)
-├── admin.py        # Blueprint: 管理后台路由(15条)
-├── data_io.py      # Blueprint: 导入导出路由(3条)
-├── utils.py        # 工具函数(cn2num/num2cn/权限判定)
-├── config.py       # 配置管理
-└── templates/      # 不变</pre>
-</td>
-<td>3-5 天</td>
-</tr>
-<tr>
-<td>S6</td>
-<td>风控状态迁移至 SQLite</td>
-<td>
-新建 <code>SecurityEvent</code> 表存储登录/密保失败记录（含 username / event_type / fail_count / locked_until），替代内存字典。<code>get_user_risk_status()</code> 和 <code>get_forgot_security_risk_status()</code> 改为查询数据库
-</td>
-<td>1-2 天</td>
-</tr>
-<tr>
-<td>Q7</td>
-<td>补充核心测试用例</td>
-<td>
-使用 pytest + Flask test client 覆盖：登录流程、权限判定、金额转换、CSV 导入导出、风控锁定逻辑
-</td>
-<td>2-3 天</td>
-</tr>
-</table>
-
-<h4>9.2.4 条件性演进：离线化改造评估（绞杀者模式）</h4>
-
-<p>如果用户确实需要离线能力，建议采用<b>绞杀者模式 (Stranger Pattern)</b> 进行平滑迁移：</p>
-
-<div class="mermaid">
-graph TB
-    subgraph "阶段 1：双轨并行（评估期）"
-        A1["现有远程 WebView APK<br/>继续运行"] --> A2["新建本地 Flask APK<br/>实验室环境验证"]
-        A2 --> A3{"本地 Flask + SQLite<br/>能否在 Android 稳定运行？"}
-    end
-
-    subgraph "阶段 2：功能绞杀（迁移期）"
-        A3 -->|"是"| B1["本地 APK 实现全部离线功能"]
-        B1 --> B2["远程 APK 作为 fallback<br/>本地失败时降级到远程"]
-        B2 --> B3["用户逐步迁移到本地 APK"]
-    end
-
-    subgraph "阶段 3：完全切换（完成期）"
-        B3 --> C1["下线远程 APK"]
-        C1 --> C2["本地 APK 独立运行<br/>数据存储在手机内部"]
-    end
-
-    A3 -->|"否"| D1["维持现状<br/>优化远程服务可用性"]
-
-    style A3 fill:#fff3cd,stroke:#ffc107,stroke-width:2px
-    style D1 fill:#d4edda,stroke:#28a745
-</div>
-
-<table>
-<tr><th style="width:120px">阶段</th><th>目标</th><th>关键步骤</th><th style="width:100px">预计周期</th></tr>
-<tr>
-<td>评估期</td>
-<td>验证 Buildozer 能否将 Flask+SQLAlchemy 打包进 APK</td>
-<td>
-1. 修改 <code>buildozer.spec</code> requirements 加入 flask/flask-sqlalchemy<br>
-2. 修改 <code>main.py</code> 在 Android 端启动 Flask 线程服务 + WebView 加载 localhost<br>
-3. 解决 SQLite 在 Android 私有存储路径下的写入权限<br>
-4. 验证 Gunicorn 不可用（改为 Flask 内置 server）
-</td>
-<td>1-2 周</td>
-</tr>
-<tr>
-<td>迁移期</td>
-<td>本地 APK 功能对齐 + 数据迁移</td>
-<td>
-1. 本地 APK 实现与远程版完全一致的功能<br>
-2. 提供数据导入路径（从远程导出 CSV → 本地导入）<br>
-3. 远程 APK 作为降级 fallback 保留<br>
-4. <code>main.py</code> 增加本地/远程切换逻辑（本地优先）
-</td>
-<td>2-3 周</td>
-</tr>
-<tr>
-<td>完成期</td>
-<td>下线远程服务，完全离线</td>
-<td>
-1. 发布纯本地 APK 版本<br>
-2. 下线 <code>ljp.loveyy.indevs.in:15001</code> 远程服务<br>
-3. <code>TARGET_URL</code> 改为 <code>http://127.0.0.1:&lt;local_port&gt;/</code>
-</td>
-<td>1 周</td>
-</tr>
-</table>
-
-<div class="callout callout-info">
-<strong>离线化改造风险评估</strong>
-<ul style="margin-top:8px">
-<li><b>Buildozer + Flask 兼容性</b>：Flask 依赖 WSGI 服务器，Buildozer 通常不打包 Gunicorn。需使用 Flask 内置 <code>app.run()</code>（单线程，不适用生产但个人使用可接受）</li>
-<li><b>Android 后台服务生命周期</b>：Android 可能在内存不足时杀掉后台 Python 进程，需使用 Foreground Service 保活</li>
-<li><b>数据备份</b>：离线后数据仅存手机本地，需考虑导出/备份机制（现有 CSV 导出功能可复用）</li>
-<li><b>多设备同步</b>：离线模式下无法多设备共享数据，需评估是否为真实需求</li>
-</ul>
-</div>
-
-<h3>9.3 演进总结</h3>
-
-<div class="callout callout-success">
-<p><b>推荐路线：P0 → P1 → P2 → 条件性评估离线化</b></p>
-<p style="margin-top:8px">P0 安全修复（1-2 天）可立即消除 6 个高危安全漏洞；P1 代码治理（3-5 天）消除性能隐患和误导性文档；P2 架构优化（1-2 周）提升可维护性至行业基准线。离线化改造仅在确认用户有真实离线需求时启动，预计 4-8 周。</p>
-</div>
-
-<hr>
-<p style="text-align:center;color:var(--gray);font-size:13px;margin-top:40px">
-— PSD 文档第 1-9 部分全部完成 —<br>
-<i>所有架构事实均以 <code>app.py</code> / <code>main.py</code> / <code>models.py</code> / <code>buildozer.spec</code> / <code>.github/workflows/build_apk.yml</code> / 8 个 HTML 模板当前代码为最高准绳，行号引用基于提交 <code>0fe2e38</code>。</i>
-</p>
 
 </div>
 </body>

@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}人情对账 - 人情礼金记账系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0 text-primary fw-bold">
+                    <i class="fa-solid fa-scale-balanced me-2"></i>人情往来对账
+                </h5>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('reconciliation_sync') }}" class="btn btn-outline-warning btn-sm" title="从礼金账本拉取最新数据同步对账">
+                        <i class="fa-solid fa-rotate me-1"></i>从礼金账本同步数据
+                    </a>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa-solid fa-arrow-left me-1"></i>返回账本
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-light border d-flex align-items-center mb-4 shadow-sm">
+                    <i class="fa-solid fa-circle-info text-primary me-2 fa-lg"></i>
+                    <span class="small text-muted">人情对账自动汇总每个人名下的收礼总额与送礼总额，智能计算收支差额，帮您理清人情来往。</span>
+                </div>
+
+                <!-- 统计卡片区 -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="p-3 bg-white rounded-3 border border-start border-4 border-success shadow-sm text-center">
+                            <span class="text-muted d-block mb-1 small fw-bold">累计收礼金额 (对方来)</span>
+                            <span class="fs-4 fw-bold text-success privacy-blur">¥{{ "%.2f"|format(total_received) }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-white rounded-3 border border-start border-4 border-warning shadow-sm text-center">
+                            <span class="text-muted d-block mb-1 small fw-bold">累计送礼金额 (我方出)</span>
+                            <span class="fs-4 fw-bold text-warning privacy-blur">¥{{ "%.2f"|format(total_given) }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-white rounded-3 border border-start border-4 {{ 'border-success' if (total_received - total_given) >= 0 else 'border-danger' }} shadow-sm text-center">
+                            <span class="text-muted d-block mb-1 small fw-bold">总净差额 (收 - 送)</span>
+                            <span class="fs-4 fw-bold {{ 'text-success' if (total_received - total_given) >= 0 else 'text-danger' }} privacy-blur">
+                                {{ '+' if (total_received - total_given) > 0 else '' }}¥{{ "%.2f"|format(total_received - total_given) }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 搜索与筛选 Bar -->
+                <div class="card border-0 shadow-sm mb-4 bg-light">
+                    <div class="card-body p-3">
+                        <form method="GET" action="{{ url_for('reconciliation_view') }}" class="row g-2 align-items-center" id="filterForm">
+                            <!-- 搜索框 -->
+                            <div class="col-md-4">
+                                <div class="input-group shadow-sm border rounded-3 overflow-hidden bg-white">
+                                    <span class="input-group-text bg-white text-muted border-0 pe-2"><i class="fa-solid fa-magnifying-glass text-primary"></i></span>
+                                    <input type="text" name="search" class="form-control border-0 ps-1 py-2 shadow-none" placeholder="搜索亲友/联系人姓名..." value="{{ search }}" aria-label="搜索">
+                                    {% if search %}
+                                    <a href="{{ url_for('reconciliation_view', status=status, sort=sort_by, per_page=per_page) }}" class="btn btn-light border-0 d-flex align-items-center text-secondary px-3" title="清空搜索">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </a>
+                                    {% endif %}
+                                    <button type="submit" class="btn btn-primary px-3 border-0">
+                                        <i class="fa-solid fa-magnifying-glass me-1"></i> 查询
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- 状态筛选 -->
+                            <div class="col-md-3">
+                                <select class="form-select shadow-sm py-2" name="status" onchange="this.form.submit()">
+                                    <option value="">所有对账状态 (全部)</option>
+                                    <option value="need_return" {% if status == 'need_return' %}selected{% endif %}>🟢 待还礼 (尚欠我方，送 > 收)</option>
+                                    <option value="need_pay" {% if status == 'need_pay' %}selected{% endif %}>🔴 待补礼 (我方需回，收 > 送)</option>
+                                    <option value="balanced" {% if status == 'balanced' %}selected{% endif %}>⚪ 已平账 (金额相等)</option>
+                                </select>
+                            </div>
+                            <!-- 排序方式 -->
+                            <div class="col-md-3">
+                                <select class="form-select shadow-sm py-2" name="sort" onchange="this.form.submit()">
+                                    <option value="diff_abs_desc" {% if sort_by == 'diff_abs_desc' %}selected{% endif %}>按差额绝对值 (默认)</option>
+                                    <option value="need_return_first" {% if sort_by == 'need_return_first' %}selected{% endif %}>待还礼优先 (差额大到小)</option>
+                                    <option value="need_pay_first" {% if sort_by == 'need_pay_first' %}selected{% endif %}>待补礼优先 (差额小到大)</option>
+                                    <option value="received_desc" {% if sort_by == 'received_desc' %}selected{% endif %}>按收礼金额从高到低</option>
+                                    <option value="given_desc" {% if sort_by == 'given_desc' %}selected{% endif %}>按送礼金额从高到低</option>
+                                    <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>按姓名字母 A-Z</option>
+                                </select>
+                            </div>
+                            <!-- 分页条数设置 -->
+                            <div class="col-md-2">
+                                <select class="form-select shadow-sm py-2" name="per_page" onchange="this.form.submit()">
+                                    <option value="10" {% if per_page == 10 %}selected{% endif %}>每页 10 条 (默认)</option>
+                                    <option value="20" {% if per_page == 20 %}selected{% endif %}>每页 20 条</option>
+                                    <option value="50" {% if per_page == 50 %}selected{% endif %}>每页 50 条</option>
+                                    <option value="100" {% if per_page == 100 %}selected{% endif %}>每页 100 条</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 数据表格 -->
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">亲友 / 联系人</th>
+                                <th>收礼金额 (对方来)</th>
+                                <th>送礼金额 (我方出)</th>
+                                <th>对账差额 (收 - 送)</th>
+                                <th>人情状态</th>
+                                <th class="text-end pe-3">往来明细</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if balance_list %}
+                                {% for item in balance_list %}
+                                <tr>
+                                    <td class="ps-3 fw-bold fs-6 text-dark">{{ item.person_name }}</td>
+                                    <td class="text-success fw-bold privacy-blur">¥{{ "%.2f"|format(item.received_amount) }}</td>
+                                    <td class="text-warning fw-bold privacy-blur">¥{{ "%.2f"|format(item.given_amount) }}</td>
+                                    <td class="fw-bold privacy-blur {{ 'text-success' if item.net_balance > 0 else ('text-danger' if item.net_balance < 0 else 'text-muted') }}">
+                                        {{ '+' if item.net_balance > 0 else '' }}¥{{ "%.2f"|format(item.net_balance) }}
+                                    </td>
+                                    <td>
+                                        {% if item.net_balance < 0 %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                            <i class="fa-solid fa-arrow-down-left me-1"></i>待还礼 (尚欠我方)
+                                        </span>
+                                        {% elif item.net_balance > 0 %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                                            <i class="fa-solid fa-arrow-up-right me-1"></i>待补礼 (我方需回)
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-secondary-subtle text-secondary border">
+                                            <i class="fa-solid fa-check me-1"></i>已平账
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <button type="button" class="btn btn-sm btn-outline-primary btn-history-detail" data-person-name="{{ item.person_name }}">
+                                            <i class="fa-solid fa-clock-rotate-left me-1"></i>明细 ({{ item.records|length }})
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-5 text-muted">
+                                        <i class="fa-solid fa-file-invoice-dollar fa-3x mb-3 text-secondary opacity-50"></i>
+                                        <p class="mb-0">暂无匹配的人情对账数据</p>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 分页组件 -->
+                {% if total_pages > 1 or total_count > 0 %}
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-4 gap-3">
+                    <div class="text-muted small">
+                        显示第 <span class="fw-bold">{{ (page - 1) * per_page + 1 if total_count > 0 else 0 }}</span> 至 
+                        <span class="fw-bold">{{ [page * per_page, total_count]|min }}</span> 条，
+                        共 <span class="fw-bold text-primary">{{ total_count }}</span> 位亲友
+                    </div>
+                    {% if total_pages > 1 %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination pagination-sm mb-0">
+                            <!-- 首页与上一页 -->
+                            <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('reconciliation_view', page=1, per_page=per_page, search=search, status=status, sort=sort_by) }}">首页</a>
+                            </li>
+                            <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('reconciliation_view', page=page-1, per_page=per_page, search=search, status=status, sort=sort_by) }}">上一页</a>
+                            </li>
+
+                            <!-- 页码列表 (最多展示前后 3 页) -->
+                            {% for p in range([1, page - 3]|max, [total_pages, page + 3]|min + 1) %}
+                            <li class="page-item {% if p == page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('reconciliation_view', page=p, per_page=per_page, search=search, status=status, sort=sort_by) }}">{{ p }}</a>
+                            </li>
+                            {% endfor %}
+
+                            <!-- 下一页与末页 -->
+                            <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('reconciliation_view', page=page+1, per_page=per_page, search=search, status=status, sort=sort_by) }}">下一页</a>
+                            </li>
+                            <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('reconciliation_view', page=total_pages, per_page=per_page, search=search, status=status, sort=sort_by) }}">末页</a>
+                            </li>
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 明细模态框 -->
+<div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-light">
+                <h5 class="modal-title fw-bold text-primary" id="historyModalTitle">
+                    <i class="fa-solid fa-list-check me-2"></i>往来明细
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭" onclick="closeHistoryModal()"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>往来类型</th>
+                                <th>金额</th>
+                                <th>办席事由</th>
+                                <th>登记日期</th>
+                                <th>备注说明</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr><td colspan="5" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i>加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-light">
+                <button type="button" class="btn btn-secondary rounded-pill px-4 btn-sm" data-bs-dismiss="modal" onclick="closeHistoryModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    let localRecordsMap = {};
+    try {
+        localRecordsMap = {{ records_map_json | safe if records_map_json else '{}' }};
+    } catch(e) {
+        console.warn('Failed to parse records_map_json', e);
+    }
+
+    // 显示模态框辅助函数 (兼容 Bootstrap JS 及原生 Fallback)
+    function showModal(modalEl) {
+        if (!modalEl) return;
+        if (window.bootstrap && window.bootstrap.Modal) {
+            const inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            inst.show();
+            return;
+        }
+        // Fallback: 无 Bootstrap 实例时手动切换展示
+        modalEl.classList.add('show');
+        modalEl.style.display = 'block';
+        modalEl.removeAttribute('aria-hidden');
+        modalEl.setAttribute('aria-modal', 'true');
+        if (!document.querySelector('.modal-backdrop')) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show';
+            backdrop.id = 'historyModalBackdrop';
+            document.body.appendChild(backdrop);
+        }
+    }
+
+    window.closeHistoryModal = function() {
+        const modalEl = document.getElementById('historyModal');
+        if (!modalEl) return;
+        if (window.bootstrap && window.bootstrap.Modal) {
+            const inst = bootstrap.Modal.getInstance(modalEl);
+            if (inst) {
+                inst.hide();
+                return;
+            }
+        }
+        modalEl.classList.remove('show');
+        modalEl.style.display = 'none';
+        modalEl.setAttribute('aria-hidden', 'true');
+        const bd = document.getElementById('historyModalBackdrop');
+        if (bd) bd.remove();
+    };
+
+    function renderRows(records, tbody) {
+        tbody.innerHTML = '';
+        if (records && records.length > 0) {
+            records.forEach(r => {
+                const tr = document.createElement('tr');
+                const isSend = (r.record_type === 'send' || r.gift_type === 'sent');
+                const typeBadge = isSend 
+                    ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="fa-solid fa-paper-plane me-1"></i>送礼(我方出)</span>'
+                    : '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-hand-holding-dollar me-1"></i>收礼(对方来)</span>';
+                const amtColor = isSend ? 'text-danger' : 'text-success';
+                const amt = Number(r.amount || 0).toFixed(2);
+                const reason = r.event_type || r.event_reason || r.event_category || '礼金';
+                const date = r.event_date || r.created_at || '-';
+                const notes = r.remarks || r.notes || '-';
+
+                tr.innerHTML = `
+                    <td>${typeBadge}</td>
+                    <td class="fw-bold ${amtColor} privacy-blur">¥${amt}</td>
+                    <td><span class="badge bg-light text-dark border">${reason}</span></td>
+                    <td class="small text-muted">${date}</td>
+                    <td class="small text-muted text-truncate" style="max-width: 200px;" title="${notes}">${notes}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">暂无相关往来记录</td></tr>';
+        }
+    }
+
+    function openHistory(personName) {
+        const name = (personName || '').trim();
+        if (!name) return;
+
+        const titleEl = document.getElementById('historyModalTitle');
+        const tbody = document.getElementById('historyTableBody');
+        const modalEl = document.getElementById('historyModal');
+
+        if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-user me-2"></i>[${name}] 的人情往来明细`;
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i>加载明细中...</td></tr>';
+
+        showModal(modalEl);
+
+        // 优先使用本地数据字典，瞬间呈现
+        if (localRecordsMap && localRecordsMap[name] && localRecordsMap[name].length > 0) {
+            renderRows(localRecordsMap[name], tbody);
+            return;
+        }
+
+        // 本地没有时请求后端 API
+        fetch('/api/person_ledger/' + encodeURIComponent(name))
+            .then(res => res.json())
+            .then(data => {
+                if (data.code === 200 && data.records) {
+                    renderRows(data.records, tbody);
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">暂无明细记录</td></tr>';
+                }
+            })
+            .catch(() => {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">网络异常，加载明细失败</td></tr>';
+            });
+    }
+
+    // 事件委托绑定明细按钮点击事件，杜绝 onclick 语法与引号转义失效
+    document.addEventListener('DOMContentLoaded', function() {
+        document.body.addEventListener('click', function(e) {
+            const btn = e.target.closest('.btn-history-detail');
+            if (btn) {
+                e.preventDefault();
+                const name = btn.getAttribute('data-person-name');
+                openHistory(name);
+            }
+        });
+    });
+
+    // 暴露全局备用
+    window.viewHistory = openHistory;
+})();
+</script>
+{% endblock %}

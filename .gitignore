@@ -35,9 +35,29 @@ pip-delete-this-directory.txt
 
 # Database
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
+*.bak_*
+*.corrupted_*
+*.malformed_*
 instance/
+data/
+
+# Logs
+*.log
+app.log
+app_err*.log
+app_stdout.log
+
+# Temp
+.temp/
+*_test_*.py
+*~
+*.swp
+*.swo
 
 # Environments
 .env

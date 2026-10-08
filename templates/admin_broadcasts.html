@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="broadcastToastContainer" style="position: fixed; top: 75px; right: 25px; z-index: 9999; min-width: 280px;"></div>
+<div class="row mb-4 align-items-center">
+  <div class="col-md-6">
+    <h3 class="fw-bold mb-1"><i class="fa-solid fa-bullhorn text-danger me-2"></i>系统广播通知管理</h3>
+    <p class="text-muted mb-0">向系统所有或指定角色用户发布即时系统通知与重要公告</p>
+  </div>
+  <div class="col-md-6 text-md-end mt-3 mt-md-0">
+    <button class="btn btn-danger rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#newBroadcastModal">
+      <i class="fa-solid fa-plus me-1"></i>发布新广播
+    </button>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+  <div class="card-header bg-white py-3 border-light">
+    <h5 class="card-title fw-bold mb-0 text-dark">历史广播列表</h5>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-4">ID</th>
+            <th>标题</th>
+            <th>内容摘要</th>
+            <th>通知级别</th>
+            <th>通知范围</th>
+            <th>状态</th>
+            <th>发布时间</th>
+            <th class="text-end pe-4">操作</th>
+          </tr>
+        </thead>
+        <tbody id="broadcastTableBody">
+          {% for b in broadcasts %}
+          <tr id="broadcast-row-{{ b.id }}">
+            <td class="ps-4 fw-bold text-muted">#{{ b.id }}</td>
+            <td class="fw-bold">{{ b.title }}</td>
+            <td class="text-muted text-truncate" style="max-width: 260px;" title="{{ b.content }}">{{ b.content }}</td>
+            <td>
+              {% if b.level == 'danger' %}
+                <span class="badge bg-danger rounded-pill">紧急</span>
+              {% elif b.level == 'warning' %}
+                <span class="badge bg-warning text-dark rounded-pill">重要</span>
+              {% elif b.level == 'success' %}
+                <span class="badge bg-success rounded-pill">提示</span>
+              {% else %}
+                <span class="badge bg-info rounded-pill">普通</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if b.scope == 'admin' %}
+                <span class="badge bg-dark">仅管理员</span>
+              {% elif b.scope == 'user' %}
+                <span class="badge bg-primary">普通用户</span>
+              {% else %}
+                <span class="badge bg-secondary">全员可见</span>
+              {% endif %}
+            </td>
+            <td id="status-cell-{{ b.id }}">
+              {% if b.is_active %}
+                <span class="badge bg-success rounded-pill"><i class="fa-solid fa-circle-check me-1"></i>展示中</span>
+              {% else %}
+                <span class="badge bg-secondary rounded-pill"><i class="fa-solid fa-circle-pause me-1"></i>已下线</span>
+              {% endif %}
+            </td>
+            <td><small class="text-muted">{{ b.created_at.strftime('%Y-%m-%d %H:%M') if b.created_at else '-' }}</small></td>
+            <td class="text-end pe-4">
+              <form action="{{ url_for('admin_toggle_broadcast', broadcast_id=b.id) }}" method="POST" class="d-inline toggle-broadcast-form" data-id="{{ b.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-sm {{ 'btn-outline-warning' if b.is_active else 'btn-outline-success' }} toggle-btn" title="{{ '下线广播' if b.is_active else '上线广播' }}">
+                  <i class="fa-solid {{ 'fa-eye-slash' if b.is_active else 'fa-eye' }}"></i>
+                  <span class="btn-text ms-1">{{ '下线' if b.is_active else '上线' }}</span>
+                </button>
+              </form>
+              <form action="{{ url_for('admin_delete_broadcast', broadcast_id=b.id) }}" method="POST" class="d-inline" onsubmit="return confirm('确定要彻底删除此系统广播吗？');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="彻底删除">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center py-5 text-muted">
+              <i class="fa-solid fa-bullhorn fa-3x mb-3 text-secondary opacity-50"></i>
+              <p class="mb-0">暂无系统广播记录</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 发布新广播 Modal -->
+<div class="modal fade" id="newBroadcastModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header border-light">
+        <h5 class="modal-title fw-bold"><i class="fa-solid fa-bullhorn text-danger me-2"></i>发布新广播</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form action="{{ url_for('admin_broadcasts') }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">广播标题 <span class="text-danger">*</span></label>
+            <input type="text" name="title" class="form-control rounded-3" placeholder="例如：系统维护通知或节假日祝福" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">广播级别</label>
+            <select name="level" class="form-select rounded-3">
+              <option value="info">普通通知 (蓝色)</option>
+              <option value="warning">重要提示 (黄色)</option>
+              <option value="danger">紧急公告 (红色)</option>
+              <option value="success">喜报祝福 (绿色)</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">通知范围</label>
+            <select name="scope" class="form-select rounded-3">
+              <option value="all" selected>全体用户 (全员广播)</option>
+              <option value="admin">仅管理员可见</option>
+              <option value="user">仅普通用户可见</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">广播正文内容 <span class="text-danger">*</span></label>
+            <textarea name="content" class="form-control rounded-3" rows="4" placeholder="请输入需要向用户广播的内容..." required></textarea>
+          </div>
+          <div class="form-check form-switch p-3 bg-light rounded-3 border">
+            <input class="form-check-input ms-0 me-2" type="checkbox" name="is_active" id="modal_is_active" value="1" checked>
+            <label class="form-check-label fw-bold text-success" for="modal_is_active">
+              <i class="fa-solid fa-circle-check me-1"></i>立即上线展示（用户登录及首页可见）
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer border-light">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-danger rounded-pill px-4 shadow-sm">立即发布广播</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+
+    function showBroadcastToast(message, type) {
+        const container = document.getElementById('broadcastToastContainer');
+        if (!container) return;
+        const toastEl = document.createElement('div');
+        toastEl.className = `alert alert-${type || 'success'} alert-dismissible fade show shadow-lg py-2 px-3 mb-2 rounded-3 border`;
+        toastEl.innerHTML = `
+            <div class="d-flex align-items-center justify-content-between">
+                <span><i class="fa-solid fa-circle-check text-${type || 'success'} me-2"></i>${message}</span>
+                <button type="button" class="btn-close btn-close-sm ms-2" data-bs-dismiss="alert" style="font-size: 0.7rem;"></button>
+            </div>
+        `;
+        container.appendChild(toastEl);
+        setTimeout(() => {
+            toastEl.classList.remove('show');
+            setTimeout(() => { if (toastEl.parentNode) toastEl.remove(); }, 350);
+        }, 3000);
+    }
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 拦截上线/下线按钮表单，使用 AJAX 提交平滑更新状态，绝不呈现原始 JSON
+    const forms = document.querySelectorAll('.toggle-broadcast-form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const btn = form.querySelector('.toggle-btn');
+            const icon = btn.querySelector('i');
+            const text = btn.querySelector('.btn-text');
+            const id = form.getAttribute('data-id');
+            const statusCell = document.getElementById('status-cell-' + id);
+            const csrfToken = form.querySelector('input[name="csrf_token"]').value;
+
+            btn.disabled = true;
+
+            fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({ 'csrf_token': csrfToken })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.is_active) {
+                        // 变为展示中
+                        statusCell.innerHTML = '<span class="badge bg-success rounded-pill"><i class="fa-solid fa-circle-check me-1"></i>展示中</span>';
+                        btn.className = 'btn btn-sm btn-outline-warning toggle-btn';
+                        btn.title = '下线广播';
+                        icon.className = 'fa-solid fa-eye-slash';
+                        if (text) text.textContent = '下线';
+                    } else {
+                        // 变为已下线
+                        statusCell.innerHTML = '<span class="badge bg-secondary rounded-pill"><i class="fa-solid fa-circle-pause me-1"></i>已下线</span>';
+                        btn.className = 'btn btn-sm btn-outline-success toggle-btn';
+                        btn.title = '上线广播';
+                        icon.className = 'fa-solid fa-eye';
+                        if (text) text.textContent = '上线';
+                    }
+                } else {
+                    alert(data.message || '操作失败');
+                }
+            })
+            .catch(err => {
+                console.error('Toggle error:', err);
+                // 失败时直接降级为普通表单提交
+                form.submit();
+            })
+            .finally(() => {
+                btn.disabled = false;
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

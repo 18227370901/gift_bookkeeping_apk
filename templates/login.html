@@ -16,7 +16,7 @@
                         <label for="username" class="form-label">用户名</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
-                            <input type="text" class="form-control" id="username" name="username" placeholder="请输入用户名" required>
+                            <input type="text" class="form-control" id="username" name="username" placeholder="请输入用户名" value="{{ username or '' }}" required>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -24,6 +24,9 @@
                         <div class="input-group">
                             <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
                             <input type="password" class="form-control" id="password" name="password" placeholder="请输入密码" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('password', this)" title="切换明密文">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
                         </div>
                     </div>
                     <div class="mb-3" id="captchaContainer" style="{% if not require_captcha %}display: none;{% endif %}">
@@ -167,7 +170,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
     {% if username %}
     if (usernameInput) {
-        usernameInput.value = {{ username|tojson }};
         checkUserRisk({{ username|tojson }});
     }
     {% else %}

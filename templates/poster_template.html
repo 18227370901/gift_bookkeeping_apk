@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>礼金年度海报</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; background: #f5f0e8; }
+        .poster-container { width: 375px; margin: 0 auto; background: linear-gradient(180deg, #fff5e6 0%, #ffe8cc 100%); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(139,0,0,0.15); }
+        .poster-header { background: linear-gradient(135deg, #8B0000 0%, #c41e3a 100%); color: #fff; padding: 30px 20px; text-align: center; }
+        .poster-header h1 { font-size: 24px; letter-spacing: 2px; margin-bottom: 8px; font-family: "KaiTi", "楷体", serif; }
+        .poster-header .year { font-size: 14px; opacity: 0.9; }
+        .stats-section { padding: 20px; display: flex; justify-content: space-around; }
+        .stat-card { text-align: center; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.8); width: 30%; }
+        .stat-card .label { font-size: 11px; color: #999; margin-bottom: 4px; }
+        .stat-card .value { font-size: 18px; font-weight: bold; }
+        .stat-card.received .value { color: #198754; }
+        .stat-card.sent .value { color: #dc3545; }
+        .stat-card.net .value { color: #0d6efd; }
+        .section-title { padding: 15px 20px 8px; font-size: 14px; font-weight: bold; color: #8B0000; display: flex; align-items: center; gap: 6px; }
+        .top-list { padding: 0 20px 15px; }
+        .top-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; margin-bottom: 6px; background: rgba(255,255,255,0.6); border-radius: 8px; font-size: 13px; }
+        .top-item .rank { font-weight: bold; color: #8B0000; width: 24px; }
+        .top-item .name { flex: 1; }
+        .top-item .amount { font-weight: bold; color: #c41e3a; }
+        .reason-section { padding: 0 20px 15px; }
+        .reason-bar { display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; }
+        .reason-bar .r-name { width: 60px; text-align: right; margin-right: 8px; color: #666; }
+        .reason-bar .r-bar-bg { flex: 1; height: 14px; background: rgba(255,255,255,0.5); border-radius: 7px; overflow: hidden; }
+        .reason-bar .r-bar-fill { height: 100%; border-radius: 7px; background: linear-gradient(90deg, #8B0000, #c41e3a); }
+        .reason-bar .r-pct { width: 36px; text-align: right; margin-left: 6px; color: #999; }
+        .poster-footer { padding: 15px 20px; text-align: center; border-top: 1px solid rgba(139,0,0,0.1); }
+        .poster-footer .brand { font-size: 12px; color: #8B0000; font-weight: bold; }
+        .poster-footer .slogan { font-size: 10px; color: #999; margin-top: 4px; }
+        .poster-footer .qr-area { margin-top: 10px; }
+        .poster-footer .qr-placeholder { display: inline-block; width: 60px; height: 60px; background: #fff; border: 1px solid #ddd; border-radius: 6px; line-height: 60px; font-size: 10px; color: #999; }
+        .no-print { text-align: center; padding: 20px; }
+        .no-print button { padding: 10px 30px; font-size: 16px; background: #8B0000; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+        .no-print button:hover { background: #a00000; }
+        @media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button onclick="generatePosterImage()">📸 生成长图海报并下载</button>
+    </div>
+    <div id="posterContent" class="poster-container">
+        <div class="poster-header">
+            <h1>🏮 礼金年度报告</h1>
+            <div class="year" id="posterYear">2026年度</div>
+        </div>
+        <div class="stats-section">
+            <div class="stat-card received">
+                <div class="label">收礼</div>
+                <div class="value" id="posterReceived">¥0</div>
+            </div>
+            <div class="stat-card sent">
+                <div class="label">送礼</div>
+                <div class="value" id="posterSent">¥0</div>
+            </div>
+            <div class="stat-card net">
+                <div class="label">净额</div>
+                <div class="value" id="posterNet">¥0</div>
+            </div>
+        </div>
+        <div class="section-title">🏆 往来密切 TOP5</div>
+        <div class="top-list" id="posterTop5"></div>
+        <div class="section-title">📊 事由分布</div>
+        <div class="reason-section" id="posterReasons"></div>
+        <div class="poster-footer">
+            <div class="brand">人情记账宝</div>
+            <div class="slogan">轻松记账 · 人情不糊涂</div>
+            <div class="qr-area"><div class="qr-placeholder">扫码体验</div></div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='vendor/html2canvas/1.4.1/html2canvas.min.js') }}"></script>
+    <script>
+    // ===== 加载海报数据 =====
+    function loadPosterData() {
+        fetch('/api/poster/data', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.code !== 200 || !data.data) return;
+            var d = data.data;
+            document.getElementById('posterYear').textContent = (d.year || '2026') + '年度';
+            document.getElementById('posterReceived').textContent = '¥' + formatNum(d.summary.total_received);
+            document.getElementById('posterSent').textContent = '¥' + formatNum(d.summary.total_sent);
+            var net = d.summary.total_received - d.summary.total_sent;
+            document.getElementById('posterNet').textContent = (net >= 0 ? '+¥' : '-¥') + formatNum(Math.abs(net));
+            // TOP5
+            var topHtml = '';
+            if (d.top5 && d.top5.length > 0) {
+                d.top5.forEach(function(item, i) {
+                    topHtml += '<div class="top-item"><span class="rank">' + (i+1) + '</span><span class="name">' + item.name + '</span><span class="amount">¥' + formatNum(item.total) + '</span></div>';
+                });
+            } else {
+                topHtml = '<div style="text-align:center;color:#999;padding:10px;">暂无往来数据</div>';
+            }
+            document.getElementById('posterTop5').innerHTML = topHtml;
+            // 事由分布
+            var reasonHtml = '';
+            if (d.reasons && d.reasons.length > 0) {
+                var maxAmount = Math.max.apply(null, d.reasons.map(function(r) { return r.amount; }));
+                d.reasons.forEach(function(r) {
+                    var pct = maxAmount > 0 ? Math.round(r.amount / maxAmount * 100) : 0;
+                    reasonHtml += '<div class="reason-bar"><span class="r-name">' + r.reason + '</span><div class="r-bar-bg"><div class="r-bar-fill" style="width:' + pct + '%"></div></div><span class="r-pct">' + r.percentage + '%</span></div>';
+                });
+            } else {
+                reasonHtml = '<div style="text-align:center;color:#999;padding:10px;">暂无事由数据</div>';
+            }
+            document.getElementById('posterReasons').innerHTML = reasonHtml;
+        });
+    }
+
+    function formatNum(n) {
+        n = n || 0;
+        return n >= 10000 ? (n / 10000).toFixed(1) + '万' : n.toFixed(0);
+    }
+
+    // ===== 生成长图海报并下载 =====
+    function generatePosterImage() {
+        html2canvas(document.getElementById('posterContent'), {
+            scale: 2, backgroundColor: '#fff5e6', useCORS: true
+        }).then(function(canvas) {
+            var link = document.createElement('a');
+            link.download = '礼金年度报告_' + new Date().getFullYear() + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', loadPosterData);
+    </script>
+</body>
+</html>

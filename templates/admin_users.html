@@ -14,6 +14,44 @@
     <i class="fa-solid fa-arrow-left me-1"></i>返回主页
   </a>
 </div>
+<!-- 注册模式控制卡片 -->
+<div class="card card-custom border-0 mb-4 shadow-sm">
+  <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-user-plus me-2 text-success"></i>用户注册开放模式控制</h5>
+    <span class="badge {% if registration_mode == 'free' %}bg-success{% else %}bg-warning text-dark{% endif %} px-3 py-2 rounded-pill">
+      当前模式：{{ '自由开放注册 (访客直接注册)' if registration_mode == 'free' else '仅邀请链接注册 (严格邀请制)' }}
+    </span>
+  </div>
+  <div class="card-body">
+    <form action="{{ url_for('admin_set_registration_mode') }}" method="POST" class="row g-3 align-items-center">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="col-md-8">
+        <div class="d-flex flex-column flex-md-row gap-3 p-3 bg-light rounded-3 border">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="registration_mode" id="reg_mode_invite" value="invite_only" {% if registration_mode != 'free' %}checked{% endif %}>
+            <label class="form-check-label fw-bold text-dark" for="reg_mode_invite">
+              <i class="fa-solid fa-lock me-1 text-warning"></i>仅邀请链接注册 (推荐)
+              <span class="d-block small text-muted font-normal">新用户必须持有管理员生成的有效邀请链接方可进入注册页完成注册。</span>
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="registration_mode" id="reg_mode_free" value="free" {% if registration_mode == 'free' %}checked{% endif %}>
+            <label class="form-check-label fw-bold text-dark" for="reg_mode_free">
+              <i class="fa-solid fa-lock-open me-1 text-success"></i>自由开放注册
+              <span class="d-block small text-muted font-normal">任何访客均可自由直接注册账号，注册后默认仅开通基础礼金账本权限。</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
+          <i class="fa-solid fa-floppy-disk me-1"></i>保存注册模式设置
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- 系统配置与生成注册邀请链接卡片 -->
 <div class="card card-custom border-0 mb-4 shadow-sm">
   <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
@@ -138,7 +176,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for t in tokens %}
+          {% for t in tokens %}>
           <tr>
             <td class="text-center">
               <input type="checkbox" name="token_ids" value="{{ t.id }}" class="form-check-input token-checkbox" style="cursor: pointer;">
@@ -184,6 +222,9 @@
   <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div class="d-flex align-items-center gap-2">
       <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-users me-2 text-danger"></i>用户列表</h5>
+      <button type="button" id="batchPermUsersBtn" class="btn btn-outline-primary btn-sm" onclick="openBatchPermModal()">
+        <i class="fa-solid fa-user-gear me-1"></i>批量配置菜单与权限
+      </button>
       <button type="button" id="batchDeleteUsersBtn" class="btn btn-outline-danger btn-sm" disabled onclick="submitBatchDeleteUsers()">
         <i class="fa-solid fa-trash-can me-1"></i>批量删除 (<span id="checkedUsersCount">0</span>)
       </button>
@@ -205,6 +246,8 @@
             <th>角色身份</th>
             <th>跨用户数据权限</th>
             <th>账号状态</th>
+            <th>登录风控</th>
+            <th>密保风控</th>
             <th>密保问题</th>
             <th>注册时间</th>
             <th class="text-end pe-4">操作选项</th>
@@ -238,16 +281,15 @@
               {% if u.is_admin %}
               <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill"><i class="fa-solid fa-crown me-1"></i>全局完全权限</span>
               {% else %}
-              <div class="d-flex gap-1 flex-wrap align-items-center">
-                <span class="badge {{ 'bg-primary' if u.can_view_others else 'bg-light text-muted border' }}" title="查看他人数据">
-                  <i class="fa-solid fa-eye me-1"></i>查他人: {{ '允许' if u.can_view_others else '禁止' }}
-                </span>
-                <span class="badge {{ 'bg-warning text-dark' if u.can_edit_others else 'bg-light text-muted border' }}" title="编辑他人数据">
-                  <i class="fa-solid fa-pen-to-square me-1"></i>改他人: {{ '允许' if u.can_edit_others else '禁止' }}
-                </span>
-                <span class="badge {{ 'bg-danger' if u.can_delete_others else 'bg-light text-muted border' }}" title="删除他人数据">
-                  <i class="fa-solid fa-trash me-1"></i>删他人: {{ '允许' if u.can_delete_others else '禁止' }}
-                </span>
+              <div class="d-flex gap-1 flex-wrap align-items-center" style="max-width: 260px;">
+                {% set p_labels = {0: '仅自身', 1: '自身全权+查他人', 2: '查改他人', 3: '完全'} %}
+                {% set m_names = {'ledger': '账本', 'banquets': '宴席', 'reconciliation': '对账', 'reminders': '备忘', 'recycle_bin': '回收'} %}
+                {% for mk in ['ledger', 'banquets', 'reconciliation', 'reminders', 'recycle_bin'] %}
+                  {% set pv = u.get_menu_perm(mk) %}
+                  <span class="badge {% if pv == 3 %}bg-danger text-white{% elif pv == 2 %}bg-warning text-dark{% elif pv == 1 %}bg-primary text-white{% else %}bg-light text-secondary border{% endif %}" style="font-size: 0.72rem;" title="{{ m_names[mk] }}: {{ p_labels[pv] }}">
+                    {{ m_names[mk] }}:{{ p_labels[pv] }}
+                  </span>
+                {% endfor %}
               </div>
               {% endif %}
             </td>
@@ -256,6 +298,32 @@
               <span class="badge bg-success rounded-pill"><i class="fa-solid fa-check me-1"></i>正常</span>
               {% else %}
               <span class="badge bg-danger rounded-pill"><i class="fa-solid fa-ban me-1"></i>已禁用</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if login_risks.get(u.username) and login_risks[u.username].locked_until and login_risks[u.username].locked_until > now %}
+              <span class="badge bg-danger rounded-pill" title="锁定至: {{ login_risks[u.username].locked_until.strftime('%Y-%m-%d %H:%M:%S') }}">
+                <i class="fa-solid fa-lock me-1"></i>已锁定 ({{ login_risks[u.username].fail_count }}次)
+              </span>
+              {% elif login_risks.get(u.username) and login_risks[u.username].fail_count > 0 %}
+              <span class="badge bg-warning text-dark rounded-pill">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i>失败 {{ login_risks[u.username].fail_count }} 次
+              </span>
+              {% else %}
+              <span class="badge bg-light text-muted border rounded-pill">正常</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if sec_risks.get(u.username) and sec_risks[u.username].locked_until and sec_risks[u.username].locked_until > now %}
+              <span class="badge bg-danger rounded-pill" title="锁定至: {{ sec_risks[u.username].locked_until.strftime('%Y-%m-%d %H:%M:%S') }}">
+                <i class="fa-solid fa-lock me-1"></i>已锁定 ({{ sec_risks[u.username].fail_count }}次)
+              </span>
+              {% elif sec_risks.get(u.username) and sec_risks[u.username].fail_count > 0 %}
+              <span class="badge bg-warning text-dark rounded-pill">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i>失败 {{ sec_risks[u.username].fail_count }} 次
+              </span>
+              {% else %}
+              <span class="badge bg-light text-muted border rounded-pill">正常</span>
               {% endif %}
             </td>
             <td class="text-muted"><small>{{ u.security_question }}</small></td>
@@ -287,6 +355,17 @@
                 <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#resetSecModal{{ u.id }}">
                   <i class="fa-solid fa-shield-halved me-1"></i>重置密保
                 </button>
+                <button type="button" class="btn btn-outline-dark" onclick="viewUserCredentials({{ u.id }}, '{{ u.username }}', {{ 'true' if u.is_admin else 'false' }})" title="查看安全凭证（明文密码及密保问答）">
+                  <i class="fa-solid fa-user-shield me-1"></i>查看凭证
+                </button>
+                {% if (login_risks.get(u.username) and (login_risks[u.username].fail_count > 0 or login_risks[u.username].locked_until)) or (sec_risks.get(u.username) and (sec_risks[u.username].fail_count > 0 or sec_risks[u.username].locked_until)) %}
+                <form action="{{ url_for('admin_unlock_risk', user_id=u.id) }}" method="POST" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn-outline-warning" onclick="return confirm('确定要解除该用户的风控锁定并重置失败次数吗？');" title="解锁登录/密保风控">
+                    <i class="fa-solid fa-lock-open me-1"></i>解锁风控
+                  </button>
+                </form>
+                {% endif %}
                 {% if u.id != current_user.id %}
                 <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal{{ u.id }}">
                   <i class="fa-solid fa-trash me-1"></i>删除
@@ -305,6 +384,26 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                       </div>
                       <div class="modal-body py-3">
+                        {% if u.is_admin %}
+                        <div class="alert alert-warning py-2 px-3 small rounded-3 mb-3">
+                          <i class="fa-solid fa-shield-halved me-1 text-warning"></i>
+                          <strong>安全验证：</strong>管理员账号必须先验证原密码或原密保答案！
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label small fw-bold text-dark">原密码验证 (与密保答案二选一)：</label>
+                          <input type="password" name="old_password" class="form-control form-control-sm" placeholder="请输入当前管理员的原密码">
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label small fw-bold text-dark">原密保答案验证 (与原密码二选一)：</label>
+                          <div class="small text-muted mb-1">问题 1：{{ u.security_question_1 or u.security_question or '默认安全问题' }}</div>
+                          <input type="text" name="old_security_answer_1" class="form-control form-control-sm" placeholder="请输入原密保问题 1 的答案">
+                          {% if u.security_question_2 %}
+                          <div class="small text-muted mb-1 mt-2">问题 2：{{ u.security_question_2 }}</div>
+                          <input type="text" name="old_security_answer_2" class="form-control form-control-sm" placeholder="请输入原密保问题 2 的答案">
+                          {% endif %}
+                        </div>
+                        <hr class="my-2 text-muted">
+                        {% endif %}
                         <div class="mb-3">
                           <label class="form-label small text-muted">请输入新密码：</label>
                           <div class="input-group">
@@ -345,42 +444,167 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                       </div>
                       <div class="modal-body py-3">
-                        <div class="alert alert-info py-2 px-3 small mb-3">
-                          <i class="fa-solid fa-circle-info me-1"></i>
-                          权限遵循阶梯等级原则：<strong>删除他人</strong> 包含 <strong>修改他人</strong> 与 <strong>查看他人</strong>；<strong>修改他人</strong> 包含 <strong>查看他人</strong>。
-                          <br><strong class="text-danger"><i class="fa-solid fa-shield-halved me-1"></i>安全限制：</strong>普通用户无论获得何种跨用户权限，均<strong>无法修改或删除管理员</strong>创建的数据。
+                        <!-- 菜单页面访问权限区域：每个菜单独立配置权限选项 -->
+                        <div class="mb-3">
+                          <div class="d-flex align-items-center justify-content-between mb-2">
+                            <label class="form-label fw-bold small text-dark mb-0">
+                              <i class="fa-solid fa-bars-progress me-1 text-primary"></i>菜单页面访问权限：
+                            </label>
+                            <span class="text-muted" style="font-size: 0.75rem;">各菜单独立配置数据操作级别</span>
+                          </div>
+
+                          <div class="list-group shadow-sm">
+                            <!-- 1. 礼金账本 -->
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                              <div class="form-check mb-0 d-flex align-items-center">
+                                <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="ledger" id="menu_ledger_{{ u.id }}" {% if u.can_access_menu('ledger') %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold small text-dark" for="menu_ledger_{{ u.id }}">
+                                  <i class="fa-solid fa-list text-success me-1"></i>礼金账本
+                                </label>
+                              </div>
+                              <div style="min-width: 210px;">
+                                {% set p_ledger = u.get_menu_perm('ledger') %}
+                                <select class="form-select form-select-sm" name="menu_perm_ledger">
+                                  <option value="0" {% if p_ledger == 0 %}selected{% endif %}>仅管理自身数据</option>
+                                  <option value="1" {% if p_ledger == 1 %}selected{% endif %}>自身全权 + 仅查看他人数据</option>
+                                  <option value="2" {% if p_ledger == 2 %}selected{% endif %}>查看+修改他人数据</option>
+                                  <option value="3" {% if p_ledger == 3 %}selected{% endif %}>查看+修改+删除他人数据</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <!-- 2. 专属宴席 -->
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                              <div class="form-check mb-0 d-flex align-items-center">
+                                <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="banquets" id="menu_banquets_{{ u.id }}" {% if u.can_access_menu('banquets') %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold small text-dark" for="menu_banquets_{{ u.id }}">
+                                  <i class="fa-solid fa-champagne-glasses text-warning me-1"></i>专属宴席
+                                </label>
+                              </div>
+                              <div style="min-width: 210px;">
+                                {% set p_banquets = u.get_menu_perm('banquets') %}
+                                <select class="form-select form-select-sm" name="menu_perm_banquets">
+                                  <option value="0" {% if p_banquets == 0 %}selected{% endif %}>仅管理自身数据</option>
+                                  <option value="1" {% if p_banquets == 1 %}selected{% endif %}>自身全权 + 仅查看他人数据</option>
+                                  <option value="2" {% if p_banquets == 2 %}selected{% endif %}>查看+修改他人数据</option>
+                                  <option value="3" {% if p_banquets == 3 %}selected{% endif %}>查看+修改+删除他人数据</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <!-- 3. 人情对账 -->
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                              <div class="form-check mb-0 d-flex align-items-center">
+                                <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="reconciliation" id="menu_recon_{{ u.id }}" {% if u.can_access_menu('reconciliation') %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold small text-dark" for="menu_recon_{{ u.id }}">
+                                  <i class="fa-solid fa-scale-balanced text-info me-1"></i>人情对账
+                                </label>
+                              </div>
+                              <div style="min-width: 210px;">
+                                {% set p_recon = u.get_menu_perm('reconciliation') %}
+                                <select class="form-select form-select-sm" name="menu_perm_reconciliation">
+                                  <option value="0" {% if p_recon == 0 %}selected{% endif %}>仅管理自身数据</option>
+                                  <option value="1" {% if p_recon == 1 %}selected{% endif %}>自身全权 + 仅查看他人数据</option>
+                                  <option value="2" {% if p_recon == 2 %}selected{% endif %}>查看+修改他人数据</option>
+                                  <option value="3" {% if p_recon == 3 %}selected{% endif %}>查看+修改+删除他人数据</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <!-- 4. 纪念日备忘 -->
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                              <div class="form-check mb-0 d-flex align-items-center">
+                                <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="reminders" id="menu_reminders_{{ u.id }}" {% if u.can_access_menu('reminders') %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold small text-dark" for="menu_reminders_{{ u.id }}">
+                                  <i class="fa-solid fa-bell text-primary me-1"></i>纪念日备忘
+                                </label>
+                              </div>
+                              <div style="min-width: 210px;">
+                                {% set p_reminders = u.get_menu_perm('reminders') %}
+                                <select class="form-select form-select-sm" name="menu_perm_reminders">
+                                  <option value="0" {% if p_reminders == 0 %}selected{% endif %}>仅管理自身数据</option>
+                                  <option value="1" {% if p_reminders == 1 %}selected{% endif %}>自身全权 + 仅查看他人数据</option>
+                                  <option value="2" {% if p_reminders == 2 %}selected{% endif %}>查看+修改他人数据</option>
+                                  <option value="3" {% if p_reminders == 3 %}selected{% endif %}>查看+修改+删除他人数据</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <!-- 5. 回收站 -->
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                              <div class="form-check mb-0 d-flex align-items-center">
+                                <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="recycle_bin" id="menu_recycle_{{ u.id }}" {% if u.can_access_menu('recycle_bin') %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold small text-dark" for="menu_recycle_{{ u.id }}">
+                                  <i class="fa-solid fa-trash-arrow-up text-secondary me-1"></i>回收站
+                                </label>
+                              </div>
+                              <div style="min-width: 210px;">
+                                {% set p_recycle = u.get_menu_perm('recycle_bin') %}
+                                <select class="form-select form-select-sm" name="menu_perm_recycle_bin">
+                                  <option value="0" {% if p_recycle == 0 %}selected{% endif %}>仅管理自身数据</option>
+                                  <option value="1" {% if p_recycle == 1 %}selected{% endif %}>自身全权 + 仅查看他人数据</option>
+                                  <option value="2" {% if p_recycle == 2 %}selected{% endif %}>查看+修改他人数据</option>
+                                  <option value="3" {% if p_recycle == 3 %}selected{% endif %}>查看+修改+删除他人数据</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        {% set cur_level = '3' if u.can_delete_others else ('2' if u.can_edit_others else ('1' if u.can_view_others else '0')) %}
-                        <div class="list-group">
-                          <label class="list-group-item list-group-item-action d-flex gap-3 align-items-center py-2">
-                            <input class="form-check-input flex-shrink-0" type="radio" name="perm_level" value="0" {{ 'checked' if cur_level == '0' else '' }}>
-                            <div>
-                              <strong class="d-block text-secondary"><i class="fa-solid fa-lock me-1"></i>仅管理自身数据（默认）</strong>
-                              <small class="text-muted">该用户只能查看、修改和删除自己录入的礼金数据，无权访问其他用户的数据。</small>
-                            </div>
+                        <!-- 备份功能授权 -->
+                        <div class="mb-3">
+                          <label class="form-label fw-bold small text-dark mb-2">
+                            <i class="fa-solid fa-cloud-arrow-up text-warning me-1"></i>备份功能授权：
                           </label>
-                          <label class="list-group-item list-group-item-action d-flex gap-3 align-items-center py-2">
-                            <input class="form-check-input flex-shrink-0" type="radio" name="perm_level" value="1" {{ 'checked' if cur_level == '1' else '' }}>
-                            <div>
-                              <strong class="d-block text-primary"><i class="fa-solid fa-eye me-1"></i>仅查看他人数据（只读）</strong>
-                              <small class="text-muted">该用户可查看和导出其他用户的数据，但无权修改或删除任何其他用户的数据。</small>
-                            </div>
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="backup_authorized" value="1" id="backup_auth_{{ u.id }}" {% if u.backup_authorized %}checked{% endif %}>
+                            <label class="form-check-label small text-muted" for="backup_auth_{{ u.id }}">
+                              授权该用户使用 WebDAV 备份与恢复功能
+                            </label>
+                          </div>
+                          <!-- V6: 备份数据权限级别 -->
+                          {% set p_backups = u.get_menu_perm('backups') %}
+                          <div class="mt-2">
+                            <label class="form-label small text-muted mb-1">备份数据跨用户权限级别：</label>
+                            <select class="form-select form-select-sm" name="menu_perm_backups">
+                              <option value="0" {% if p_backups == 0 %}selected{% endif %}>仅管理自身数据</option>
+                              <option value="1" {% if p_backups == 1 %}selected{% endif %}>自身全权 + 仅查看他人数据</option>
+                              <option value="2" {% if p_backups == 2 %}selected{% endif %}>查看+修改他人数据</option>
+                              <option value="3" {% if p_backups == 3 %}selected{% endif %}>查看+修改+删除他人数据</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <!-- V6: 定时任务授权 -->
+                        <div class="mb-3">
+                          <label class="form-label fw-bold small text-dark mb-2">
+                            <i class="fa-solid fa-clock text-success me-1"></i>定时任务授权：
                           </label>
-                          <label class="list-group-item list-group-item-action d-flex gap-3 align-items-center py-2">
-                            <input class="form-check-input flex-shrink-0" type="radio" name="perm_level" value="2" {{ 'checked' if cur_level == '2' else '' }}>
-                            <div>
-                              <strong class="d-block text-warning"><i class="fa-solid fa-pen-to-square me-1"></i>查看 + 修改他人数据</strong>
-                              <small class="text-muted">该用户可查看并编辑其他普通用户的数据，但无权删除他人数据，亦不能修改管理员数据。</small>
-                            </div>
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="scheduled_task_authorized" value="1" id="task_auth_{{ u.id }}" {% if u.scheduled_task_authorized %}checked{% endif %}>
+                            <label class="form-check-label small text-muted" for="task_auth_{{ u.id }}">
+                              授权该用户使用定时备份任务功能
+                            </label>
+                          </div>
+                        </div>
+
+                        <!-- V3: AI 助手授权 -->
+                        <div class="mb-3">
+                          <label class="form-label fw-bold small text-dark mb-2">
+                            <i class="fa-solid fa-robot text-info me-1"></i>AI 助手授权：
                           </label>
-                          <label class="list-group-item list-group-item-action d-flex gap-3 align-items-center py-2">
-                            <input class="form-check-input flex-shrink-0" type="radio" name="perm_level" value="3" {{ 'checked' if cur_level == '3' else '' }}>
-                            <div>
-                              <strong class="d-block text-danger"><i class="fa-solid fa-trash me-1"></i>查看 + 修改 + 删除他人数据（完全协作）</strong>
-                              <small class="text-muted">该用户可查看、编辑和删除其他普通用户的数据（受安全限制保护，无法修改或删除管理员数据）。</small>
-                            </div>
-                          </label>
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="ai_authorized" value="1" id="ai_auth_{{ u.id }}" {% if u.ai_authorized %}checked{% endif %}>
+                            <label class="form-check-label small text-muted" for="ai_auth_{{ u.id }}">
+                              授权该用户使用 AI 助手功能
+                            </label>
+                          </div>
+                        </div>
+
+                        <div class="alert alert-info py-2 px-3 small mb-0">
+                          <i class="fa-solid fa-circle-info me-1"></i>
+                          每个菜单独立选择，互不影响；未配置的菜单默认“仅管理自身数据”。
+                          <br><strong class="text-danger"><i class="fa-solid fa-shield-halved me-1"></i>安全保护：</strong>普通用户无论获得何种跨用户权限，均<strong>无法修改或删除管理员</strong>创建的数据。
                         </div>
                       </div>
                       <div class="modal-footer border-0 pt-0">
@@ -404,13 +628,76 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                       </div>
                       <div class="modal-body py-3">
-                        <div class="mb-3">
-                          <label class="form-label small text-muted">新密保问题：</label>
-                          <input type="text" name="security_question" class="form-control" placeholder="例如：我的高中母校名称？" value="{{ u.security_question }}" required>
+                        {% if u.is_admin %}
+                        <div class="alert alert-warning py-2 px-3 small rounded-3 mb-3">
+                          <i class="fa-solid fa-shield-halved me-1 text-warning"></i>
+                          <strong>安全验证：</strong>管理员账号必须先验证原密码或原密保答案！
                         </div>
                         <div class="mb-3">
-                          <label class="form-label small text-muted">新密保答案：</label>
-                          <input type="text" name="security_answer" class="form-control" placeholder="请输入新密保问题的答案" required>
+                          <label class="form-label small fw-bold text-dark">原密码验证 (与密保答案二选一)：</label>
+                          <input type="password" name="old_password" class="form-control form-control-sm" placeholder="请输入当前管理员的原密码">
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label small fw-bold text-dark">原密保答案验证 (与原密码二选一)：</label>
+                          <div class="small text-muted mb-1">问题 1：{{ u.security_question_1 or u.security_question or '默认安全问题' }}</div>
+                          <input type="text" name="old_security_answer_1" class="form-control form-control-sm" placeholder="请输入原密保问题 1 的答案">
+                          {% if u.security_question_2 %}
+                          <div class="small text-muted mb-1 mt-2">问题 2：{{ u.security_question_2 }}</div>
+                          <input type="text" name="old_security_answer_2" class="form-control form-control-sm" placeholder="请输入原密保问题 2 的答案">
+                          {% endif %}
+                        </div>
+                        <hr class="my-2 text-muted">
+                        {% endif %}
+                        <div class="mb-3" data-sq-group="1">
+                          <label class="form-label small text-muted">新密保问题 1：</label>
+                          <select class="form-select form-select-sm sq-select" name="security_question_1_select" data-target="security_question_1" onchange="onSecurityQuestionSelectChange(this)">
+                            <option value="__custom__">自定义问题...</option>
+                            <option value="您母亲的姓名是？">您母亲的姓名是？</option>
+                            <option value="您第一所小学的名字是？">您第一所小学的名字是？</option>
+                            <option value="您拥有的第一辆汽车品牌是？">您拥有的第一辆汽车品牌是？</option>
+                            <option value="您出生的城市是？">您出生的城市是？</option>
+                            <option value="您最喜欢的食物是什么？">您最喜欢的食物是什么？</option>
+                            <option value="您父亲的生日是？">您父亲的生日是？</option>
+                            <option value="您父亲的姓名是？">您父亲的姓名是？</option>
+                            <option value="您童年最好的朋友名字是？">您童年最好的朋友名字是？</option>
+                            <option value="您的第一只宠物名字是？">您的第一只宠物名字是？</option>
+                            <option value="您高中班主任的姓名是？">您高中班主任的姓名是？</option>
+                            <option value="您最喜欢的一部电影是？">您最喜欢的一部电影是？</option>
+                            <option value="您毕业的学校名称是？">您毕业的学校名称是？</option>
+                          </select>
+                          <div class="sq-custom-wrapper d-none mt-1">
+                            <input type="text" name="security_question_1" class="form-control form-control-sm" placeholder="请输入自定义密保问题 1" value="{{ u.security_question_1 or u.security_question }}" required>
+                          </div>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label small text-muted">新密保答案 1：</label>
+                          <input type="text" name="security_answer_1" class="form-control form-control-sm" placeholder="请输入新密保问题 1 的答案" required>
+                        </div>
+                        <div class="mb-3" data-sq-group="2">
+                          <label class="form-label small text-muted">新密保问题 2：</label>
+                          <select class="form-select form-select-sm sq-select" name="security_question_2_select" data-target="security_question_2" onchange="onSecurityQuestionSelectChange(this)">
+                            <option value="">不设置第 2 个密保</option>
+                            <option value="__custom__">自定义问题...</option>
+                            <option value="您母亲的姓名是？">您母亲的姓名是？</option>
+                            <option value="您第一所小学的名字是？">您第一所小学的名字是？</option>
+                            <option value="您拥有的第一辆汽车品牌是？">您拥有的第一辆汽车品牌是？</option>
+                            <option value="您出生的城市是？">您出生的城市是？</option>
+                            <option value="您最喜欢的食物是什么？">您最喜欢的食物是什么？</option>
+                            <option value="您父亲的生日是？">您父亲的生日是？</option>
+                            <option value="您父亲的姓名是？">您父亲的姓名是？</option>
+                            <option value="您童年最好的朋友名字是？">您童年最好的朋友名字是？</option>
+                            <option value="您的第一只宠物名字是？">您的第一只宠物名字是？</option>
+                            <option value="您高中班主任的姓名是？">您高中班主任的姓名是？</option>
+                            <option value="您最喜欢的一部电影是？">您最喜欢的一部电影是？</option>
+                            <option value="您毕业的学校名称是？">您毕业的学校名称是？</option>
+                          </select>
+                          <div class="sq-custom-wrapper d-none mt-1">
+                            <input type="text" name="security_question_2" class="form-control form-control-sm" placeholder="请输入自定义密保问题 2" value="{{ u.security_question_2 or '' }}">
+                          </div>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label small text-muted">新密保答案 2：</label>
+                          <input type="text" name="security_answer_2" class="form-control form-control-sm" placeholder="请输入新密保问题 2 的答案（如不设置第 2 个密保可留空）">
                         </div>
                       </div>
                       <div class="modal-footer border-0 pt-0">
@@ -456,6 +743,65 @@
 </div>
 
 <script>
+// 密保问题下拉菜单切换：选择预置问题直接写入隐藏 input，选择自定义则显示输入框
+// 通过 closest('[data-sq-group]') 查找容器，不再依赖 parentElement 层级
+function onSecurityQuestionSelectChange(selectEl) {
+  var group = selectEl.closest('[data-sq-group]');
+  if (!group) return;
+  var targetName = selectEl.getAttribute('data-target');
+  var customWrapper = group.querySelector('.sq-custom-wrapper');
+  var hiddenInput = group.querySelector('input[name="' + targetName + '"]');
+  if (!hiddenInput) return;
+  var val = selectEl.value;
+  if (val === '__custom__') {
+    // 自定义：显示输入框容器，不清空原有值（方便用户来回切换）
+    if (customWrapper) customWrapper.classList.remove('d-none');
+  } else if (val === '') {
+    // 不设置第 2 个密保（仅问题2有此选项）
+    if (customWrapper) customWrapper.classList.add('d-none');
+    hiddenInput.value = '';
+  } else {
+    // 选择了预置问题，隐藏自定义输入框容器，将值写入隐藏字段
+    if (customWrapper) customWrapper.classList.add('d-none');
+    hiddenInput.value = val;
+  }
+}
+
+// 页面加载时初始化所有密保问题下拉框的默认选中状态
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.sq-select').forEach(function(sel) {
+    var group = sel.closest('[data-sq-group]');
+    if (!group) return;
+    var targetName = sel.getAttribute('data-target');
+    var customWrapper = group.querySelector('.sq-custom-wrapper');
+    var hiddenInput = group.querySelector('input[name="' + targetName + '"]');
+    if (!hiddenInput) return;
+    var currentVal = hiddenInput.value || '';
+    if (!currentVal) {
+      // 无现有值：问题1选第一个预置，问题2选"不设置"
+      if (targetName === 'security_question_1') {
+        // 默认不选，让用户选
+      }
+      return;
+    }
+    // 检查当前值是否在下拉选项中
+    var found = false;
+    Array.from(sel.options).forEach(function(opt) {
+      if (opt.value === currentVal) {
+        found = true;
+      }
+    });
+    if (found) {
+      sel.value = currentVal;
+      if (customWrapper) customWrapper.classList.add('d-none');
+    } else {
+      // 当前值不在预置列表中，选自定义并显示输入框
+      sel.value = '__custom__';
+      if (customWrapper) customWrapper.classList.remove('d-none');
+    }
+  });
+});
+
 function togglePassVisibility(inputId, btn) {
   const input = document.getElementById(inputId);
   if (!input) return;
@@ -557,11 +903,34 @@ document.addEventListener('DOMContentLoaded', function() {
     const checked = document.querySelectorAll('.user-checkbox:checked');
     if (checkedUsersCount) checkedUsersCount.textContent = checked.length;
     if (batchDeleteUsersBtn) batchDeleteUsersBtn.disabled = checked.length === 0;
+    const batchPermUsersBtn = document.getElementById('batchPermUsersBtn');
+    if (batchPermUsersBtn) batchPermUsersBtn.disabled = checked.length === 0;
     if (selectAllUsers) {
       selectAllUsers.checked = checked.length > 0 && checked.length === userCheckboxes.length;
       selectAllUsers.indeterminate = checked.length > 0 && checked.length < userCheckboxes.length;
     }
   }
+
+  window.openBatchPermModal = function() {
+    const checked = document.querySelectorAll('.user-checkbox:checked');
+    if (!checked.length) {
+      alert('请先在下方用户列表中勾选需要批量配置权限的普通用户！');
+      return;
+    }
+    const container = document.getElementById('batchPermUserIdsContainer');
+    container.innerHTML = '';
+    checked.forEach(cb => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'user_ids';
+      input.value = cb.value;
+      container.appendChild(input);
+    });
+    document.getElementById('batchPermUserCount').textContent = checked.length;
+    const modalEl = document.getElementById('batchPermModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.show();
+  };
 
   if (selectAllUsers) {
     selectAllUsers.addEventListener('change', function() {
@@ -574,5 +943,417 @@ document.addEventListener('DOMContentLoaded', function() {
     cb.addEventListener('change', updateUserBatchUI);
   });
 });
+
+// 查看安全凭证弹窗逻辑
+let currentViewingUserId = null;
+let currentViewingUsername = '';
+let currentViewingIsAdmin = false;
+
+function fetchAndRenderCredentials(userId, username, pwdVerify, ans1Verify, ans2Verify) {
+  document.getElementById('credLoading').classList.remove('d-none');
+  document.getElementById('credContent').classList.add('d-none');
+  document.getElementById('credError').classList.add('d-none');
+  document.getElementById('credVerifySection').classList.add('d-none');
+
+  let url = `/admin/user/${userId}/credentials`;
+  const params = new URLSearchParams();
+  if (pwdVerify) params.set('verify_password', pwdVerify);
+  if (ans1Verify) params.set('verify_security_answer', ans1Verify);
+  if (ans2Verify) params.set('verify_security_answer_2', ans2Verify);
+  if (params.toString()) url += '?' + params.toString();
+
+  fetch(url, {
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(res => res.json())
+  .then(res => {
+    document.getElementById('credLoading').classList.add('d-none');
+    if (res.code === 200) {
+      const data = res.data;
+      document.getElementById('credContent').classList.remove('d-none');
+      const passInput = document.getElementById('credPlainPassword');
+      passInput.value = data.plain_password || '无明文记录';
+      passInput.type = 'password';
+
+      const qa = data.security_qa || {};
+      document.getElementById('credQ1').textContent = qa.q1 || '未配置';
+      document.getElementById('credA1').textContent = qa.a1 || '未配置';
+      document.getElementById('credQ2').textContent = qa.q2 || '未配置';
+      document.getElementById('credA2').textContent = qa.a2 || '未配置';
+    } else if (res.code === 401 && res.need_verify) {
+      // 展示管理员安全二次验证界面
+      document.getElementById('credVerifySection').classList.remove('d-none');
+      // 显示双密保问题标签
+      const q1Label = document.getElementById('credVerifyQuestion1Label');
+      if (q1Label) q1Label.textContent = res.q1 || '默认安全问题';
+      const q2Label = document.getElementById('credVerifyQuestion2Label');
+      const ans2Wrapper = document.getElementById('credVerifyAns2Wrapper');
+      if (res.q2) {
+        if (q2Label) q2Label.textContent = res.q2;
+        if (ans2Wrapper) ans2Wrapper.style.display = '';
+      } else {
+        if (ans2Wrapper) ans2Wrapper.style.display = 'none';
+      }
+      if (pwdVerify || ans1Verify || ans2Verify) {
+        const vErr = document.getElementById('credVerifyError');
+        if (vErr) {
+          vErr.textContent = '原密码或密保答案不正确，验证失败！请重新输入。';
+          vErr.classList.remove('d-none');
+        }
+      }
+    } else {
+      document.getElementById('credError').textContent = res.message || '获取凭证失败';
+      document.getElementById('credError').classList.remove('d-none');
+    }
+  })
+  .catch(err => {
+    document.getElementById('credLoading').classList.add('d-none');
+    document.getElementById('credError').textContent = '网络请求异常，请稍后重试';
+    document.getElementById('credError').classList.remove('d-none');
+  });
+}
+
+function viewUserCredentials(userId, username, isAdmin) {
+  currentViewingUserId = userId;
+  currentViewingUsername = username;
+  currentViewingIsAdmin = !!isAdmin;
+
+  const modalEl = document.getElementById('viewCredentialsModal');
+  const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+  document.getElementById('credUsername').textContent = username;
+  const pwdIn = document.getElementById('credVerifyPwdInput');
+  const ans1In = document.getElementById('credVerifyAnsInput1');
+  const ans2In = document.getElementById('credVerifyAnsInput2');
+  const vErr = document.getElementById('credVerifyError');
+  if (pwdIn) pwdIn.value = '';
+  if (ans1In) ans1In.value = '';
+  if (ans2In) ans2In.value = '';
+  if (vErr) vErr.classList.add('d-none');
+
+  modal.show();
+  fetchAndRenderCredentials(userId, username);
+}
+
+function submitAdminVerifyCred() {
+  const pwd = (document.getElementById('credVerifyPwdInput').value || '').trim();
+  const ans1 = (document.getElementById('credVerifyAnsInput1').value || '').trim();
+  const ans2 = (document.getElementById('credVerifyAnsInput2').value || '').trim();
+  if (!pwd && !ans1 && !ans2) {
+    const vErr = document.getElementById('credVerifyError');
+    if (vErr) {
+      vErr.textContent = '请至少输入原密码或任意一个密保答案！';
+      vErr.classList.remove('d-none');
+    }
+    return;
+  }
+  fetchAndRenderCredentials(currentViewingUserId, currentViewingUsername, pwd, ans1, ans2);
+}
+
+function toggleCredPassword() {
+  const input = document.getElementById('credPlainPassword');
+  const icon = document.getElementById('credEyeIcon');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'fa-regular fa-eye-slash';
+  } else {
+    input.type = 'password';
+    icon.className = 'fa-regular fa-eye';
+  }
+}
+
+function copyCredPassword() {
+  const input = document.getElementById('credPlainPassword');
+  navigator.clipboard.writeText(input.value).then(() => {
+    alert('密码已成功复制到剪贴板！');
+  }).catch(() => {
+    input.select();
+    document.execCommand('copy');
+    alert('密码已复制！');
+  });
+}
 </script>
+
+<!-- 查看用户安全凭证 Modal -->
+<div class="modal fade" id="viewCredentialsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow-lg border-0 rounded-4">
+      <div class="modal-header bg-dark text-white rounded-top-4">
+        <h6 class="modal-title fw-bold">
+          <i class="fa-solid fa-user-shield me-2 text-warning"></i>查看安全凭证 - <span id="credUsername"></span>
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div id="credLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="text-muted small mt-2 mb-0">正在使用 AES-256-GCM 安全解密凭证...</p>
+        </div>
+        <div id="credError" class="alert alert-danger d-none mb-0"></div>
+
+        <!-- 管理员二次验证界面（查看管理员账号凭证时需先验证原密码或原密保） -->
+        <div id="credVerifySection" class="d-none">
+          <div class="alert alert-warning-subtle border border-warning-subtle py-2 px-3 small rounded-3 mb-3">
+            <i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>
+            <strong>安全验证：</strong>管理员账号的凭证受保护，请输入原密码或任意一个密保答案即可查看。
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-secondary">原密码</label>
+            <div class="input-group input-group-sm">
+              <input type="password" id="credVerifyPwdInput" class="form-control" placeholder="输入当前账号原密码">
+              <button class="btn btn-outline-secondary" type="button" onclick="togglePassVisibility('credVerifyPwdInput', this)"><i class="fa-regular fa-eye"></i></button>
+            </div>
+          </div>
+          <div class="mb-2">
+            <div class="small text-muted mb-1">问题 1：<span id="credVerifyQuestion1Label">默认安全问题</span></div>
+            <input type="text" id="credVerifyAnsInput1" class="form-control form-control-sm" placeholder="输入密保问题 1 的答案">
+          </div>
+          <div class="mb-2" id="credVerifyAns2Wrapper" style="display:none;">
+            <div class="small text-muted mb-1">问题 2：<span id="credVerifyQuestion2Label">未设置</span></div>
+            <input type="text" id="credVerifyAnsInput2" class="form-control form-control-sm" placeholder="输入密保问题 2 的答案">
+          </div>
+          <div id="credVerifyError" class="alert alert-danger d-none py-1 px-2 small mb-2"></div>
+          <div class="text-end">
+            <button type="button" class="btn btn-primary btn-sm rounded-pill px-4" onclick="submitAdminVerifyCred()">
+              <i class="fa-solid fa-shield-halved me-1"></i>验证并查看
+            </button>
+          </div>
+        </div>
+
+        <div id="credContent" class="d-none">
+          <div class="alert alert-warning-subtle border border-warning-subtle py-2 px-3 small rounded-3 mb-3">
+            <i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>
+            <strong>敏感机密提示：</strong>凭证仅超级管理员可查看，请严格保密并遵守安全规范。
+          </div>
+
+          <!-- 明文密码 -->
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-secondary">
+              <i class="fa-solid fa-key me-1"></i>当前登录密码（解密后）
+            </label>
+            <div class="input-group">
+              <input type="password" id="credPlainPassword" class="form-control font-monospace" readonly>
+              <button class="btn btn-outline-secondary" type="button" onclick="toggleCredPassword()" title="明文/密文切换">
+                <i id="credEyeIcon" class="fa-regular fa-eye"></i>
+              </button>
+              <button class="btn btn-primary" type="button" onclick="copyCredPassword()" title="一键复制">
+                <i class="fa-solid fa-copy me-1"></i>复制
+              </button>
+            </div>
+          </div>
+
+          <!-- 密保问答 1 -->
+          <div class="p-3 bg-light rounded-3 border mb-3">
+            <div class="small fw-bold text-primary mb-1">
+              <i class="fa-solid fa-circle-question me-1"></i>密保问题 1
+            </div>
+            <div id="credQ1" class="small text-muted mb-2 ps-3"></div>
+            <div class="small fw-bold text-success mb-1">
+              <i class="fa-solid fa-circle-check me-1"></i>密保答案 1（明文）
+            </div>
+            <div id="credA1" class="small fw-bold text-dark ps-3"></div>
+          </div>
+
+          <!-- 密保问答 2 -->
+          <div class="p-3 bg-light rounded-3 border">
+            <div class="small fw-bold text-primary mb-1">
+              <i class="fa-solid fa-circle-question me-1"></i>密保问题 2
+            </div>
+            <div id="credQ2" class="small text-muted mb-2 ps-3"></div>
+            <div class="small fw-bold text-success mb-1">
+              <i class="fa-solid fa-circle-check me-1"></i>密保答案 2（明文）
+            </div>
+            <div id="credA2" class="small fw-bold text-dark ps-3"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary btn-sm rounded-pill px-4" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 批量配置用户权限 Modal -->
+<div class="modal fade" id="batchPermModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form action="{{ url_for('admin_batch_user_permissions') }}" method="POST" id="batchPermForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div id="batchPermUserIdsContainer"></div>
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-primary"><i class="fa-solid fa-users-gear me-2"></i>批量配置选中用户权限</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body py-3">
+          <p class="text-muted small mb-3">当前已选择 <strong id="batchPermUserCount" class="text-primary">0</strong> 位用户进行菜单访问与各菜单独立数据权限配置：</p>
+          
+          <div class="mb-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <label class="form-label fw-bold small text-dark mb-0">
+                <i class="fa-solid fa-bars-progress me-1 text-primary"></i>菜单页面访问权限：
+              </label>
+              <span class="text-muted" style="font-size: 0.75rem;">每个菜单独立选择权限，统一应用</span>
+            </div>
+
+            <div class="list-group shadow-sm">
+              <!-- 1. 礼金账本 -->
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="form-check mb-0 d-flex align-items-center">
+                  <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="ledger" id="batch_menu_ledger" checked>
+                  <label class="form-check-label fw-semibold small text-dark" for="batch_menu_ledger">
+                    <i class="fa-solid fa-list text-success me-1"></i>礼金账本
+                  </label>
+                </div>
+                <div style="min-width: 210px;">
+                  <select class="form-select form-select-sm" name="menu_perm_ledger">
+                    <option value="0" selected>仅管理自身数据</option>
+                    <option value="1">仅查看他人数据</option>
+                    <option value="2">查看+修改他人数据</option>
+                    <option value="3">查看+修改+删除他人数据</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 2. 专属宴席 -->
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="form-check mb-0 d-flex align-items-center">
+                  <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="banquets" id="batch_menu_banquets" checked>
+                  <label class="form-check-label fw-semibold small text-dark" for="batch_menu_banquets">
+                    <i class="fa-solid fa-champagne-glasses text-warning me-1"></i>专属宴席
+                  </label>
+                </div>
+                <div style="min-width: 210px;">
+                  <select class="form-select form-select-sm" name="menu_perm_banquets">
+                    <option value="0" selected>仅管理自身数据</option>
+                    <option value="1">仅查看他人数据</option>
+                    <option value="2">查看+修改他人数据</option>
+                    <option value="3">查看+修改+删除他人数据</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 3. 人情对账 -->
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="form-check mb-0 d-flex align-items-center">
+                  <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="reconciliation" id="batch_menu_recon" checked>
+                  <label class="form-check-label fw-semibold small text-dark" for="batch_menu_recon">
+                    <i class="fa-solid fa-scale-balanced text-info me-1"></i>人情对账
+                  </label>
+                </div>
+                <div style="min-width: 210px;">
+                  <select class="form-select form-select-sm" name="menu_perm_reconciliation">
+                    <option value="0" selected>仅管理自身数据</option>
+                    <option value="1">仅查看他人数据</option>
+                    <option value="2">查看+修改他人数据</option>
+                    <option value="3">查看+修改+删除他人数据</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 4. 纪念日备忘 -->
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="form-check mb-0 d-flex align-items-center">
+                  <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="reminders" id="batch_menu_reminders" checked>
+                  <label class="form-check-label fw-semibold small text-dark" for="batch_menu_reminders">
+                    <i class="fa-solid fa-bell text-primary me-1"></i>纪念日备忘
+                  </label>
+                </div>
+                <div style="min-width: 210px;">
+                  <select class="form-select form-select-sm" name="menu_perm_reminders">
+                    <option value="0" selected>仅管理自身数据</option>
+                    <option value="1">仅查看他人数据</option>
+                    <option value="2">查看+修改他人数据</option>
+                    <option value="3">查看+修改+删除他人数据</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 5. 回收站 -->
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="form-check mb-0 d-flex align-items-center">
+                  <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="recycle_bin" id="batch_menu_recycle" checked>
+                  <label class="form-check-label fw-semibold small text-dark" for="batch_menu_recycle">
+                    <i class="fa-solid fa-trash-arrow-up text-secondary me-1"></i>回收站
+                  </label>
+                </div>
+                <div style="min-width: 210px;">
+                  <select class="form-select form-select-sm" name="menu_perm_recycle_bin">
+                    <option value="0" selected>仅管理自身数据</option>
+                    <option value="1">仅查看他人数据</option>
+                    <option value="2">查看+修改他人数据</option>
+                    <option value="3">查看+修改+删除他人数据</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 6. WebDAV备份 -->
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="form-check mb-0 d-flex align-items-center">
+                  <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="backups" id="batch_menu_backups">
+                  <label class="form-check-label fw-semibold small text-dark" for="batch_menu_backups">
+                    <i class="fa-solid fa-cloud-arrow-up text-warning me-1"></i>WebDAV备份
+                  </label>
+                </div>
+                <div style="min-width: 210px;">
+                  <select class="form-select form-select-sm" name="menu_perm_backups">
+                    <option value="0" selected>仅管理自身数据</option>
+                    <option value="1">仅查看他人数据</option>
+                    <option value="2">查看+修改他人数据</option>
+                    <option value="3">查看+修改+删除他人数据</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- V6: 批量备份功能授权 -->
+          <div class="mb-3">
+            <label class="form-label fw-bold small text-dark mb-2">
+              <i class="fa-solid fa-cloud-arrow-up text-warning me-1"></i>备份功能授权：
+            </label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="backup_authorized" value="1" id="batch_backup_auth">
+              <label class="form-check-label small text-muted" for="batch_backup_auth">
+                勾选后批量授权选中用户使用 WebDAV 备份与恢复功能
+              </label>
+            </div>
+          </div>
+
+          <!-- V6: 批量定时任务授权 -->
+          <div class="mb-3">
+            <label class="form-label fw-bold small text-dark mb-2">
+              <i class="fa-solid fa-clock text-success me-1"></i>定时任务授权：
+            </label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="scheduled_task_authorized" value="1" id="batch_task_auth">
+              <label class="form-check-label small text-muted" for="batch_task_auth">
+                勾选后批量授权选中用户使用定时备份任务功能
+              </label>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold small text-dark mb-2">
+              <i class="fa-solid fa-robot text-info me-1"></i>AI 助手授权：
+            </label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="ai_authorized" value="1" id="batch_ai_auth">
+              <label class="form-check-label small text-muted" for="batch_ai_auth">
+                勾选后批量授权选中用户使用 AI 助手功能
+              </label>
+            </div>
+          </div>
+
+          <div class="alert alert-info py-2 px-3 small mb-0">
+            <i class="fa-solid fa-circle-info me-1"></i>
+            批量应用时，每个菜单所选权限将统一应用至所有勾选用户，未配置项默认“仅管理自身数据”。
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">应用批量权限配置</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}

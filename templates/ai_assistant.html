@@ -1,0 +1,502 @@
+{% extends 'base.html' %}
+
+{% block title %}AI 智能助手 - 人情记账宝{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 聊天界面主题变量（局部补充变量，继承 base.html 全局变量） */
+    :root {
+        --app-err-bg: #fff5f5;
+        --app-err-border: #ffe0e0;
+        --app-chip-bg: #f0f7ff;
+        --app-chip-border: #d0e3ff;
+        --app-chip-bg-hover: #d0e3ff;
+    }
+    [data-bs-theme="dark"] {
+        --app-err-bg: #3a2222;
+        --app-err-border: #4a3a3a;
+        --app-chip-bg: #1b2a3f;
+        --app-chip-border: #2e4a6f;
+        --app-chip-bg-hover: #2e4a6f;
+    }
+    .ai-chat-container {
+        display: flex;
+        height: calc(100vh - 140px);
+        min-height: 500px;
+    }
+    .chat-sidebar {
+        width: 260px;
+        border-right: 1px solid var(--app-border);
+        display: flex;
+        flex-direction: column;
+        background: var(--app-card-bg);
+        border-radius: 10px 0 0 10px;
+        transition: background-color 0.25s ease;
+    }
+    .chat-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: var(--app-card-bg);
+        border-radius: 0 10px 10px 0;
+        transition: background-color 0.25s ease;
+    }
+    .session-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+    }
+    .session-item {
+        padding: 10px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        margin-bottom: 4px;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+    .session-item:hover {
+        background-color: var(--app-hover-bg);
+    }
+    .session-item.active {
+        background-color: #e7f1ff;
+        border-color: #0d6efd33;
+    }
+    .session-item .session-title {
+        font-size: 0.875rem;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .session-item .session-meta {
+        font-size: 0.75rem;
+        color: var(--bs-secondary-color);
+        margin-top: 2px;
+    }
+    .session-delete-btn {
+        opacity: 0.35;
+        transition: opacity 0.2s;
+        font-size: 0.85rem;
+        padding: 2px 4px;
+        line-height: 1;
+    }
+    .session-item:hover .session-delete-btn {
+        opacity: 0.7;
+    }
+    .session-delete-btn:hover {
+        opacity: 1 !important;
+    }
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+    }
+    .message-bubble {
+        max-width: 75%;
+        padding: 12px 16px;
+        border-radius: 12px;
+        margin-bottom: 12px;
+        line-height: 1.6;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+    }
+    .message-user {
+        background-color: #0d6efd;
+        color: #fff;
+        margin-left: auto;
+        border-bottom-right-radius: 4px;
+    }
+    .message-ai {
+        background-color: var(--app-ai-bg);
+        color: var(--app-ai-text);
+        margin-right: auto;
+        border-bottom-left-radius: 4px;
+        border: 1px solid var(--app-border);
+        transition: background-color 0.25s ease, color 0.25s ease;
+    }
+    .message-ai .ai-config-tag {
+        font-size: 0.7rem;
+        color: var(--bs-secondary-color);
+        margin-top: 6px;
+        font-style: italic;
+    }
+    .message-ai .ai-error-hint {
+        font-size: 0.75rem;
+        color: #dc3545;
+        margin-top: 6px;
+        background: var(--app-err-bg);
+        padding: 6px 8px;
+        border-radius: 6px;
+        border: 1px solid var(--app-err-border);
+    }
+    .chat-input-area {
+        border-top: 1px solid var(--app-border);
+        padding: 12px 16px;
+    }
+    .suggestion-chip {
+        display: inline-block;
+        padding: 4px 12px;
+        margin: 2px;
+        background: var(--app-chip-bg);
+        border: 1px solid var(--app-chip-border);
+        border-radius: 16px;
+        font-size: 0.8rem;
+        color: var(--bs-primary);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .suggestion-chip:hover {
+        background: var(--app-chip-bg-hover);
+    }
+    .typing-indicator {
+        display: inline-flex;
+        gap: 4px;
+        padding: 8px 12px;
+        background: var(--app-ai-bg);
+        border-radius: 12px;
+        border: 1px solid var(--app-border);
+    }
+    .typing-indicator span {
+        width: 8px;
+        height: 8px;
+        background: #adb5bd;
+        border-radius: 50%;
+        animation: typing 1.4s infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing {
+        0%, 60%, 100% { opacity: 0.3; }
+        30% { opacity: 1; }
+    }
+    @media (max-width: 767.98px) {
+        .chat-sidebar { display: none; }
+        .chat-sidebar.mobile-show { display: flex; position: fixed; z-index: 999; width: 100%; height: 100%; }
+        .ai-chat-container { flex-direction: column; }
+        .chat-sidebar, .chat-main { border-radius: 10px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="ai-chat-container">
+            <!-- 侧边栏 -->
+            <div class="chat-sidebar" id="chatSidebar">
+                <div class="p-2 border-bottom">
+                    <button class="btn btn-primary btn-sm w-100" onclick="createNewSession()">
+                        <i class="fa-solid fa-plus me-1"></i>新建会话
+                    </button>
+                </div>
+                <div class="session-list" id="sessionList">
+                    <div class="text-center text-muted py-4">
+                        <i class="fa-solid fa-spinner fa-spin"></i> 加载中...
+                    </div>
+                </div>
+            </div>
+
+            <!-- 对话区 -->
+            <div class="chat-main">
+                <div class="d-flex align-items-center justify-content-between p-2 border-bottom">
+                    <div class="d-flex align-items-center">
+                        <button class="btn btn-sm btn-outline-secondary me-2 d-md-none" onclick="toggleSidebar()">
+                            <i class="fa-solid fa-bars"></i>
+                        </button>
+                        <h6 class="mb-0 text-primary">
+                            <i class="fa-solid fa-robot me-1"></i>礼小宝 AI 助手
+                        </h6>
+                    </div>
+                    <span class="badge bg-light text-muted" id="currentSessionBadge">新会话</span>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    <!-- 欢迎语 -->
+                    <div class="text-center py-5" id="welcomeArea">
+                        <i class="fa-solid fa-robot fa-3x text-primary opacity-50 mb-3"></i>
+                        <h5 class="text-muted">您好，我是礼小宝！</h5>
+                        <p class="text-muted">我可以帮您解答关于人情礼金、婚宴预算、记账管理等问题</p>
+                        <div class="mt-3" id="suggestionArea"></div>
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <div class="input-group">
+                        <textarea class="form-control" id="chatInput" placeholder="输入您的问题...（按 Enter 发送，Shift+Enter 换行）" rows="1" style="resize: none; max-height: 120px;"></textarea>
+                        <button class="btn btn-primary" onclick="sendMessage()" id="sendBtn">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="text-center mt-1">
+                        <small class="text-muted">AI 回答仅供参考，涉及具体金额请结合实际情况判断</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+let currentSessionId = null;
+let isSending = false;
+
+// 发送 API 请求的通用方法
+async function aiFetch(url, options = {}) {
+    const defaultHeaders = {
+        'X-CSRFToken': CSRF_TOKEN,
+        'X-CSRF-Token': CSRF_TOKEN,
+        'X-Requested-With': 'XMLHttpRequest'
+    };
+    if (options.body && !(options.body instanceof FormData)) {
+        defaultHeaders['Content-Type'] = 'application/json';
+    }
+    const response = await fetch(url, {
+        ...options,
+        headers: { ...defaultHeaders, ...(options.headers || {}) }
+    });
+    const data = await response.json();
+    if (response.status === 401) {
+        alert('登录已过期，请重新登录');
+        window.location.href = '/login';
+        return null;
+    }
+    if (data.code === 403) {
+        alert(data.message || '无权限');
+        return null;
+    }
+    return data;
+}
+
+// 加载推荐问题
+async function loadSuggestions() {
+    const data = await aiFetch('/api/ai/suggestions');
+    if (!data || data.code !== 200) return;
+    const area = document.getElementById('suggestionArea');
+    if (area && data.data) {
+        area.innerHTML = data.data.map(s => 
+            `<span class="suggestion-chip" onclick="useSuggestion('${s.replace(/'/g, "\\'")}')">${s}</span>`
+        ).join('');
+    }
+}
+
+// 使用推荐问题
+function useSuggestion(text) {
+    document.getElementById('chatInput').value = text;
+    sendMessage();
+}
+
+// 加载会话列表
+async function loadSessions() {
+    const data = await aiFetch('/api/ai/sessions');
+    if (!data || data.code !== 200) return;
+    const list = document.getElementById('sessionList');
+    if (!data.data || data.data.length === 0) {
+        list.innerHTML = '<div class="text-center text-muted py-4"><i class="fa-solid fa-comments fa-2x opacity-50 mb-2"></i><p class="mb-0 small">暂无会话</p></div>';
+        return;
+    }
+    list.innerHTML = data.data.map(s => `
+        <div class="session-item ${s.id === currentSessionId ? 'active' : ''}" onclick="switchSession(${s.id})">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1 overflow-hidden">
+                    <div class="session-title">${escapeHtml(s.title)}</div>
+                    <div class="session-meta">${s.message_count} 条消息 · ${s.updated_at}</div>
+                </div>
+                <button class="btn btn-sm btn-link text-danger p-0 ms-2 session-delete-btn" onclick="event.stopPropagation(); deleteSession(${s.id})" title="删除会话">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 删除会话
+async function deleteSession(sessionId) {
+    if (!confirm('确定删除这个会话吗？删除后无法恢复。')) return;
+    const data = await aiFetch(`/api/ai/sessions/${sessionId}/delete`, {
+        method: 'DELETE'
+    });
+    if (!data || data.code !== 200) {
+        alert(data && data.message ? data.message : '删除失败，请重试');
+        return;
+    }
+    if (currentSessionId === sessionId) {
+        createNewSession();
+    } else {
+        loadSessions();
+    }
+}
+
+// 切换会话
+async function switchSession(sessionId) {
+    currentSessionId = sessionId;
+    const data = await aiFetch(`/api/ai/sessions/${sessionId}`);
+    if (!data || data.code !== 200) return;
+    
+    document.getElementById('welcomeArea')?.remove();
+    document.getElementById('currentSessionBadge').textContent = data.data.title;
+    
+    const messagesEl = document.getElementById('chatMessages');
+    messagesEl.innerHTML = '';
+    
+    if (data.data.messages && data.data.messages.length > 0) {
+        data.data.messages.forEach(m => {
+            appendMessage(m.role, m.content, m.used_config_name, m.used_search, m.error_hint);
+        });
+    } else {
+        messagesEl.innerHTML = '<div class="text-center text-muted py-5"><i class="fa-solid fa-comments fa-2x opacity-50 mb-2"></i><p>暂无消息，开始对话吧</p></div>';
+    }
+    
+    loadSessions();
+    scrollToBottom();
+}
+
+// 新建会话
+function createNewSession() {
+    currentSessionId = null;
+    document.getElementById('currentSessionBadge').textContent = '新会话';
+    const messagesEl = document.getElementById('chatMessages');
+    messagesEl.innerHTML = `
+        <div class="text-center py-5" id="welcomeArea">
+            <i class="fa-solid fa-robot fa-3x text-primary opacity-50 mb-3"></i>
+            <h5 class="text-muted">您好，我是礼小宝！</h5>
+            <p class="text-muted">我可以帮您解答关于人情礼金、婚宴预算、记账管理等问题</p>
+            <div class="mt-3" id="suggestionArea"></div>
+        </div>
+    `;
+    loadSuggestions();
+    loadSessions();
+}
+
+// 发送消息
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const query = input.value.trim();
+    if (!query || isSending) return;
+
+    isSending = true;
+    const sendBtn = document.getElementById('sendBtn');
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    // 清空输入框
+    input.value = '';
+    input.style.height = 'auto';
+
+    // 移除欢迎区
+    document.getElementById('welcomeArea')?.remove();
+
+    // 追加用户消息
+    appendMessage('user', query);
+
+    // 显示 loading
+    const loadingEl = document.createElement('div');
+    loadingEl.id = 'loadingIndicator';
+    loadingEl.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+    document.getElementById('chatMessages').appendChild(loadingEl);
+    scrollToBottom();
+
+    try {
+        const data = await aiFetch('/api/ai/chat', {
+            method: 'POST',
+            body: JSON.stringify({ query: query, session_id: currentSessionId })
+        });
+
+        document.getElementById('loadingIndicator')?.remove();
+
+        if (data && data.code === 200) {
+            const r = data.data;
+            appendMessage('ai', r.response, r.used_config_name, r.used_search, r.error_hint);
+            
+            if (r.session_id && r.session_id !== currentSessionId) {
+                currentSessionId = r.session_id;
+                document.getElementById('currentSessionBadge').textContent = r.session_title || '会话';
+            }
+            loadSessions();
+        } else {
+            appendMessage('ai', '抱歉，处理您的问题时出了点问题，请稍后重试。');
+        }
+    } catch (err) {
+        document.getElementById('loadingIndicator')?.remove();
+        appendMessage('ai', '网络错误，请稍后重试。');
+    }
+
+    isSending = false;
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+    input.focus();
+}
+
+// 追加消息气泡
+function appendMessage(role, content, configName, usedSearch, errorHint) {
+    const messagesEl = document.getElementById('chatMessages');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mb-2';
+    
+    const bubble = document.createElement('div');
+    bubble.className = `message-bubble message-${role}`;
+    bubble.textContent = content;
+    
+    if (role === 'ai') {
+        const meta = document.createElement('div');
+        meta.className = 'ai-config-tag';
+        let metaText = '';
+        if (configName) metaText += `配置: ${configName}`;
+        if (usedSearch) metaText += (metaText ? ' · ' : '') + '已联网搜索';
+        if (metaText) meta.textContent = metaText;
+        bubble.appendChild(meta);
+        
+        if (errorHint) {
+            const hint = document.createElement('div');
+            hint.className = 'ai-error-hint';
+            hint.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>' + escapeHtml(errorHint);
+            bubble.appendChild(hint);
+        }
+    }
+    
+    wrapper.appendChild(bubble);
+    messagesEl.appendChild(wrapper);
+    scrollToBottom();
+}
+
+// 滚动到底部
+function scrollToBottom() {
+    const el = document.getElementById('chatMessages');
+    el.scrollTop = el.scrollHeight;
+}
+
+// HTML 转义
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
+// 切换侧边栏（移动端）
+function toggleSidebar() {
+    document.getElementById('chatSidebar').classList.toggle('mobile-show');
+}
+
+// 输入框自适应高度 + Enter 发送
+document.getElementById('chatInput').addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+document.getElementById('chatInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    loadSuggestions();
+    loadSessions();
+});
+</script>
+{% endblock %}

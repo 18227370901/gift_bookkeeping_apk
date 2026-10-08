@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+
+{% block title %}数据分析看板 - 人情礼金记账系统{% endblock %}
+
+{% block content %}
+{% if not current_user.is_admin and not current_user.can_access_menu('dashboard') %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow border-0 text-center">
+            <div class="card-body p-5">
+                <i class="fa-solid fa-lock fa-3x text-muted opacity-50 mb-3 d-block"></i>
+                <h4 class="fw-bold mb-2">暂无访问权限</h4>
+                <p class="text-muted mb-3">您当前尚未获得数据分析看板的访问权限。<br>请提交权限申请工单，管理员审批后即可使用。</p>
+                <a href="{{ url_for('permission_tickets_view') }}" class="btn btn-primary shadow-sm">
+                    <i class="fa-solid fa-ticket me-1"></i> 前往申请权限
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="fa-solid fa-chart-line text-primary me-2"></i>数据分析看板</h3>
+        <p class="text-muted mb-0 small">月度/年度礼金走势、亲友往来榜单与事由分布全景分析</p>
+    </div>
+    <div class="btn-group shadow-sm" role="group">
+        <button type="button" class="btn btn-outline-primary btn-sm active" id="trendMonthlyBtn" onclick="switchTrend('monthly')">
+            <i class="fa-solid fa-calendar-day me-1"></i>月度趋势
+        </button>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="trendYearlyBtn" onclick="switchTrend('yearly')">
+            <i class="fa-solid fa-calendar me-1"></i>年度趋势
+        </button>
+    </div>
+</div>
+
+<!-- 汇总统计卡片 -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-white border-start border-4 border-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">收到礼金总额</div>
+                        <div class="h3 fw-bold mb-0 text-success mt-1 privacy-blur" id="totalReceived">¥ 0.00</div>
+                    </div>
+                    <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success">
+                        <i class="fa-solid fa-sack-dollar fa-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-white border-start border-4 border-danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">送出礼金总额</div>
+                        <div class="h3 fw-bold mb-0 text-danger mt-1 privacy-blur" id="totalSent">¥ 0.00</div>
+                    </div>
+                    <div class="bg-danger bg-opacity-10 p-3 rounded-circle text-danger">
+                        <i class="fa-solid fa-paper-plane fa-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-white border-start border-4 border-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">净现金流</div>
+                        <div class="h3 fw-bold mb-0 text-info mt-1 privacy-blur" id="netCashFlow">¥ 0.00</div>
+                    </div>
+                    <div class="bg-info bg-opacity-10 p-3 rounded-circle text-info">
+                        <i class="fa-solid fa-arrow-trend-up fa-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-white border-start border-4 border-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold">礼金记录总笔数</div>
+                        <div class="h3 fw-bold mb-0 text-warning mt-1" id="totalCount">0 笔</div>
+                    </div>
+                    <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning">
+                        <i class="fa-solid fa-list-check fa-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="row g-3">
+    <!-- 月度/年度收送走势 -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="fa-solid fa-chart-line text-primary me-2"></i><span id="trendChartTitle">月度收送走势</span></span>
+            </div>
+            <div class="card-body">
+                <div id="trendChart" style="width: 100%; height: 350px;"></div>
+                <div class="text-center text-muted small mt-2 d-none" id="trendEmpty">
+                    <i class="fa-solid fa-folder-open fa-2x mb-2 opacity-50 d-block"></i>
+                    暂无趋势数据
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 事由分布饼图 -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header">
+                <span class="fw-bold"><i class="fa-solid fa-chart-pie text-warning me-2"></i>事由分布</span>
+            </div>
+            <div class="card-body">
+                <div id="reasonChart" style="width: 100%; height: 350px;"></div>
+                <div class="text-center text-muted small mt-2 d-none" id="reasonEmpty">
+                    <i class="fa-solid fa-folder-open fa-2x mb-2 opacity-50 d-block"></i>
+                    暂无事由数据
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 亲友往来 TOP10 -->
+<div class="row g-3 mt-0">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header">
+                <span class="fw-bold"><i class="fa-solid fa-ranking-star text-info me-2"></i>亲友往来 TOP10 榜单</span>
+            </div>
+            <div class="card-body">
+                <div id="top10Chart" style="width: 100%; height: 400px;"></div>
+                <div class="text-center text-muted small mt-2 d-none" id="top10Empty">
+                    <i class="fa-solid fa-folder-open fa-2x mb-2 opacity-50 d-block"></i>
+                    暂无往来数据
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='vendor/echarts/5.5.0/echarts.min.js') }}"></script>
+<script>
+// ===== 全局变量 =====
+var dashboardData = null;
+var currentTrendMode = 'monthly';
+var trendChart = null;
+var reasonChart = null;
+var top10Chart = null;
+
+// ===== 获取 ECharts 主题色（适配黑夜/白天模式） =====
+function getEChartsTheme() {
+    var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    return {
+        textColor: isDark ? '#e6eaef' : '#212529',
+        bgColor: 'transparent',
+        splitLineColor: isDark ? '#2b354a' : '#e9ecef',
+        axisLineColor: isDark ? '#2b354a' : '#dee2e6',
+        tooltipBg: isDark ? '#1b2128' : '#ffffff',
+        tooltipBorder: isDark ? '#2b354a' : '#dee2e6'
+    };
+}
+
+// ===== 初始化所有图表 =====
+function initCharts() {
+    var theme = getEChartsTheme();
+    trendChart = echarts.init(document.getElementById('trendChart'));
+    reasonChart = echarts.init(document.getElementById('reasonChart'));
+    top10Chart = echarts.init(document.getElementById('top10Chart'));
+    window.addEventListener('resize', function() {
+        if (trendChart) trendChart.resize();
+        if (reasonChart) reasonChart.resize();
+        if (top10Chart) top10Chart.resize();
+    });
+}
+
+// ===== 渲染趋势图 =====
+function renderTrendChart() {
+    if (!dashboardData) return;
+    var theme = getEChartsTheme();
+    var trendData = currentTrendMode === 'monthly' ? dashboardData.monthly_trend : dashboardData.yearly_trend;
+    var titleText = currentTrendMode === 'monthly' ? '月度收送走势' : '年度收送走势';
+
+    document.getElementById('trendChartTitle').textContent = titleText;
+
+    if (!trendData || trendData.length === 0) {
+        document.getElementById('trendEmpty').classList.remove('d-none');
+        trendChart.clear();
+        return;
+    }
+    document.getElementById('trendEmpty').classList.add('d-none');
+
+    var xData = trendData.map(function(d) { return d.month || d.year; });
+    var receivedData = trendData.map(function(d) { return d.received || 0; });
+    var sentData = trendData.map(function(d) { return d.sent || 0; });
+
+    trendChart.setOption({
+        tooltip: { trigger: 'axis', backgroundColor: theme.tooltipBg, borderColor: theme.tooltipBorder, textStyle: { color: theme.textColor } },
+        legend: { data: ['收礼', '送礼'], textStyle: { color: theme.textColor }, top: 5 },
+        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+        xAxis: { type: 'category', data: xData, axisLabel: { color: theme.textColor }, axisLine: { lineStyle: { color: theme.axisLineColor } } },
+        yAxis: { type: 'value', axisLabel: { color: theme.textColor, formatter: '¥{value}' }, splitLine: { lineStyle: { color: theme.splitLineColor } }, axisLine: { lineStyle: { color: theme.axisLineColor } } },
+        series: [
+            { name: '收礼', type: 'line', smooth: true, data: receivedData, itemStyle: { color: '#198754' }, areaStyle: { color: 'rgba(25,135,84,0.1)' } },
+            { name: '送礼', type: 'line', smooth: true, data: sentData, itemStyle: { color: '#dc3545' }, areaStyle: { color: 'rgba(220,53,69,0.1)' } }
+        ]
+    });
+}
+
+// ===== 渲染事由饼图 =====
+function renderReasonChart() {
+    if (!dashboardData) return;
+    var theme = getEChartsTheme();
+    var reasonData = dashboardData.reason_distribution;
+
+    if (!reasonData || reasonData.length === 0) {
+        document.getElementById('reasonEmpty').classList.remove('d-none');
+        reasonChart.clear();
+        return;
+    }
+    document.getElementById('reasonEmpty').classList.add('d-none');
+
+    var pieData = reasonData.map(function(d) {
+        return { name: d.reason, value: d.amount };
+    });
+
+    reasonChart.setOption({
+        tooltip: { trigger: 'item', formatter: '{b}: ¥{c} ({d}%)', backgroundColor: theme.tooltipBg, borderColor: theme.tooltipBorder, textStyle: { color: theme.textColor } },
+        legend: { orient: 'vertical', left: 'left', textStyle: { color: theme.textColor } },
+        series: [{
+            type: 'pie', radius: ['40%', '70%'], center: ['55%', '50%'],
+            data: pieData,
+            label: { color: theme.textColor, formatter: '{b}\n{d}%' },
+            itemStyle: { borderRadius: 8, borderColor: theme.bgColor, borderWidth: 2 }
+        }]
+    });
+}
+
+// ===== 渲染 TOP10 榜单 =====
+function renderTop10Chart() {
+    if (!dashboardData) return;
+    var theme = getEChartsTheme();
+    var top10Data = dashboardData.top10_contacts;
+
+    if (!top10Data || top10Data.length === 0) {
+        document.getElementById('top10Empty').classList.remove('d-none');
+        top10Chart.clear();
+        return;
+    }
+    document.getElementById('top10Empty').classList.add('d-none');
+
+    var names = top10Data.map(function(d) { return d.name; }).reverse();
+    var receivedData = top10Data.map(function(d) { return d.received || 0; }).reverse();
+    var sentData = top10Data.map(function(d) { return d.sent || 0; }).reverse();
+
+    top10Chart.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, backgroundColor: theme.tooltipBg, borderColor: theme.tooltipBorder, textStyle: { color: theme.textColor } },
+        legend: { data: ['收礼', '送礼'], textStyle: { color: theme.textColor }, top: 5 },
+        grid: { left: '3%', right: '8%', bottom: '3%', containLabel: true },
+        xAxis: { type: 'value', axisLabel: { color: theme.textColor, formatter: '¥{value}' }, splitLine: { lineStyle: { color: theme.splitLineColor } }, axisLine: { lineStyle: { color: theme.axisLineColor } } },
+        yAxis: { type: 'category', data: names, axisLabel: { color: theme.textColor }, axisLine: { lineStyle: { color: theme.axisLineColor } } },
+        series: [
+            { name: '收礼', type: 'bar', stack: 'total', data: receivedData, itemStyle: { color: '#198754' } },
+            { name: '送礼', type: 'bar', stack: 'total', data: sentData, itemStyle: { color: '#dc3545' } }
+        ]
+    });
+}
+
+// ===== 切换趋势模式 =====
+function switchTrend(mode) {
+    currentTrendMode = mode;
+    document.getElementById('trendMonthlyBtn').classList.toggle('active', mode === 'monthly');
+    document.getElementById('trendYearlyBtn').classList.toggle('active', mode === 'yearly');
+    renderTrendChart();
+}
+
+// ===== 加载数据 =====
+function loadDashboardData() {
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+    fetch('/api/dashboard/stats', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.code === 200 && data.data) {
+            dashboardData = data.data;
+            // 渲染汇总卡片
+            var s = dashboardData.summary;
+            document.getElementById('totalReceived').textContent = '¥ ' + (s.total_received || 0).toFixed(2);
+            document.getElementById('totalSent').textContent = '¥ ' + (s.total_sent || 0).toFixed(2);
+            var net = (s.total_received || 0) - (s.total_sent || 0);
+            var netEl = document.getElementById('netCashFlow');
+            netEl.textContent = '¥ ' + (net >= 0 ? '+' : '') + net.toFixed(2);
+            netEl.className = 'h3 fw-bold mb-0 mt-1 privacy-blur ' + (net >= 0 ? 'text-success' : 'text-danger');
+            document.getElementById('totalCount').textContent = (s.total_count || 0) + ' 笔';
+            // 渲染图表
+            renderTrendChart();
+            renderReasonChart();
+            renderTop10Chart();
+        }
+    })
+    .catch(function(err) {
+        console.error('Dashboard data load error:', err);
+    });
+}
+
+// ===== 页面初始化 =====
+document.addEventListener('DOMContentLoaded', function() {
+    {% if current_user.is_admin or current_user.can_access_menu('dashboard') %}
+    initCharts();
+    loadDashboardData();
+    {% endif %}
+});
+</script>
+{% endblock %}

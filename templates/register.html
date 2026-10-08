@@ -28,29 +28,88 @@
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">密码 <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="password" name="password" placeholder="至少6位，须包含字母和数字" required>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" name="password" placeholder="至少6位，须包含字母和数字" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('password', this)" title="切换明密文">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label for="confirm_password" class="form-label">确认密码 <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="请再次输入密码" required>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="请再次输入密码" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('confirm_password', this)" title="切换明密文">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     
                     <hr class="my-4">
-                    <h6 class="text-muted mb-3"><i class="fa-solid fa-shield-halved me-1"></i>密保设置（用于找回密码）</h6>
+                    <h6 class="text-muted mb-3"><i class="fa-solid fa-shield-halved me-1 text-danger"></i>双密保安全设置（用于找回密码，请设置两个不同问题）</h6>
                     
-                    <div class="mb-3">
-                        <label for="security_question" class="form-label">密保问题 <span class="text-danger">*</span></label>
-                        <select class="form-select" id="security_question" name="security_question" required>
-                            <option value="" disabled selected>选择密保问题...</option>
-                            <option value="您母亲的姓名是？">您母亲的姓名是？</option>
-                            <option value="您第一所小学的名字是？">您第一所小学的名字是？</option>
-                            <option value="您拥有的第一辆汽车品牌是？">您拥有的第一辆汽车品牌是？</option>
-                            <option value="您出生的城市是？">您出生的城市是？</option>
-                        </select>
+                    <!-- 密保问题 1 -->
+                    <div class="p-3 bg-light rounded-3 border mb-3">
+                        <div class="mb-2">
+                            <label for="security_question_1_select" class="form-label fw-bold text-secondary small">
+                                <i class="fa-solid fa-circle-question me-1 text-primary"></i>密保问题 1 <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select sq-select" id="security_question_1_select" data-target="security_question_1" onchange="onSecurityQuestionSelectChange(this)">
+                                <option value="" disabled selected>选择密保问题 1...</option>
+                                <option value="__custom__">自定义问题...</option>
+                                <option value="您母亲的姓名是？">您母亲的姓名是？</option>
+                                <option value="您第一所小学的名字是？">您第一所小学的名字是？</option>
+                                <option value="您拥有的第一辆汽车品牌是？">您拥有的第一辆汽车品牌是？</option>
+                                <option value="您出生的城市是？">您出生的城市是？</option>
+                                <option value="您最喜欢的食物是什么？">您最喜欢的食物是什么？</option>
+                                <option value="您父亲的生日是？">您父亲的生日是？</option>
+                                <option value="您父亲的姓名是？">您父亲的姓名是？</option>
+                                <option value="您童年最好的朋友名字是？">您童年最好的朋友名字是？</option>
+                                <option value="您的第一只宠物名字是？">您的第一只宠物名字是？</option>
+                                <option value="您高中班主任的姓名是？">您高中班主任的姓名是？</option>
+                                <option value="您最喜欢的一部电影是？">您最喜欢的一部电影是？</option>
+                                <option value="您毕业的学校名称是？">您毕业的学校名称是？</option>
+                            </select>
+                            <input type="text" class="form-control mt-1 d-none sq-custom-input" id="security_question_1_custom" name="security_question_1" placeholder="请输入自定义密保问题 1" required>
+                        </div>
+                        <div>
+                            <label for="security_answer_1" class="form-label fw-bold text-secondary small">
+                                <i class="fa-solid fa-key me-1 text-success"></i>密保答案 1 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="security_answer_1" name="security_answer_1" placeholder="请输入密保答案 1" required autocomplete="off">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="security_answer" class="form-label">密保答案 <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="security_answer" name="security_answer" placeholder="请输入密保答案" required>
+
+                    <!-- 密保问题 2 -->
+                    <div class="p-3 bg-light rounded-3 border mb-3">
+                        <div class="mb-2">
+                            <label for="security_question_2_select" class="form-label fw-bold text-secondary small">
+                                <i class="fa-solid fa-circle-question me-1 text-primary"></i>密保问题 2 <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select sq-select" id="security_question_2_select" data-target="security_question_2" onchange="onSecurityQuestionSelectChange(this)">
+                                <option value="" disabled selected>选择密保问题 2...</option>
+                                <option value="__custom__">自定义问题...</option>
+                                <option value="您母亲的姓名是？">您母亲的姓名是？</option>
+                                <option value="您第一所小学的名字是？">您第一所小学的名字是？</option>
+                                <option value="您拥有的第一辆汽车品牌是？">您拥有的第一辆汽车品牌是？</option>
+                                <option value="您出生的城市是？">您出生的城市是？</option>
+                                <option value="您最喜欢的食物是什么？">您最喜欢的食物是什么？</option>
+                                <option value="您父亲的生日是？">您父亲的生日是？</option>
+                                <option value="您父亲的姓名是？">您父亲的姓名是？</option>
+                                <option value="您童年最好的朋友名字是？">您童年最好的朋友名字是？</option>
+                                <option value="您的第一只宠物名字是？">您的第一只宠物名字是？</option>
+                                <option value="您高中班主任的姓名是？">您高中班主任的姓名是？</option>
+                                <option value="您最喜欢的一部电影是？">您最喜欢的一部电影是？</option>
+                                <option value="您毕业的学校名称是？">您毕业的学校名称是？</option>
+                            </select>
+                            <input type="text" class="form-control mt-1 d-none sq-custom-input" id="security_question_2_custom" name="security_question_2" placeholder="请输入自定义密保问题 2" required>
+                        </div>
+                        <div>
+                            <label for="security_answer_2" class="form-label fw-bold text-secondary small">
+                                <i class="fa-solid fa-key me-1 text-success"></i>密保答案 2 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="security_answer_2" name="security_answer_2" placeholder="请输入密保答案 2" required autocomplete="off">
+                        </div>
                     </div>
 
                     <button type="submit" class="btn btn-danger w-100 py-2 fw-bold mt-2"><i class="fa-solid fa-check me-1"></i>提交注册</button>
@@ -64,4 +123,49 @@
         </div>
     </div>
 </div>
+
+<script>
+// 密保问题下拉菜单切换：选择预置问题直接写入隐藏 input，选择自定义则显示输入框
+function onSecurityQuestionSelectChange(selectEl) {
+  const targetName = selectEl.getAttribute('data-target');
+  const hiddenInput = selectEl.parentElement.querySelector('input[name="' + targetName + '"]');
+  if (!hiddenInput) return;
+  const val = selectEl.value;
+  if (val === '__custom__') {
+    hiddenInput.classList.remove('d-none');
+    hiddenInput.value = '';
+    hiddenInput.focus();
+  } else {
+    hiddenInput.classList.add('d-none');
+    hiddenInput.value = val;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+        const q1Input = document.querySelector('input[name="security_question_1"]');
+        const q2Input = document.querySelector('input[name="security_question_2"]');
+        const pwd = document.getElementById('password');
+        const cpwd = document.getElementById('confirm_password');
+
+        const q1 = q1Input ? q1Input.value.trim() : '';
+        const q2 = q2Input ? q2Input.value.trim() : '';
+
+        if (q1 && q2 && q1 === q2) {
+            e.preventDefault();
+            alert('密保问题 1 和密保问题 2 不能相同，请选择不同的密保问题！');
+            return false;
+        }
+
+        if (pwd && cpwd && pwd.value !== cpwd.value) {
+            e.preventDefault();
+            alert('两次输入的密码不一致！');
+            cpwd.focus();
+            return false;
+        }
+    });
+});
+</script>
 {% endblock %}

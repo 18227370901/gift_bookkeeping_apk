@@ -3,6 +3,23 @@
 {% block title %}礼金明细大薄 - 礼金人情记账系统{% endblock %}
 
 {% block content %}
+{% if not current_user.is_admin and not current_user.can_access_menu('ledger') %}
+<!-- 无权限提示卡片 -->
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow border-0 text-center">
+            <div class="card-body p-5">
+                <i class="fa-solid fa-lock fa-3x text-muted opacity-50 mb-3 d-block"></i>
+                <h4 class="fw-bold mb-2">暂无访问权限</h4>
+                <p class="text-muted mb-3">您当前尚未获得任何功能模块的访问权限。<br>请提交权限申请工单，管理员审批后即可使用。</p>
+                <a href="{{ url_for('permission_tickets_view') }}" class="btn btn-primary shadow-sm">
+                    <i class="fa-solid fa-ticket me-1"></i> 前往申请权限
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
     <div>
         <h3 class="fw-bold mb-1"><i class="fa-solid fa-book-bookmark text-danger me-2"></i>礼金收支明细大薄</h3>
@@ -16,13 +33,66 @@
             <i class="fa-solid fa-dumpster me-1"></i> 清空所有数据
         </button>
         <button type="button" class="btn btn-outline-success shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#importCsvModal">
-            <i class="fa-solid fa-file-import me-1"></i> 批量导入
+            <i class="fa-solid fa-file-import me-1"></i> 批量导入(CSV)
         </button>
-        <a href="{{ url_for('export_csv') }}" class="btn btn-outline-secondary shadow-sm btn-sm">
-            <i class="fa-solid fa-file-export me-1"></i> 导出 CSV
-        </a>
+        <!-- 功能三：Excel 批量导入（带字段映射） -->
+        <button type="button" class="btn btn-outline-success shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#importExcelModal">
+            <i class="fa-solid fa-file-excel me-1"></i> Excel导入
+        </button>
+        <div class="btn-group shadow-sm">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn" title="点击直接按当前条件导出">
+                <i class="fa-solid fa-file-export me-1"></i> 导出 CSV
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" title="选择导出范围">
+                <span class="visually-hidden">导出选项</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2" style="min-width: 220px;">
+                <li><h6 class="dropdown-header text-muted small fw-bold"><i class="fa-solid fa-download me-1"></i>选择导出范围</h6></li>
+                <li>
+                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between" href="{{ url_for('export_csv', scope='all') }}" id="exportAllCsvBtn">
+                        <span><i class="fa-solid fa-database text-primary me-2"></i>导出全部数据 (所有数据)</span>
+                        <span class="badge bg-secondary-subtle text-secondary ms-2">{{ total_count }}笔</span>
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between" href="#" id="exportFilteredCsvBtn" onclick="exportDataByScope(event, 'filtered')">
+                        <span><i class="fa-solid fa-filter text-success me-2"></i>导出筛选后指定数据</span>
+                        <span class="badge bg-success-subtle text-success ms-2">当前筛选</span>
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between" href="#" id="exportPageCsvBtn" onclick="exportDataByScope(event, 'page')">
+                        <span><i class="fa-solid fa-file-lines text-info me-2"></i>导出当前页数据</span>
+                        <span class="badge bg-info-subtle text-info ms-2">第{{ pagination.page }}页</span>
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider my-1"></li>
+                <li>
+                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between disabled" href="#" id="exportSelectedCsvBtn" onclick="exportDataByScope(event, 'selected')">
+                        <span><i class="fa-solid fa-square-check text-warning me-2"></i>导出已勾选记录</span>
+                        <span class="badge bg-warning-subtle text-warning ms-2" id="exportSelectedCount">0项</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        {# V10.4: 级别1可正常新增，移除 != 1 限制 #}
         <button type="button" class="btn btn-danger shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#addRecordModal">
             <i class="fa-solid fa-plus me-1"></i> 新增礼金记录
+        </button>
+        <!-- 功能四：打印与导出按钮 -->
+        <div class="btn-group shadow-sm">
+            <button type="button" class="btn btn-outline-dark btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="打印与导出">
+                <i class="fa-solid fa-print me-1"></i>打印/导出
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2">
+                <li><a class="dropdown-item py-2" href="{{ url_for('export_print_giftbook') }}" target="_blank"><i class="fa-solid fa-newspaper text-dark me-2"></i>打印人情簿 (A4)</a></li>
+                <li><a class="dropdown-item py-2" href="{{ url_for('export_pdf_statement') }}"><i class="fa-solid fa-file-pdf text-danger me-2"></i>导出 PDF 对账单</a></li>
+                <li><a class="dropdown-item py-2" href="{{ url_for('poster_view') }}" target="_blank"><i class="fa-solid fa-image text-primary me-2"></i>生成长图海报</a></li>
+            </ul>
+        </div>
+        <!-- 功能三：OCR 图片识别录入 -->
+        <button type="button" class="btn btn-outline-info shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#ocrImportModal">
+            <i class="fa-solid fa-camera me-1"></i>拍照识别
         </button>
     </div>
 </div>
@@ -50,7 +120,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-muted small fw-bold">收到礼金总金额</div>
-                        <div class="h3 fw-bold mb-0 text-success mt-1">¥ {{ "%.2f"|format(total_amount) }}</div>
+                        <div class="h3 fw-bold mb-0 text-success mt-1 privacy-blur">¥ {{ "%.2f"|format(total_amount) }}</div>
                     </div>
                     <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success">
                         <i class="fa-solid fa-sack-dollar fa-xl"></i>
@@ -65,7 +135,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-muted small fw-bold">平均单笔礼金</div>
-                        <div class="h3 fw-bold mb-0 text-info mt-1">¥ {{ "%.2f"|format(avg_amount) }}</div>
+                        <div class="h3 fw-bold mb-0 text-info mt-1 privacy-blur">¥ {{ "%.2f"|format(avg_amount) }}</div>
                     </div>
                     <div class="bg-info bg-opacity-10 p-3 rounded-circle text-info">
                         <i class="fa-solid fa-calculator fa-xl"></i>
@@ -80,16 +150,16 @@
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body p-3">
         <form method="GET" action="{{ url_for('index') }}" class="row g-2 align-items-center">
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <div class="input-group shadow-sm border rounded-3 overflow-hidden">
                     <span class="input-group-text bg-white text-muted border-0 pe-2"><i class="fa-solid fa-magnifying-glass text-danger"></i></span>
                     <input type="text" name="search" class="form-control border-0 ps-1 py-2 shadow-none" placeholder="搜索姓名、电话、地址、金额、事由、备注..." value="{{ query_str }}" aria-label="搜索">
                     {% if query_str %}
-                    <a href="{{ url_for('index', reason=reason_filter, sort=sort_by, per_page=per_page) }}" class="btn btn-light border-0 d-flex align-items-center text-secondary px-3" title="清空搜索">
+                    <a href="{{ url_for('index', reason=reason_filter, type=type_filter, sort=sort_by, per_page=per_page) }}" class="btn btn-light border-0 d-flex align-items-center text-secondary px-3" title="清空搜索">
                         <i class="fa-solid fa-xmark"></i>
                     </a>
                     {% endif %}
-                    <button type="submit" class="btn btn-danger px-4 border-0">
+                    <button type="submit" class="btn btn-danger px-3 border-0">
                         <i class="fa-solid fa-magnifying-glass me-1"></i> 搜索
                     </button>
                 </div>
@@ -102,7 +172,14 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <select class="form-select shadow-sm py-2" name="type" onchange="this.form.submit()">
+                    <option value="">所有往来类型 (全部)</option>
+                    <option value="receive" {% if type_filter == 'receive' %}selected{% endif %}>🟢 仅看收礼 (对方送我)</option>
+                    <option value="send" {% if type_filter == 'send' %}selected{% endif %}>🔴 仅看送礼 (我送对方)</option>
+                </select>
+            </div>
+            <div class="col-md-2">
                 <select class="form-select shadow-sm py-2" name="sort" onchange="this.form.submit()">
                     <option value="created_at_desc" {% if sort_by == 'created_at_desc' %}selected{% endif %}>按时间倒序 (最新优先)</option>
                     <option value="created_at_asc" {% if sort_by == 'created_at_asc' %}selected{% endif %}>按时间正序 (最早优先)</option>
@@ -115,6 +192,21 @@
                     <i class="fa-solid fa-rotate-left me-1"></i> 重置
                 </a>
             </div>
+        </form>
+    </div>
+</div>
+
+<!-- ⚡ 自然语言极简记账 Bar -->
+<div class="card border-0 shadow-sm mb-4 bg-primary bg-opacity-10 border border-primary-subtle">
+    <div class="card-body p-3">
+        <form id="nlpQuickAddForm" onsubmit="submitNlpQuickAdd(event)" class="d-flex gap-2">
+            <div class="input-group">
+                <span class="input-group-text bg-white border-0 text-primary"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                <input type="text" id="nlpTextInput" class="form-control border-0 py-2" placeholder="💬 极简记账：输入日常语言（例如：'昨天李四儿子满月微信随了600'、'收张三结婚礼金888'），回车或点击一键入库" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-primary px-4 fw-bold text-nowrap" id="nlpSubmitBtn">
+                <i class="fa-solid fa-bolt me-1"></i>一键入库
+            </button>
         </form>
     </div>
 </div>
@@ -133,6 +225,7 @@
                         </th>
                         <th>#</th>
                         <th>客人姓名</th>
+                        <th>往来类型</th>
                         <th>年龄</th>
                         <th>联系电话</th>
                         <th class="text-end">礼金金额(元)</th>
@@ -141,7 +234,7 @@
                         <th>联系地址</th>
                         <th>备注说明</th>
                         <th>登记时间</th>
-                        {% if current_user.is_admin or current_user.can_view_others %}
+                        {% if current_user.is_admin or current_user.can_view_others_for('ledger') %}
                         <th>录入用户</th>
                         {% endif %}
                         <th class="text-end pe-3">操作</th>
@@ -160,15 +253,31 @@
                         </td>
                         <td class="text-muted">{{ loop.index }}</td>
                         <td class="fw-bold text-dark">{{ record.name }}</td>
+                        <td>
+                            {% if record.record_type in ('send', 'give') %}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="fa-solid fa-paper-plane me-1"></i>送礼</span>
+                            {% else %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-hand-holding-dollar me-1"></i>收礼</span>
+                            {% endif %}
+                        </td>
                         <td>{{ record.age if record.age else '-' }}</td>
                         <td>{{ record.phone if record.phone else '-' }}</td>
-                        <td class="text-end fw-bold text-danger">¥ {{ "%.2f"|format(record.amount) }}</td>
-                        <td class="text-muted small fw-bold">{{ num2cn(record.amount) }}</td>
-                        <td><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">{{ record.event_reason }}</span></td>
+                        <td class="text-end fw-bold {{ 'text-danger' if record.record_type in ('send', 'give') else 'text-success' }} privacy-blur">¥ {{ "%.2f"|format(record.amount) }}</td>
+                        <td class="text-muted small fw-bold privacy-blur">{{ num2cn(record.amount) }}</td>
+                        <td>
+                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">{{ record.event_reason }}</span>
+                            {% if record.banquet and not record.banquet.deleted_at %}
+                            <div class="mt-1">
+                                <a href="{{ url_for('banquet_detail_view', banquet_id=record.banquet.id) }}" class="badge bg-primary-subtle text-primary border border-primary-subtle text-decoration-none" title="点击穿透前往专属大账本">
+                                    <i class="fa-solid fa-champagne-glasses me-1"></i>{{ record.banquet.title }}
+                                </a>
+                            </div>
+                            {% endif %}
+                        </td>
                         <td class="text-truncate" style="max-width: 140px;" title="{{ record.address }}">{{ record.address if record.address else '-' }}</td>
                         <td class="text-truncate" style="max-width: 140px;" title="{{ record.notes }}">{{ record.notes if record.notes else '-' }}</td>
                         <td class="small text-muted">{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                        {% if current_user.is_admin or current_user.can_view_others %}
+                        {% if current_user.is_admin or current_user.can_view_others_for('ledger') %}
                         <td><span class="badge bg-light border text-dark">{{ record.owner.username if record.owner else '未知' }}</span></td>
                         {% endif %}
                         <td class="text-end pe-3">
@@ -178,11 +287,13 @@
                                     data-bs-target="#editRecordModal"
                                     data-id="{{ record.id }}"
                                     data-name="{{ record.name }}"
+                                    data-type="{{ record.record_type or 'receive' }}"
                                     data-age="{{ record.age or '' }}"
                                     data-address="{{ record.address or '' }}"
                                     data-phone="{{ record.phone or '' }}"
                                     data-amount="{{ record.amount }}"
                                     data-reason="{{ record.event_reason }}"
+                                    data-banquet-id="{{ record.banquet_id or '' }}"
                                     data-notes="{{ record.notes or '' }}">
                                 <i class="fa-solid fa-pen-to-square"></i> 编辑
                             </button>
@@ -200,7 +311,7 @@
                     {% endfor %}
                     {% else %}
                     <tr>
-                        <td colspan="{% if current_user.is_admin or current_user.can_view_others %}13{% else %}12{% endif %}" class="text-center py-5 text-muted">
+                        <td colspan="{% if current_user.is_admin or current_user.can_view_others_for('ledger') %}13{% else %}12{% endif %}" class="text-center py-5 text-muted">
                             <i class="fa-solid fa-folder-open fa-3x mb-3 text-secondary d-block"></i>
                             暂无符合条件的礼金记录
                         </td>
@@ -262,13 +373,37 @@
                 <h5 class="modal-title"><i class="fa-solid fa-plus-circle me-2"></i>添加新礼金记录</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{ url_for('add_record') }}" method="POST">
+            <form id="addRecordForm" action="{{ url_for('add_record') }}" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="modal-body">
+                    <div id="addRecordAlert" class="alert alert-danger d-none py-2 px-3 small mb-3"></div>
                     <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">人情往来类型 <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-4 p-2 bg-light rounded-3 border">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="record_type" id="add_type_receive" value="receive" checked onchange="onAddTypeChange()">
+                                    <label class="form-check-label fw-bold text-success" for="add_type_receive">
+                                        <i class="fa-solid fa-hand-holding-dollar me-1"></i>收礼 (对方送我/收礼)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="record_type" id="add_type_send" value="send" onchange="onAddTypeChange()">
+                                    <label class="form-check-label fw-bold text-danger" for="add_type_send">
+                                        <i class="fa-solid fa-paper-plane me-1"></i>送礼 (我送对方/还礼)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 d-none" id="addSuggestionBox">
+                            <div class="alert alert-info py-2 px-3 mb-0 small d-flex align-items-center">
+                                <i class="fa-solid fa-wand-magic-sparkles text-primary me-2"></i>
+                                <span id="addSuggestionText"></span>
+                            </div>
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">客人姓名 <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="name" placeholder="请输入送礼人姓名" required>
+                            <input type="text" class="form-control" name="name" id="add_name_input" placeholder="请输入亲友/联系人姓名" required oninput="onAddNameInput()">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">礼金金额 (元) <span class="text-danger">*</span></label>
@@ -276,6 +411,16 @@
                                 <span class="input-group-text">¥</span>
                                 <input type="number" step="0.01" min="0" class="form-control" name="amount" placeholder="0.00" required>
                             </div>
+                        </div>
+                        <div class="col-md-6" id="add_banquet_box">
+                            <label class="form-label fw-bold">归属专属宴席 <span class="badge bg-light text-secondary border">选填</span></label>
+                            <select class="form-select" name="banquet_id" id="add_banquet_id" onchange="onAddBanquetChange()">
+                                <option value="">-- 不关联特定宴席 (独立账本) --</option>
+                                {% for bq in active_banquets %}
+                                <option value="{{ bq.id }}" data-reason="{{ bq.event_type }}" data-date="{{ bq.event_date or '' }}">{{ bq.title }} ({{ bq.event_type }})</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text small text-muted">专属宴席仅限自家办席收礼，送礼将自动隐藏并解除关联</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">办席原因 <span class="text-danger">*</span></label>
@@ -332,7 +477,25 @@
             <form id="editRecordForm" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="modal-body">
+                    <div id="editRecordAlert" class="alert alert-danger d-none py-2 px-3 small mb-3"></div>
                     <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">人情往来类型 <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-4 p-2 bg-light rounded-3 border">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="record_type" id="edit_type_receive" value="receive">
+                                    <label class="form-check-label fw-bold text-success" for="edit_type_receive">
+                                        <i class="fa-solid fa-hand-holding-dollar me-1"></i>收礼 (对方送我/收礼)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="record_type" id="edit_type_send" value="send">
+                                    <label class="form-check-label fw-bold text-danger" for="edit_type_send">
+                                        <i class="fa-solid fa-paper-plane me-1"></i>送礼 (我送对方/还礼)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">客人姓名 <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" name="name" id="edit_name" required>
@@ -343,6 +506,16 @@
                                 <span class="input-group-text">¥</span>
                                 <input type="number" step="0.01" min="0" class="form-control" name="amount" id="edit_amount" required>
                             </div>
+                        </div>
+                        <div class="col-md-6" id="edit_banquet_box">
+                            <label class="form-label fw-bold">归属专属宴席 <span class="badge bg-light text-secondary border">选填</span></label>
+                            <select class="form-select" name="banquet_id" id="edit_banquet_id">
+                                <option value="">-- 不关联特定宴席 (独立账本) --</option>
+                                {% for bq in active_banquets %}
+                                <option value="{{ bq.id }}" data-reason="{{ bq.event_type }}" data-date="{{ bq.event_date or '' }}">{{ bq.title }} ({{ bq.event_type }})</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text small text-muted">专属宴席仅限收礼记录，送礼将自动清除关联</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">办席原因 <span class="text-danger">*</span></label>
@@ -454,6 +627,91 @@
     </div>
 </div>
 
+<!-- 功能三：Excel 批量导入 Modal（带字段映射预览） -->
+<div class="modal fade" id="importExcelModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-file-excel me-2"></i>Excel/CSV 批量导入（字段映射）</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 步骤1：选择文件 -->
+                <div id="excelStep1">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">选择 Excel 或 CSV 文件</label>
+                        <input class="form-control" type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" onchange="handleExcelFileSelect(this)">
+                    </div>
+                    <div class="alert alert-info small mb-0">
+                        <i class="fa-solid fa-circle-info me-1"></i>支持 .xlsx / .xls / .csv 格式，上传后自动识别列名并匹配系统字段，可预览前 5 行数据确认后批量导入。
+                    </div>
+                </div>
+                <!-- 步骤2：字段映射与预览 -->
+                <div id="excelStep2" class="d-none">
+                    <input type="hidden" id="excelFileData">
+                    <input type="hidden" id="excelFileExt">
+                    <div class="alert alert-success small py-2">
+                        <i class="fa-solid fa-check-circle me-1"></i>已解析到 <strong id="excelTotalRows">0</strong> 行数据，请确认字段映射后导入。
+                    </div>
+                    <h6 class="fw-bold mb-2">字段映射</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6"><label class="form-label small">姓名 *</label><select class="form-select form-select-sm" id="mapName"></select></div>
+                        <div class="col-md-6"><label class="form-label small">金额 *</label><select class="form-select form-select-sm" id="mapAmount"></select></div>
+                        <div class="col-md-6"><label class="form-label small">事由</label><select class="form-select form-select-sm" id="mapReason"></select></div>
+                        <div class="col-md-6"><label class="form-label small">收送类型</label><select class="form-select form-select-sm" id="mapType"></select></div>
+                        <div class="col-md-6"><label class="form-label small">备注</label><select class="form-select form-select-sm" id="mapNotes"></select></div>
+                    </div>
+                    <h6 class="fw-bold mb-2">预览（前 5 行）</h6>
+                    <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered" id="excelPreviewTable"></table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success d-none" id="excelConfirmBtn" onclick="confirmExcelImport()"><i class="fa-solid fa-upload me-1"></i>确认导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 功能三：OCR 拍照识别 Modal -->
+<div class="modal fade" id="ocrImportModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-camera me-2"></i>拍照智能识别录入</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">上传/拍照人情簿图片</label>
+                        <input class="form-control mb-2" type="file" id="ocrFileInput" accept="image/*" onchange="handleOcrFileSelect(this)">
+                        <div class="text-center mt-2">
+                            <img id="ocrImagePreview" class="img-fluid rounded" style="max-height: 300px; display: none;">
+                        </div>
+                        <button type="button" class="btn btn-info mt-2 w-100" id="ocrRecognizeBtn" onclick="startOcrRecognize()" disabled>
+                            <i class="fa-solid fa-magnifying-glass me-1"></i>开始识别
+                        </button>
+                        <div id="ocrStatus" class="small text-muted mt-2"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">识别结果（可编辑勾选）</label>
+                        <div id="ocrResultsContainer" style="max-height: 350px; overflow-y: auto;">
+                            <div class="text-center text-muted py-4"><i class="fa-solid fa-camera fa-2x mb-2 opacity-50 d-block"></i>上传图片后点击「开始识别」</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-info d-none" id="ocrConfirmBtn" onclick="confirmOcrImport()"><i class="fa-solid fa-check me-1"></i>确认入库 <span id="ocrResultCount"></span></button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <script>
 function toggleSelectAll(selectAllCheckbox) {
@@ -479,6 +737,18 @@ function updateBatchDeleteBtn() {
         countSpan.textContent = '0';
     }
 
+    const exportSelBtn = document.getElementById('exportSelectedCsvBtn');
+    const exportSelCount = document.getElementById('exportSelectedCount');
+    if (exportSelBtn) {
+        if (checkedBoxes.length > 0) {
+            exportSelBtn.classList.remove('disabled');
+            if (exportSelCount) exportSelCount.textContent = checkedBoxes.length + '项';
+        } else {
+            exportSelBtn.classList.add('disabled');
+            if (exportSelCount) exportSelCount.textContent = '0项';
+        }
+    }
+
     if (selectAll) {
         if (totalBoxes.length > 0 && checkedBoxes.length === totalBoxes.length) {
             selectAll.checked = true;
@@ -496,8 +766,25 @@ function updateBatchDeleteBtn() {
 function submitBatchDelete() {
     var checkedBoxes = document.querySelectorAll('.record-checkbox:checked');
     if (checkedBoxes.length === 0) return;
-    if (confirm('确定要删除选中的 ' + checkedBoxes.length + ' 条礼金记录吗？此操作不可撤销！')) {
-        document.getElementById('batchDeleteForm').submit();
+    if (confirm('确定要将选中的 ' + checkedBoxes.length + ' 条礼金记录移入回收站吗？')) {
+        const form = document.getElementById('batchDeleteForm');
+        const formData = new FormData(form);
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.code === 200) {
+                window.location.reload();
+            } else {
+                alert(data.message || '批量删除失败');
+            }
+        })
+        .catch(() => {
+            alert('网络请求异常，批量删除失败');
+        });
     }
 }
 
@@ -509,17 +796,27 @@ function changePerPage(val) {
 }
 
 function deleteSingleRecord(recordId, recordName) {
-    if (confirm('确定要删除客人 [' + recordName + '] 的这笔礼金记录吗？')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/record/delete/' + recordId;
-        var csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = 'csrf_token';
-        csrfInput.value = '{{ csrf_token }}';
-        form.appendChild(csrfInput);
-        document.body.appendChild(form);
-        form.submit();
+    if (confirm('确定要将客人 [' + recordName + '] 的这笔礼金记录移入回收站吗？')) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
+        fetch('/record/delete/' + recordId, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.code === 200) {
+                window.location.reload();
+            } else {
+                alert(data.message || '删除失败');
+            }
+        })
+        .catch(() => {
+            alert('网络请求异常，删除失败');
+        });
     }
 }
 
@@ -536,6 +833,123 @@ function toggleCustomReason(prefix) {
     }
 }
 
+// ---------------- SPA 无刷新表单提交与错误输入保留机制 ----------------
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. 新增记录表单异步提交与错误保留
+    const addForm = document.getElementById('addRecordForm');
+    if (addForm) {
+        addForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const alertBox = document.getElementById('addRecordAlert');
+            if (alertBox) alertBox.classList.add('d-none');
+            addForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+            addForm.querySelectorAll('.invalid-feedback').forEach(el => el.remove());
+
+            const formData = new FormData(addForm);
+            const submitBtn = addForm.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            fetch(addForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json().then(data => ({ status: res.status, data: data })))
+            .then(({ status, data }) => {
+                if (status === 200) {
+                    const modalEl = document.getElementById('addRecordModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                    window.location.reload();
+                } else {
+                    // 保留用户输入内容，仅高亮标红错误字段并展示提示
+                    if (alertBox) {
+                        alertBox.textContent = data.message || '保存失败，请检查输入项';
+                        alertBox.classList.remove('d-none');
+                    }
+                    if (data.field) {
+                        const fieldInput = addForm.querySelector(`[name="${data.field}"]`);
+                        if (fieldInput) {
+                            fieldInput.classList.add('is-invalid');
+                            const fb = document.createElement('div');
+                            fb.className = 'invalid-feedback d-block';
+                            fb.textContent = data.message;
+                            fieldInput.parentNode.appendChild(fb);
+                            fieldInput.focus();
+                        }
+                    }
+                }
+            })
+            .catch(() => {
+                if (alertBox) {
+                    alertBox.textContent = '网络请求异常，请稍后重试';
+                    alertBox.classList.remove('d-none');
+                }
+            })
+            .finally(() => {
+                if (submitBtn) submitBtn.disabled = false;
+            });
+        });
+    }
+
+    // 2. 编辑记录表单异步提交与错误保留
+    const editForm = document.getElementById('editRecordForm');
+    if (editForm) {
+        editForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const alertBox = document.getElementById('editRecordAlert');
+            if (alertBox) alertBox.classList.add('d-none');
+            editForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+            editForm.querySelectorAll('.invalid-feedback').forEach(el => el.remove());
+
+            const formData = new FormData(editForm);
+            const submitBtn = editForm.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            fetch(editForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json().then(data => ({ status: res.status, data: data })))
+            .then(({ status, data }) => {
+                if (status === 200) {
+                    const modalEl = document.getElementById('editRecordModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                    window.location.reload();
+                } else {
+                    // 保留用户在弹窗中修改的输入项
+                    if (alertBox) {
+                        alertBox.textContent = data.message || '修改失败，请检查输入项';
+                        alertBox.classList.remove('d-none');
+                    }
+                    if (data.field) {
+                        const fieldInput = editForm.querySelector(`[name="${data.field}"]`);
+                        if (fieldInput) {
+                            fieldInput.classList.add('is-invalid');
+                            const fb = document.createElement('div');
+                            fb.className = 'invalid-feedback d-block';
+                            fb.textContent = data.message;
+                            fieldInput.parentNode.appendChild(fb);
+                            fieldInput.focus();
+                        }
+                    }
+                }
+            })
+            .catch(() => {
+                if (alertBox) {
+                    alertBox.textContent = '网络请求异常，请稍后重试';
+                    alertBox.classList.remove('d-none');
+                }
+            })
+            .finally(() => {
+                if (submitBtn) submitBtn.disabled = false;
+            });
+        });
+    }
+});
+
 var editModal = document.getElementById('editRecordModal');
 if (editModal) {
     editModal.addEventListener('show.bs.modal', function (event) {
@@ -548,6 +962,7 @@ if (editModal) {
         var amount = button.getAttribute('data-amount');
         var reason = button.getAttribute('data-reason');
         var notes = button.getAttribute('data-notes');
+        var type = button.getAttribute('data-type') || 'receive';
 
         document.getElementById('editRecordForm').action = '/record/edit/' + id;
         document.getElementById('edit_name').value = name;
@@ -556,6 +971,22 @@ if (editModal) {
         document.getElementById('edit_phone').value = phone;
         document.getElementById('edit_amount').value = amount;
         document.getElementById('edit_notes').value = notes;
+
+        if (type === 'send' || type === 'give') {
+            document.getElementById('edit_type_send').checked = true;
+        } else {
+            document.getElementById('edit_type_receive').checked = true;
+        }
+
+        var banquetId = button.getAttribute('data-banquet-id');
+        var editBanquetSelect = document.getElementById('edit_banquet_id');
+        if (editBanquetSelect) {
+            editBanquetSelect.value = banquetId || '';
+        }
+        var editBanquetBox = document.getElementById('edit_banquet_box');
+        if (editBanquetBox) {
+            editBanquetBox.style.display = (type === 'send' || type === 'give') ? 'none' : 'block';
+        }
 
         var reasonSelect = document.getElementById('edit_event_reason');
         var customBox = document.getElementById('edit_custom_reason_box');
@@ -575,6 +1006,379 @@ if (editModal) {
         }
     });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    const editTypeSend = document.getElementById('edit_type_send');
+    const editTypeReceive = document.getElementById('edit_type_receive');
+    if (editTypeSend) {
+        editTypeSend.addEventListener('change', function() {
+            const eb = document.getElementById('edit_banquet_box');
+            if (eb) {
+                eb.style.display = 'none';
+                const bSel = document.getElementById('edit_banquet_id');
+                if (bSel) bSel.value = '';
+            }
+        });
+    }
+    if (editTypeReceive) {
+        editTypeReceive.addEventListener('change', function() {
+            const eb = document.getElementById('edit_banquet_box');
+            if (eb) eb.style.display = 'block';
+        });
+    }
+});
+
+// 智能还礼金额建议动态查询
+let _suggestDebounce = null;
+function onAddTypeChange() {
+    const isSend = document.getElementById('add_type_send').checked;
+    const banquetBox = document.getElementById('add_banquet_box');
+    if (banquetBox) {
+        banquetBox.style.display = isSend ? 'none' : 'block';
+        if (isSend) {
+            const bSel = document.getElementById('add_banquet_id');
+            if (bSel) bSel.value = '';
+        }
+    }
+    const box = document.getElementById('addSuggestionBox');
+    if (!isSend) {
+        if (box) box.classList.add('d-none');
+        return;
+    }
+    fetchGiftSuggestion();
+}
+
+function onAddBanquetChange() {
+    const bSel = document.getElementById('add_banquet_id');
+    if (!bSel) return;
+    const opt = bSel.options[bSel.selectedIndex];
+    if (opt && opt.dataset.reason) {
+        const rSel = document.getElementById('add_event_reason');
+        if (rSel && ['婚宴', '满月酒', '周岁宴', '寿宴', '升学宴', '乔迁宴', '白事人情'].includes(opt.dataset.reason)) {
+            rSel.value = opt.dataset.reason;
+            toggleCustomReason('add');
+        }
+    }
+}
+
+function onAddNameInput() {
+    const isSend = document.getElementById('add_type_send').checked;
+    if (!isSend) return;
+    clearTimeout(_suggestDebounce);
+    _suggestDebounce = setTimeout(fetchGiftSuggestion, 300);
+}
+
+function fetchGiftSuggestion() {
+    const nameInput = document.getElementById('add_name_input');
+    const box = document.getElementById('addSuggestionBox');
+    const textEl = document.getElementById('addSuggestionText');
+    if (!nameInput || !box || !textEl) return;
+    const name = nameInput.value.trim();
+    if (!name) {
+        box.classList.add('d-none');
+        return;
+    }
+
+    fetch('/api/gift-suggestion?name=' + encodeURIComponent(name))
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.suggestion) {
+                textEl.innerHTML = `<strong>智能建议：</strong> ${data.suggestion}`;
+                box.classList.remove('d-none');
+            } else {
+                box.classList.add('d-none');
+            }
+        })
+        .catch(() => {
+            box.classList.add('d-none');
+        });
+}
+
+// ⚡ 自然语言一键极简入库
+function submitNlpQuickAdd(e) {
+    e.preventDefault();
+    const input = document.getElementById('nlpTextInput');
+    const btn = document.getElementById('nlpSubmitBtn');
+    if (!input || !input.value.trim()) return;
+
+    const text = input.value.trim();
+    const csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+
+    if (btn) btn.disabled = true;
+
+    fetch('/api/record/nlp_quick_add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ text: text })
+    })
+    .then(res => res.json().then(data => ({ status: res.status, data: data })))
+    .then(({ status, data }) => {
+        if (status === 200) {
+            alert(data.message || '记账成功！');
+            window.location.reload();
+        } else {
+            alert(data.message || '未能识别有效记账信息，请检查后重试！');
+        }
+    })
+    .catch(() => {
+        alert('网络请求异常，请稍后重试');
+    })
+    .finally(() => {
+        if (btn) btn.disabled = false;
+    });
+}
+
+// 导出 CSV 多维度导出引擎（全部数据、筛选指定数据、当前页数据、已勾选数据）
+function exportDataByScope(e, scope) {
+    if (e) e.preventDefault();
+    const checkedBoxes = document.querySelectorAll('input[name="record_ids"]:checked');
+    const baseUrl = "{{ url_for('export_csv') }}";
+
+    if (scope === 'selected') {
+        if (checkedBoxes.length === 0) {
+            alert('请先在表格左侧勾选要导出的记录！');
+            return;
+        }
+        const ids = Array.from(checkedBoxes).map(cb => cb.value).join(',');
+        window.location.href = baseUrl + '?ids=' + encodeURIComponent(ids);
+        return;
+    }
+
+    if (scope === 'all') {
+        window.location.href = baseUrl + '?scope=all';
+        return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('scope', scope);
+    window.location.href = baseUrl + '?' + urlParams.toString();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const exportBtn = document.getElementById('exportCsvBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const checkedBoxes = document.querySelectorAll('input[name="record_ids"]:checked');
+            if (checkedBoxes.length > 0) {
+                exportDataByScope(e, 'selected');
+            } else {
+                const search = new URLSearchParams(window.location.search);
+                if (search.get('search') || search.get('q') || search.get('reason') || search.get('type')) {
+                    exportDataByScope(e, 'filtered');
+                } else {
+                    exportDataByScope(e, 'all');
+                }
+            }
+        });
+    }
+});
+
+// ===== 功能三：Excel/CSV 批量导入（字段映射） =====
+var excelFileBase64 = '';
+var excelFileExt = '';
+
+function handleExcelFileSelect(input) {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    excelFileExt = '.' + file.name.split('.').pop().toLowerCase();
+    reader.onload = function(e) {
+        // 转为 base64
+        var bytes = new Uint8Array(e.target.result);
+        var binary = '';
+        for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        excelFileBase64 = btoa(binary);
+
+        // 上传到服务器预览
+        var formData = new FormData();
+        formData.append('file', file);
+        var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+
+        fetch('/api/import/preview', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.code !== 200) { alert(data.message || '文件解析失败'); return; }
+            // 显示步骤2
+            document.getElementById('excelStep1').classList.add('d-none');
+            document.getElementById('excelStep2').classList.remove('d-none');
+            document.getElementById('excelConfirmBtn').classList.remove('d-none');
+            document.getElementById('excelTotalRows').textContent = data.total_rows;
+            document.getElementById('excelFileData').value = excelFileBase64;
+            document.getElementById('excelFileExt').value = excelFileExt;
+
+            // 填充字段映射下拉
+            var headers = data.headers;
+            var fields = [
+                { id: 'mapName', name: 'name' },
+                { id: 'mapAmount', name: 'amount' },
+                { id: 'mapReason', name: 'event_reason' },
+                { id: 'mapType', name: 'record_type' },
+                { id: 'mapNotes', name: 'notes' }
+            ];
+            fields.forEach(function(f) {
+                var sel = document.getElementById(f.id);
+                sel.innerHTML = '<option value="">-- 无对应列 --</option>';
+                headers.forEach(function(h, idx) {
+                    var selected = data.auto_mapping && data.auto_mapping[f.name] === idx ? ' selected' : '';
+                    sel.innerHTML += '<option value="' + idx + '"' + selected + '>' + h + '</option>';
+                });
+            });
+
+            // 渲染预览表
+            var tableHtml = '<thead><tr>';
+            headers.forEach(function(h) { tableHtml += '<th>' + h + '</th>'; });
+            tableHtml += '</tr></thead><tbody>';
+            data.preview.forEach(function(row) {
+                tableHtml += '<tr>';
+                row.forEach(function(cell) { tableHtml += '<td>' + (cell || '') + '</td>'; });
+                tableHtml += '</tr>';
+            });
+            tableHtml += '</tbody>';
+            document.getElementById('excelPreviewTable').innerHTML = tableHtml;
+        })
+        .catch(function(err) { alert('文件解析失败: ' + err); });
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function confirmExcelImport() {
+    var mapping = {
+        name: parseInt(document.getElementById('mapName').value),
+        amount: parseInt(document.getElementById('mapAmount').value),
+        event_reason: parseInt(document.getElementById('mapReason').value),
+        record_type: parseInt(document.getElementById('mapType').value),
+        notes: parseInt(document.getElementById('mapNotes').value)
+    };
+    if (isNaN(mapping.name) || isNaN(mapping.amount)) {
+        alert('必须映射姓名和金额列');
+        return;
+    }
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+    var data = {
+        file_data: document.getElementById('excelFileData').value,
+        file_ext: document.getElementById('excelFileExt').value,
+        mapping: mapping
+    };
+    // 将 NaN 转为 null
+    Object.keys(data.mapping).forEach(function(k) { if (isNaN(data.mapping[k])) data.mapping[k] = null; });
+
+    fetch('/api/import/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify(data)
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.code === 200) {
+            alert(data.message);
+            bootstrap.Modal.getInstance(document.getElementById('importExcelModal')).hide();
+            window.location.reload();
+        } else {
+            alert(data.message || '导入失败');
+        }
+    });
+}
+
+// ===== 功能三：OCR 拍照智能识别 =====
+var ocrImageBase64 = '';
+var ocrResults = [];
+
+function handleOcrFileSelect(input) {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('ocrImagePreview').src = e.target.result;
+        document.getElementById('ocrImagePreview').style.display = 'block';
+        // 提取 base64（去掉 data:image/xxx;base64, 前缀）
+        ocrImageBase64 = e.target.result.split(',')[1];
+        document.getElementById('ocrRecognizeBtn').disabled = false;
+    };
+    reader.readAsDataURL(file);
+}
+
+function startOcrRecognize() {
+    if (!ocrImageBase64) return;
+    var btn = document.getElementById('ocrRecognizeBtn');
+    var statusEl = document.getElementById('ocrStatus');
+    btn.disabled = true;
+    statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>正在识别中，请稍候...';
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+
+    fetch('/api/ocr/recognize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ image: ocrImageBase64 })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        statusEl.innerHTML = '';
+        if (data.code === 200 && data.records && data.records.length > 0) {
+            ocrResults = data.records;
+            renderOcrResults();
+            document.getElementById('ocrConfirmBtn').classList.remove('d-none');
+            document.getElementById('ocrResultCount').textContent = '(' + data.records.length + '条)';
+        } else {
+            document.getElementById('ocrResultsContainer').innerHTML = '<div class="text-center text-danger py-4"><i class="fa-solid fa-circle-exclamation fa-2x mb-2 d-block"></i>' + (data.message || '识别失败') + '</div>';
+        }
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        statusEl.innerHTML = '<span class="text-danger">识别失败: ' + err + '</span>';
+    });
+}
+
+function renderOcrResults() {
+    var html = '';
+    ocrResults.forEach(function(r, i) {
+        var typeLabel = r.record_type === 'send' ? '送礼' : '收礼';
+        var typeColor = r.record_type === 'send' ? 'text-danger' : 'text-success';
+        html += '<div class="d-flex align-items-center gap-2 mb-2 p-2 bg-light rounded">' +
+            '<input class="form-check-input ocr-check" type="checkbox" checked data-idx="' + i + '">' +
+            '<div class="flex-grow-1">' +
+            '<div><strong>' + r.name + '</strong> <span class="' + typeColor + ' fw-bold">¥' + r.amount + '</span></div>' +
+            '<div class="small text-muted">' + typeLabel + ' · ' + r.event_reason + (r.notes ? ' · ' + r.notes : '') + '</div>' +
+            '</div></div>';
+    });
+    document.getElementById('ocrResultsContainer').innerHTML = html;
+}
+
+function confirmOcrImport() {
+    var checked = document.querySelectorAll('.ocr-check:checked');
+    if (checked.length === 0) { alert('请至少勾选一条记录'); return; }
+    var selected = [];
+    checked.forEach(function(cb) {
+        var idx = parseInt(cb.getAttribute('data-idx'));
+        selected.push(ocrResults[idx]);
+    });
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+    fetch('/api/ocr/batch-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ records: selected })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (data.code === 200) {
+            alert(data.message);
+            bootstrap.Modal.getInstance(document.getElementById('ocrImportModal')).hide();
+            window.location.reload();
+        } else {
+            alert(data.message || '入库失败');
+        }
+    });
+}
 </script>
+{% endif %}
 {% endblock %}
 

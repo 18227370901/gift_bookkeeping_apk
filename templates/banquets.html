@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+
+{% block title %}专属宴席大账本 - 人情礼金记账系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center py-3 gap-2 border-bottom">
+                <div>
+                    <h5 class="mb-0 text-primary fw-bold">
+                        <i class="fa-solid fa-champagne-glasses me-2"></i>专属宴席大账本与台账管理
+                    </h5>
+                    <span class="small text-muted">汇总婚礼、满月酒、寿宴等所有专属台账，支持收礼盈亏核算与批量管理</span>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    {# V10.4: 级别1可创建宴席 #}
+                    <a href="{{ url_for('banquets_sync') }}" class="btn btn-outline-warning btn-sm" title="从礼金账本拉取数据自动更新与关联">
+                        <i class="fa-solid fa-rotate me-1"></i>从礼金账本同步数据
+                    </a>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createBanquetModal">
+                        <i class="fa-solid fa-plus-circle me-1"></i>创建新宴席账本
+                    </button>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa-solid fa-arrow-left me-1"></i>返回账本
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-light border d-flex align-items-center mb-3">
+                    <i class="fa-solid fa-circle-info text-primary me-2 fa-lg"></i>
+                    <span class="small text-muted">专属宴席账本专为婚礼、满月酒、寿宴等大型活动打造，支持现场快速录入收礼、办宴成本核算、净盈亏分析、免登录只读分享与 Excel 导出。</span>
+                </div>
+
+                <!-- 1. 综合查询与筛选工具栏 -->
+                <div class="bg-light p-3 rounded-3 mb-3 border shadow-sm">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-3 col-sm-12">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                                <input type="text" id="banquetSearchInput" class="form-control" placeholder="搜索宴席名称、地点、备注...">
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-6">
+                            <select id="banquetTypeFilter" class="form-select form-select-sm">
+                                <option value="">全部宴席类型</option>
+                                <option value="婚宴">婚宴</option>
+                                <option value="满月酒">满月酒</option>
+                                <option value="周岁宴">周岁宴</option>
+                                <option value="寿宴">寿宴</option>
+                                <option value="升学宴">升学宴</option>
+                                <option value="乔迁宴">乔迁宴</option>
+                                <option value="白事人情">白事人情</option>
+                                <option value="其它">其它</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 col-sm-6">
+                            <select id="banquetProfitFilter" class="form-select form-select-sm">
+                                <option value="">全部盈亏状态</option>
+                                <option value="profit">盈利 (净利润 > 0)</option>
+                                <option value="loss">亏损 / 持平 (<= 0)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 col-sm-6">
+                            <select id="banquetSortSelect" class="form-select form-select-sm">
+                                <option value="created_desc">最新创建优先</option>
+                                <option value="date_desc">举办日期倒序</option>
+                                <option value="date_asc">举办日期正序</option>
+                                <option value="income_desc">收礼总额从高到低</option>
+                                <option value="profit_desc">净利润从高到低</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 col-sm-6 text-md-end d-flex gap-2">
+                            <button type="button" id="btnResetBanquetFilters" class="btn btn-sm btn-outline-secondary w-50">
+                                <i class="fa-solid fa-rotate-left me-1"></i>重置
+                            </button>
+                            <button type="button" id="btnToggleViewMode" class="btn btn-sm btn-outline-primary w-50">
+                                <i class="fa-solid fa-table-list me-1"></i><span id="viewModeText">表格视图</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. 全选、多选与批量删除工具栏 -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 px-2 py-2 bg-white border rounded-3 shadow-sm">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" id="selectAllBanquets" style="cursor: pointer; width: 1.25em; height: 1.25em;">
+                            <label class="form-check-label small fw-bold ms-1" for="selectAllBanquets" style="cursor: pointer;">全选本页</label>
+                        </div>
+                        <span id="selectedCountBadge" class="badge bg-primary-subtle text-primary border border-primary-subtle py-2 px-3 small">
+                            已选中 <strong id="selectedCountNum">0</strong> 个宴席台账
+                        </span>
+                        {% if not (current_user.get_menu_perm('banquets') in (2,)) %}
+                        <button type="button" id="btnBatchDeleteBanquets" class="btn btn-sm btn-outline-danger" disabled>
+                            <i class="fa-solid fa-trash-can me-1"></i>批量移入回收站
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <span class="small text-muted">当前显示 <strong id="visibleBanquetsCount" class="text-primary">{{ banquet_stats|length }}</strong> / 共 {{ banquet_stats|length }} 个专属宴席台账</span>
+                    </div>
+                </div>
+
+                <!-- 3. 卡片展示视图 (默认) -->
+                <div class="row g-4" id="banquetCardsContainer">
+                    {% if banquet_stats %}
+                        {% for item in banquet_stats %}
+                        {% set b = item.banquet %}
+                        <div class="col-md-6 col-lg-4 banquet-card-item"
+                             data-id="{{ b.id }}"
+                             data-title="{{ b.title|lower }}"
+                             data-type="{{ b.event_type }}"
+                             data-venue="{{ (b.venue or '')|lower }}"
+                             data-notes="{{ (b.notes or '')|lower }}"
+                             data-date="{{ b.event_date or '' }}"
+                             data-income="{{ item.total_income }}"
+                             data-cost="{{ item.banquet_cost }}"
+                             data-profit="{{ item.net_profit }}"
+                             data-created="{{ b.created_at.timestamp() if b.created_at else 0 }}">
+                            <div class="card h-100 border shadow-sm hover-shadow transition">
+                                <div class="card-body d-flex flex-column p-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                        <div class="d-flex align-items-center flex-grow-1 overflow-hidden me-2">
+                                            <input type="checkbox" class="form-check-input banquet-checkbox me-2 flex-shrink-0"
+                                                   value="{{ b.id }}"
+                                                   data-title="{{ b.title }}"
+                                                   style="cursor: pointer; width: 1.25em; height: 1.25em;"
+                                                   title="勾选此宴席">
+                                            <h6 class="fw-bold mb-0 text-truncate text-dark" title="{{ b.title }}">{{ b.title }}</h6>
+                                        </div>
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle flex-shrink-0">{{ b.event_type }}</span>
+                                    </div>
+                                    <p class="text-muted small mb-1">
+                                        <i class="fa-regular fa-calendar me-1"></i>{{ b.event_date or '未设置日期' }}
+                                        {% if b.venue %}<span class="ms-2"><i class="fa-solid fa-location-dot me-1"></i>{{ b.venue }}</span>{% endif %}
+                                    </p>
+                                    <div class="mb-2">
+                                        {% if b.creator_type == 'auto' or ('由系统自动归集' in (b.notes or '')) %}
+                                            <span class="badge bg-info-subtle text-info border border-info-subtle small" title="由系统根据账本收礼数据自动归集生成">
+                                                <i class="fa-solid fa-wand-magic-sparkles me-1"></i>自动同步（由用户: <strong>{{ b.source_username or (b.owner.username if b.owner else 'admin') }}</strong> 在礼金账本生成的数据自动创建）
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle small" title="用户手动创建的专属台账">
+                                                <i class="fa-solid fa-user-pen me-1"></i>手动创建（创建人: <strong>{{ b.source_username or (b.owner.username if b.owner else 'admin') }}</strong>)
+                                            </span>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="bg-light p-3 rounded-3 mb-3 flex-grow-1 border">
+                                        <div class="d-flex justify-content-between small text-muted mb-1">
+                                            <span>收礼总额 ({{ item.record_count }}笔)</span>
+                                            <span class="fw-bold text-success privacy-blur">¥{{ "%.2f"|format(item.total_income) }}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small text-muted mb-1">
+                                            <span>办宴支出成本</span>
+                                            <span class="fw-bold text-secondary privacy-blur">¥{{ "%.2f"|format(item.banquet_cost) }}</span>
+                                        </div>
+                                        <hr class="my-2">
+                                        <div class="d-flex justify-content-between fw-bold">
+                                            <span>净盈亏</span>
+                                            <span class="{{ 'text-success' if item.net_profit >= 0 else 'text-danger' }} privacy-blur">
+                                                {{ '+' if item.net_profit > 0 else '' }}¥{{ "%.2f"|format(item.net_profit) }}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex justify-content-between align-items-center mt-auto pt-2">
+                                        <a href="{{ url_for('banquet_detail_view', banquet_id=b.id) }}" class="btn btn-sm btn-primary">
+                                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i>进入大账本
+                                        </a>
+                                        {% if can_user_delete_banquet(current_user, b) %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete-single-banquet"
+                                                data-id="{{ b.id }}"
+                                                data-title="{{ b.title }}"
+                                                title="移入回收站">
+                                            <i class="fa-solid fa-trash me-1"></i>删除
+                                        </button>
+                                        {% else %}
+                                        <span class="badge bg-secondary text-white small">只读</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="col-12 text-center py-5 text-muted" id="banquetInitialEmpty">
+                            <i class="fa-solid fa-champagne-glasses fa-3x mb-3 text-secondary opacity-50"></i>
+                            <p>暂无宴席大账本，点击右上角【创建新宴席账本】开始管理吧！</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- 4. 表格展示视图 (支持一键切换) -->
+                <div class="table-responsive border rounded-3 mb-3" id="banquetTableView" style="display: none;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 45px;" class="text-center">#</th>
+                                <th>宴席名称</th>
+                                <th>宴席类型</th>
+                                <th>台账归属 / 来源</th>
+                                <th>举办日期</th>
+                                <th>举办地点</th>
+                                <th>收礼笔数</th>
+                                <th>收礼总额</th>
+                                <th>办宴成本</th>
+                                <th>净盈亏</th>
+                                <th class="text-end pe-3">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="banquetTableTbody">
+                            {% for item in banquet_stats %}
+                            {% set b = item.banquet %}
+                            <tr class="banquet-table-row"
+                                data-id="{{ b.id }}"
+                                data-title="{{ b.title|lower }}"
+                                data-type="{{ b.event_type }}"
+                                data-venue="{{ (b.venue or '')|lower }}"
+                                data-notes="{{ (b.notes or '')|lower }}"
+                                data-date="{{ b.event_date or '' }}"
+                                data-income="{{ item.total_income }}"
+                                data-cost="{{ item.banquet_cost }}"
+                                data-profit="{{ item.net_profit }}"
+                                data-created="{{ b.created_at.timestamp() if b.created_at else 0 }}">
+                                <td class="text-center">
+                                    <input type="checkbox" class="form-check-input banquet-checkbox"
+                                           value="{{ b.id }}"
+                                           data-title="{{ b.title }}"
+                                           style="cursor: pointer; width: 1.2em; height: 1.2em;">
+                                </td>
+                                <td class="fw-bold text-dark">{{ b.title }}</td>
+                                <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ b.event_type }}</span></td>
+                                <td>
+                                    {% if b.creator_type == 'auto' or ('由系统自动归集' in (b.notes or '')) %}
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle small" title="由系统根据账本收礼数据自动归集生成">
+                                            <i class="fa-solid fa-wand-magic-sparkles me-1"></i>自动同步（由用户: {{ b.source_username or (b.owner.username if b.owner else 'admin') }})
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle small" title="用户手动创建的专属台账">
+                                            <i class="fa-solid fa-user-pen me-1"></i>手动创建（创建人: {{ b.source_username or (b.owner.username if b.owner else 'admin') }})
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="small text-muted">{{ b.event_date or '-' }}</td>
+                                <td class="small text-muted">{{ b.venue or '-' }}</td>
+                                <td>{{ item.record_count }} 笔</td>
+                                <td class="text-success fw-bold privacy-blur">¥{{ "%.2f"|format(item.total_income) }}</td>
+                                <td class="text-secondary fw-bold privacy-blur">¥{{ "%.2f"|format(item.banquet_cost) }}</td>
+                                <td class="fw-bold {{ 'text-success' if item.net_profit >= 0 else 'text-danger' }} privacy-blur">
+                                    {{ '+' if item.net_profit > 0 else '' }}¥{{ "%.2f"|format(item.net_profit) }}
+                                </td>
+                                <td class="text-end pe-3">
+                                    <a href="{{ url_for('banquet_detail_view', banquet_id=b.id) }}" class="btn btn-sm btn-outline-primary me-1">
+                                        <i class="fa-solid fa-arrow-up-right-from-square me-1"></i>进入大账本
+                                    </a>
+                                    {% if can_user_delete_banquet(current_user, b) %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete-single-banquet"
+                                            data-id="{{ b.id }}"
+                                            data-title="{{ b.title }}"
+                                            title="移入回收站">
+                                        <i class="fa-solid fa-trash me-1"></i>删除
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 5. 筛选无匹配结果提示区 -->
+                <div class="col-12 text-center py-5 text-muted" id="banquetNoMatchEmpty" style="display: none;">
+                    <i class="fa-solid fa-magnifying-glass fa-3x mb-3 text-secondary opacity-50"></i>
+                    <p class="mb-2">未找到符合当前筛选条件的专属宴席台账</p>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('btnResetBanquetFilters').click();">
+                        清空筛选条件
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 创建宴席 Modal -->
+<div class="modal fade" id="createBanquetModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fa-solid fa-plus-circle me-2"></i>创建专属宴席账本</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('banquets_view') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">宴席/活动名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="title" placeholder="例如：张伟 & 李娜 婚礼喜宴" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">宴席类型 <span class="text-danger">*</span></label>
+                        <select class="form-select" name="event_type" required>
+                            <option value="婚宴">婚宴</option>
+                            <option value="满月酒">满月酒</option>
+                            <option value="周岁宴">周岁宴</option>
+                            <option value="寿宴">寿宴</option>
+                            <option value="升学宴">升学宴</option>
+                            <option value="乔迁宴">乔迁宴</option>
+                            <option value="白事人情">白事人情</option>
+                            <option value="其它">其它</option>
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">举办日期</label>
+                            <input type="date" class="form-control" name="event_date">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">举办地点/酒店</label>
+                            <input type="text" class="form-control" name="venue" placeholder="选填，如希尔顿大酒店">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">预计预算 (元)</label>
+                            <input type="number" step="0.01" class="form-control" name="budget" placeholder="0.00">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">办宴总支出成本 (元)</label>
+                            <input type="number" step="0.01" class="form-control" name="banquet_cost" placeholder="酒席/烟酒总花费">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">备注说明</label>
+                        <textarea class="form-control" name="notes" rows="2" placeholder="选填，记账备注"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary btn-sm">确认创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('banquetSearchInput');
+    const typeFilter = document.getElementById('banquetTypeFilter');
+    const profitFilter = document.getElementById('banquetProfitFilter');
+    const sortSelect = document.getElementById('banquetSortSelect');
+    const resetBtn = document.getElementById('btnResetBanquetFilters');
+
+    const selectAllCheckbox = document.getElementById('selectAllBanquets');
+    const selectedBadge = document.getElementById('selectedCountBadge');
+    const selectedNum = document.getElementById('selectedCountNum');
+    const batchDeleteBtn = document.getElementById('btnBatchDeleteBanquets');
+    const visibleCountSpan = document.getElementById('visibleBanquetsCount');
+    const noMatchEmpty = document.getElementById('banquetNoMatchEmpty');
+
+    const cardsContainer = document.getElementById('banquetCardsContainer');
+    const tableView = document.getElementById('banquetTableView');
+    const tableTbody = document.getElementById('banquetTableTbody');
+    const toggleViewBtn = document.getElementById('btnToggleViewMode');
+    const viewModeText = document.getElementById('viewModeText');
+
+    let currentViewMode = 'card'; // 'card' | 'table'
+
+    if (toggleViewBtn) {
+        toggleViewBtn.addEventListener('click', function() {
+            if (currentViewMode === 'card') {
+                currentViewMode = 'table';
+                cardsContainer.style.display = 'none';
+                tableView.style.display = 'block';
+                viewModeText.textContent = '卡片视图';
+            } else {
+                currentViewMode = 'card';
+                cardsContainer.style.display = '';
+                tableView.style.display = 'none';
+                viewModeText.textContent = '表格视图';
+            }
+            syncSelection();
+        });
+    }
+
+    function getCardElements() {
+        return Array.from(document.querySelectorAll('.banquet-card-item'));
+    }
+
+    function getTableElements() {
+        return Array.from(document.querySelectorAll('.banquet-table-row'));
+    }
+
+    function syncSelection() {
+        // 同步所有相同 ID 的复选框状态
+        const checkedIds = new Set();
+        document.querySelectorAll('.banquet-checkbox:checked').forEach(cb => checkedIds.add(cb.value));
+
+        document.querySelectorAll('.banquet-checkbox').forEach(cb => {
+            cb.checked = checkedIds.has(cb.value);
+        });
+
+        const activeElements = (currentViewMode === 'card') ? getCardElements() : getTableElements();
+        const visibleElements = activeElements.filter(el => el.style.display !== 'none');
+        const visibleChecked = visibleElements.filter(el => {
+            const cb = el.querySelector('.banquet-checkbox');
+            return cb && cb.checked;
+        });
+
+        const count = checkedIds.size;
+        if (selectedNum) selectedNum.textContent = count;
+        if (batchDeleteBtn) {
+            batchDeleteBtn.disabled = (count === 0);
+            batchDeleteBtn.innerHTML = '<i class="fa-solid fa-trash-can me-1"></i>批量移入回收站 (' + count + ')';
+        }
+
+        if (selectAllCheckbox) {
+            if (visibleElements.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (visibleChecked.length === visibleElements.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else if (visibleChecked.length > 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            }
+        }
+    }
+
+    function applyFilterAndSort() {
+        const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        const targetType = typeFilter ? typeFilter.value.trim() : '';
+        const profitMode = profitFilter ? profitFilter.value.trim() : '';
+        const sortMode = sortSelect ? sortSelect.value : 'created_desc';
+
+        const cards = getCardElements();
+        const rows = getTableElements();
+        let visibleCount = 0;
+
+        function checkMatch(el) {
+            const title = el.dataset.title || '';
+            const venue = el.dataset.venue || '';
+            const notes = el.dataset.notes || '';
+            const eventType = el.dataset.type || '';
+            const profit = parseFloat(el.dataset.profit || '0');
+
+            const creator = el.dataset.creator || '';
+            if (q) {
+                if (!title.includes(q) && !venue.includes(q) && !notes.includes(q) && !creator.includes(q)) {
+                    return false;
+                }
+            }
+            if (targetType && eventType !== targetType) {
+                return false;
+            }
+            if (profitMode) {
+                if (profitMode === 'profit' && profit <= 0) return false;
+                if (profitMode === 'loss' && profit > 0) return false;
+            }
+            return true;
+        }
+
+        cards.forEach(card => {
+            const matched = checkMatch(card);
+            card.style.display = matched ? '' : 'none';
+            if (matched) visibleCount++;
+        });
+
+        rows.forEach(row => {
+            const matched = checkMatch(row);
+            row.style.display = matched ? '' : 'none';
+        });
+
+        // 排序
+        function sortElements(arr) {
+            arr.sort((a, b) => {
+                if (sortMode === 'date_desc') {
+                    return (b.dataset.date || '').localeCompare(a.dataset.date || '');
+                } else if (sortMode === 'date_asc') {
+                    return (a.dataset.date || '').localeCompare(b.dataset.date || '');
+                } else if (sortMode === 'income_desc') {
+                    return parseFloat(b.dataset.income || '0') - parseFloat(a.dataset.income || '0');
+                } else if (sortMode === 'profit_desc') {
+                    return parseFloat(b.dataset.profit || '0') - parseFloat(a.dataset.profit || '0');
+                } else {
+                    return parseFloat(b.dataset.created || '0') - parseFloat(a.dataset.created || '0');
+                }
+            });
+        }
+
+        sortElements(cards);
+        cards.forEach(c => cardsContainer.appendChild(c));
+
+        sortElements(rows);
+        rows.forEach(r => tableTbody.appendChild(r));
+
+        if (visibleCountSpan) visibleCountSpan.textContent = visibleCount;
+        if (noMatchEmpty) {
+            noMatchEmpty.style.display = (visibleCount === 0 && cards.length > 0) ? 'block' : 'none';
+        }
+
+        syncSelection();
+    }
+
+    if (searchInput) searchInput.addEventListener('input', applyFilterAndSort);
+    if (typeFilter) typeFilter.addEventListener('change', applyFilterAndSort);
+    if (profitFilter) profitFilter.addEventListener('change', applyFilterAndSort);
+    if (sortSelect) sortSelect.addEventListener('change', applyFilterAndSort);
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            if (searchInput) searchInput.value = '';
+            if (typeFilter) typeFilter.value = '';
+            if (profitFilter) profitFilter.value = '';
+            if (sortSelect) sortSelect.value = 'created_desc';
+            applyFilterAndSort();
+        });
+    }
+
+    // 全选/取消全选
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const isChecked = this.checked;
+            const activeElements = (currentViewMode === 'card') ? getCardElements() : getTableElements();
+            activeElements.forEach(el => {
+                if (el.style.display !== 'none') {
+                    const cb = el.querySelector('.banquet-checkbox');
+                    if (cb) cb.checked = isChecked;
+                }
+            });
+            syncSelection();
+        });
+    }
+
+    // 复选框切换
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('banquet-checkbox')) {
+            syncSelection();
+        }
+    });
+
+    // 单个删除 (卡片或表格中)
+    document.addEventListener('click', async function(e) {
+        const btn = e.target.closest('.btn-delete-single-banquet');
+        if (!btn) return;
+
+        const banquetId = btn.dataset.id;
+        const banquetTitle = btn.dataset.title || '此宴席';
+        if (!confirm('确定要将专属宴席台账 [' + banquetTitle + '] 移入回收站吗？')) {
+            return;
+        }
+
+        const origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        try {
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token }}');
+            const resp = await fetch('/banquet/delete/' + banquetId, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            });
+            const data = await resp.json();
+            if (resp.ok && (data.code === 200 || data.success)) {
+                alert(data.message || '专属宴席台账已成功移入回收站！');
+                document.querySelectorAll('.banquet-card-item[data-id="' + banquetId + '"]').forEach(el => el.remove());
+                document.querySelectorAll('.banquet-table-row[data-id="' + banquetId + '"]').forEach(el => el.remove());
+                applyFilterAndSort();
+            } else {
+                alert(data.message || '删除失败，请稍后再试');
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
+        } catch (err) {
+            console.error(err);
+            alert('网络请求异常，请稍后重试');
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    });
+
+    // 批量删除
+    if (batchDeleteBtn) {
+        batchDeleteBtn.addEventListener('click', async function() {
+            const checkedBoxes = Array.from(document.querySelectorAll('.banquet-checkbox:checked'));
+            const ids = Array.from(new Set(checkedBoxes.map(cb => cb.value)));
+
+            if (ids.length === 0) {
+                alert('请至少勾选一个要删除的专属宴席台账！');
+                return;
+            }
+
+            if (!confirm('确定要将选中的 ' + ids.length + ' 个专属宴席台账移入回收站吗？')) {
+                return;
+            }
+
+            const origHtml = batchDeleteBtn.innerHTML;
+            batchDeleteBtn.disabled = true;
+            batchDeleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>正在删除...';
+
+            try {
+                const resp = await fetch('{{ url_for("banquets_batch_delete") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ banquet_ids: ids })
+                });
+                const data = await resp.json();
+                if (resp.ok && (data.code === 200 || data.success)) {
+                    alert(data.message || '选中的专属宴席台账已成功移入回收站！');
+                    ids.forEach(id => {
+                        document.querySelectorAll('.banquet-card-item[data-id="' + id + '"]').forEach(el => el.remove());
+                        document.querySelectorAll('.banquet-table-row[data-id="' + id + '"]').forEach(el => el.remove());
+                    });
+                    applyFilterAndSort();
+                } else {
+                    alert(data.message || '批量删除失败，请重试');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('网络请求异常，请重试');
+            } finally {
+                batchDeleteBtn.disabled = false;
+                batchDeleteBtn.innerHTML = origHtml;
+                syncSelection();
+            }
+        });
+    }
+
+    applyFilterAndSort();
+});
+</script>
+{% endblock %}

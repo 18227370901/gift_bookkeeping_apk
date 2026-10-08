@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ share_title }} - 人情礼金记账系统</title>
+    <meta name="theme-color" content="#0d6efd" id="themeColorMeta">
+    <script>
+        // 主题初始化：首帧读取本地偏好，避免页面闪烁（默认白天模式）
+        (function() {
+            var t = localStorage.getItem('gift_theme');
+            if (t === 'dark') {
+                document.documentElement.setAttribute('data-bs-theme', 'dark');
+            }
+        })();
+    </script>
+    <!-- V10.10.18 前端资源本地化：外链页与主站一致，改用 static/vendor 本地引用 -->
+    <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.0/css/bootstrap.min.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/font-awesome/6.4.0/css/all.min.css') }}">
+    <style>
+        /* 外链页主题变量（默认白天与原版一致） */
+        :root {
+            --app-bg: #f8f9fa;
+            --app-card-bg: #ffffff;
+            --app-border: #e9ecef;
+            --app-hover-bg: #f8f9fa;
+            --ph-color: #9aa5b1;
+            --ph-opacity: 0.75;
+        }
+        [data-bs-theme="dark"] {
+            --app-bg: #121417;
+            --app-card-bg: #1b2128;
+            --app-border: #2b354a;
+            --app-hover-bg: #232a33;
+            --ph-color: #7d8794;
+            --ph-opacity: 0.7;
+        }
+        body { background-color: var(--app-bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; transition: background-color 0.25s ease; }
+        .shared-header { background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .stat-card { border-radius: 12px; border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        /* 输入框提示语美化（与主站一致） */
+        .form-control::placeholder,
+        .form-control::-webkit-input-placeholder,
+        .form-control::-moz-placeholder,
+        .form-control:-ms-input-placeholder {
+            color: var(--ph-color);
+            font-weight: 400;
+            font-size: 0.875em;
+            opacity: var(--ph-opacity);
+            letter-spacing: 0.01em;
+            transition: opacity 0.2s ease;
+        }
+        .form-control:focus::placeholder { opacity: 0.4; }
+
+        /* 黑夜模式覆盖浅色工具类 */
+        [data-bs-theme="dark"] .bg-white { background-color: var(--app-card-bg) !important; }
+        [data-bs-theme="dark"] .bg-light { background-color: var(--app-hover-bg) !important; }
+        [data-bs-theme="dark"] .text-dark { color: var(--bs-body-color) !important; }
+        [data-bs-theme="dark"] .text-muted { color: var(--bs-secondary-color) !important; }
+        [data-bs-theme="dark"] .table-light,
+        [data-bs-theme="dark"] .table-light > th,
+        [data-bs-theme="dark"] .table-light > td {
+            --bs-table-bg: var(--app-hover-bg);
+            --bs-table-color: var(--bs-body-color);
+            color: var(--bs-body-color);
+        }
+
+        /* 主题切换悬浮按钮 */
+        .theme-float-btn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1050;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.35);
+            background: rgba(13,110,253,0.85);
+            color: #fff;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: background-color 0.25s ease;
+        }
+    </style>
+</head>
+<body>
+    <button class="theme-float-btn" type="button" onclick="toggleTheme()" id="themeToggleBtn" title="切换黑夜/白天模式" aria-label="切换黑夜/白天模式">
+        <i class="fa-solid fa-moon" id="themeIcon"></i>
+    </button>
+    <script>
+        // 外链页主题切换（与主站同一存储键，保持体验一致）
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-bs-theme') === 'dark';
+            const next = isDark ? 'light' : 'dark';
+            html.setAttribute('data-bs-theme', next);
+            localStorage.setItem('gift_theme', next);
+            updateThemeBtn(next === 'dark');
+            const meta = document.getElementById('themeColorMeta');
+            if (meta) meta.setAttribute('content', next === 'dark' ? '#121417' : '#0d6efd');
+        }
+        function updateThemeBtn(isDark) {
+            const icon = document.getElementById('themeIcon');
+            if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            updateThemeBtn(document.documentElement.getAttribute('data-bs-theme') === 'dark');
+        });
+    </script>
+    {% if needs_password %}
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-5 col-lg-4">
+                <div class="card shadow border-0 text-center p-4">
+                    <div class="mb-3">
+                        <i class="fa-solid fa-lock fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="fw-bold mb-2">{{ share_title }}</h5>
+                    <p class="text-muted small mb-4">该账本已设置访问密码保护，请输入密码后查看</p>
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} py-2 small mb-3">{{ message }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-3">
+                            <input type="password" name="access_password" class="form-control text-center py-2" placeholder="请输入6位访问密码" required autofocus>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
+                            <i class="fa-solid fa-unlock me-1"></i>验证并进入
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <header class="shared-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="fw-bold mb-1"><i class="fa-solid fa-champagne-glasses me-2"></i>{{ share_title }}</h2>
+                    <p class="mb-0 text-white-50"><i class="fa-solid fa-lock me-1"></i>免登录只读共享礼金台账</p>
+                </div>
+                <div>
+                    <span class="badge bg-light text-dark px-3 py-2"><i class="fa-solid fa-user me-1"></i>分享者: {{ owner_name }}</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container pb-5">
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="card stat-card bg-white p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted d-block small">总登记记录</span>
+                            <span class="fs-4 fw-bold text-dark">{{ records|length }} 笔</span>
+                        </div>
+                        <i class="fa-solid fa-list text-primary fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stat-card bg-white p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted d-block small">总收礼金额</span>
+                            <span class="fs-4 fw-bold text-success">
+                                {% if share and share.hide_amount %}***{% else %}¥{{ "%.2f"|format(total_received) }}{% endif %}
+                            </span>
+                        </div>
+                        <i class="fa-solid fa-arrow-down-left-long text-success fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stat-card bg-white p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted d-block small">总随礼支出</span>
+                            <span class="fs-4 fw-bold text-danger">
+                                {% if share and share.hide_amount %}***{% else %}¥{{ "%.2f"|format(total_given) }}{% endif %}
+                            </span>
+                        </div>
+                        <i class="fa-solid fa-arrow-up-right-long text-danger fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 text-secondary"><i class="fa-solid fa-table-list me-2"></i>礼金流水明细</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>客人姓名</th>
+                                <th>往来类型</th>
+                                <th>礼金金额</th>
+                                <th>办席事由</th>
+                                <th>登记日期</th>
+                                <th>备注说明/桌号</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if records %}
+                                {% for r in records %}
+                                <tr>
+                                    <td class="text-muted">{{ loop.index }}</td>
+                                    <td class="fw-bold">{{ r.name }}</td>
+                                    <td>
+                                        {% if r.record_type in ('send', 'give') %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">随礼</span>
+                                        {% else %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">收礼</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="fw-bold {{ 'text-danger' if r.record_type in ('send', 'give') else 'text-success' }}">
+                                        {% if share and share.hide_amount %}
+                                        <span class="text-muted">***</span>
+                                        {% else %}
+                                        ¥{{ "%.2f"|format(r.amount) }}
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="badge bg-light text-dark border">{{ r.event_reason or '-' }}</span></td>
+                                    <td>{{ r.created_at.strftime('%Y-%m-%d') if r.created_at else '-' }}</td>
+                                    <td class="text-muted small">
+                                        {% if share and share.hide_notes %}
+                                        <span class="text-muted">***</span>
+                                        {% else %}
+                                        {{ r.notes or '-' }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-muted">暂无礼金记录</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+    {% endif %}
+</body>
+</html>
