@@ -29,70 +29,81 @@
         <button type="button" class="btn btn-outline-danger shadow-sm d-none btn-sm" id="batchDeleteBtn" onclick="submitBatchDelete()">
             <i class="fa-solid fa-trash me-1"></i> 批量删除 (<span id="selectedCount">0</span>)
         </button>
-        <button type="button" class="btn btn-danger shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#deleteAllModal">
-            <i class="fa-solid fa-dumpster me-1"></i> 清空所有数据
-        </button>
-        <button type="button" class="btn btn-outline-success shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#importCsvModal">
-            <i class="fa-solid fa-file-import me-1"></i> 批量导入(CSV)
-        </button>
-        <!-- 功能三：Excel 批量导入（带字段映射） -->
-        <button type="button" class="btn btn-outline-success shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#importExcelModal">
-            <i class="fa-solid fa-file-excel me-1"></i> Excel导入
-        </button>
-        <div class="btn-group shadow-sm">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn" title="点击直接按当前条件导出">
-                <i class="fa-solid fa-file-export me-1"></i> 导出 CSV
-            </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" title="选择导出范围">
-                <span class="visually-hidden">导出选项</span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2" style="min-width: 220px;">
-                <li><h6 class="dropdown-header text-muted small fw-bold"><i class="fa-solid fa-download me-1"></i>选择导出范围</h6></li>
-                <li>
-                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between" href="{{ url_for('export_csv', scope='all') }}" id="exportAllCsvBtn">
-                        <span><i class="fa-solid fa-database text-primary me-2"></i>导出全部数据 (所有数据)</span>
-                        <span class="badge bg-secondary-subtle text-secondary ms-2">{{ total_count }}笔</span>
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between" href="#" id="exportFilteredCsvBtn" onclick="exportDataByScope(event, 'filtered')">
-                        <span><i class="fa-solid fa-filter text-success me-2"></i>导出筛选后指定数据</span>
-                        <span class="badge bg-success-subtle text-success ms-2">当前筛选</span>
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between" href="#" id="exportPageCsvBtn" onclick="exportDataByScope(event, 'page')">
-                        <span><i class="fa-solid fa-file-lines text-info me-2"></i>导出当前页数据</span>
-                        <span class="badge bg-info-subtle text-info ms-2">第{{ pagination.page }}页</span>
-                    </a>
-                </li>
-                <li><hr class="dropdown-divider my-1"></li>
-                <li>
-                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between disabled" href="#" id="exportSelectedCsvBtn" onclick="exportDataByScope(event, 'selected')">
-                        <span><i class="fa-solid fa-square-check text-warning me-2"></i>导出已勾选记录</span>
-                        <span class="badge bg-warning-subtle text-warning ms-2" id="exportSelectedCount">0项</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
         {# V10.4: 级别1可正常新增，移除 != 1 限制 #}
         <button type="button" class="btn btn-danger shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#addRecordModal">
             <i class="fa-solid fa-plus me-1"></i> 新增礼金记录
         </button>
-        <!-- 功能四：打印与导出按钮 -->
+        {# V10.11.1 统一导入/导出入口，合并原 CSV 导入 + Excel 导入 + 导出 CSV + 打印/导出 四个按钮 #}
         <div class="btn-group shadow-sm">
-            <button type="button" class="btn btn-outline-dark btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="打印与导出">
-                <i class="fa-solid fa-print me-1"></i>打印/导出
+            <button type="button" class="btn btn-outline-success btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="导入数据">
+                <i class="fa-solid fa-file-import me-1"></i>导入
             </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2">
+            <ul class="dropdown-menu shadow border-0 py-2">
+                <li><a class="dropdown-item py-2" href="#" data-bs-toggle="modal" data-bs-target="#importExcelModal"><i class="fa-solid fa-file-excel text-success me-2"></i>Excel/CSV 批量导入（字段映射）</a></li>
+                <li><a class="dropdown-item py-2" href="#" data-bs-toggle="modal" data-bs-target="#importCsvModal"><i class="fa-solid fa-file-csv text-success me-2"></i>CSV 快速导入（传统通道）</a></li>
+                <li><a class="dropdown-item py-2" href="{{ url_for('download_import_template') }}"><i class="fa-solid fa-download text-primary me-2"></i>下载导入样例模版</a></li>
+                <li><hr class="dropdown-divider my-1"></li>
+                <li><a class="dropdown-item py-2" href="#" data-bs-toggle="modal" data-bs-target="#ocrImportModal"><i class="fa-solid fa-camera text-info me-2"></i>拍照识别录入</a></li>
+            </ul>
+        </div>
+        <div class="btn-group shadow-sm">
+            <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="导出与打印">
+                <i class="fa-solid fa-file-export me-1"></i>导出
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2" style="min-width: 260px;">
+                <li><h6 class="dropdown-header text-muted small fw-bold"><i class="fa-solid fa-download me-1"></i>导出礼金数据</h6></li>
+                <li>
+                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between" href="{{ url_for('export_csv', scope='all', format='csv') }}">
+                        <span><i class="fa-solid fa-file-csv text-success me-2"></i>全部 → CSV</span>
+                        <span class="badge bg-secondary-subtle text-secondary ms-2">{{ total_count }}笔</span>
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between" href="{{ url_for('export_csv', scope='all', format='xlsx') }}">
+                        <span><i class="fa-solid fa-file-excel text-success me-2"></i>全部 → Excel</span>
+                        <span class="badge bg-secondary-subtle text-secondary ms-2">{{ total_count }}笔</span>
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item py-2" href="#" onclick="exportDataByScope(event, 'filtered', 'csv')">
+                        <i class="fa-solid fa-filter text-success me-2"></i>筛选后 → CSV
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item py-2" href="#" onclick="exportDataByScope(event, 'filtered', 'xlsx')">
+                        <i class="fa-solid fa-filter text-success me-2"></i>筛选后 → Excel
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item py-2" href="#" onclick="exportDataByScope(event, 'page', 'csv')">
+                        <i class="fa-solid fa-file-lines text-info me-2"></i>当前页 → CSV
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider my-1"></li>
+                <li>
+                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between disabled" href="#" id="exportSelectedCsvBtn" onclick="exportDataByScope(event, 'selected', 'csv')">
+                        <span><i class="fa-solid fa-square-check text-warning me-2"></i>已勾选 → CSV</span>
+                        <span class="badge bg-warning-subtle text-warning ms-2" id="exportSelectedCount">0项</span>
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item py-2 d-flex align-items-center justify-content-between disabled" href="#" id="exportSelectedXlsxBtn" onclick="exportDataByScope(event, 'selected', 'xlsx')">
+                        <span><i class="fa-solid fa-square-check text-warning me-2"></i>已勾选 → Excel</span>
+                        <span class="badge bg-warning-subtle text-warning ms-2" id="exportSelectedXlsxCount">0项</span>
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider my-1"></li>
+                <li><h6 class="dropdown-header text-muted small fw-bold"><i class="fa-solid fa-print me-1"></i>打印与报告</h6></li>
                 <li><a class="dropdown-item py-2" href="{{ url_for('export_print_giftbook') }}" target="_blank"><i class="fa-solid fa-newspaper text-dark me-2"></i>打印人情簿 (A4)</a></li>
                 <li><a class="dropdown-item py-2" href="{{ url_for('export_pdf_statement') }}"><i class="fa-solid fa-file-pdf text-danger me-2"></i>导出 PDF 对账单</a></li>
                 <li><a class="dropdown-item py-2" href="{{ url_for('poster_view') }}" target="_blank"><i class="fa-solid fa-image text-primary me-2"></i>生成长图海报</a></li>
             </ul>
         </div>
-        <!-- 功能三：OCR 图片识别录入 -->
         <button type="button" class="btn btn-outline-info shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#ocrImportModal">
             <i class="fa-solid fa-camera me-1"></i>拍照识别
+        </button>
+        <button type="button" class="btn btn-outline-danger shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#deleteAllModal">
+            <i class="fa-solid fa-dumpster me-1"></i> 清空数据
         </button>
     </div>
 </div>
@@ -737,17 +748,8 @@ function updateBatchDeleteBtn() {
         countSpan.textContent = '0';
     }
 
-    const exportSelBtn = document.getElementById('exportSelectedCsvBtn');
-    const exportSelCount = document.getElementById('exportSelectedCount');
-    if (exportSelBtn) {
-        if (checkedBoxes.length > 0) {
-            exportSelBtn.classList.remove('disabled');
-            if (exportSelCount) exportSelCount.textContent = checkedBoxes.length + '项';
-        } else {
-            exportSelBtn.classList.add('disabled');
-            if (exportSelCount) exportSelCount.textContent = '0项';
-        }
-    }
+    // 同步更新导出已勾选计数
+    if (typeof updateExportSelectedCount === 'function') updateExportSelectedCount();
 
     if (selectAll) {
         if (totalBoxes.length > 0 && checkedBoxes.length === totalBoxes.length) {
@@ -1132,9 +1134,10 @@ function submitNlpQuickAdd(e) {
     });
 }
 
-// 导出 CSV 多维度导出引擎（全部数据、筛选指定数据、当前页数据、已勾选数据）
-function exportDataByScope(e, scope) {
+// 导出引擎（全部数据、筛选指定数据、当前页数据、已勾选数据），支持 CSV / Excel 格式
+function exportDataByScope(e, scope, format) {
     if (e) e.preventDefault();
+    var fmt = format || 'csv';
     const checkedBoxes = document.querySelectorAll('input[name="record_ids"]:checked');
     const baseUrl = "{{ url_for('export_csv') }}";
 
@@ -1144,38 +1147,38 @@ function exportDataByScope(e, scope) {
             return;
         }
         const ids = Array.from(checkedBoxes).map(cb => cb.value).join(',');
-        window.location.href = baseUrl + '?ids=' + encodeURIComponent(ids);
+        window.location.href = baseUrl + '?ids=' + encodeURIComponent(ids) + '&format=' + fmt;
         return;
     }
 
     if (scope === 'all') {
-        window.location.href = baseUrl + '?scope=all';
+        window.location.href = baseUrl + '?scope=all&format=' + fmt;
         return;
     }
 
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.set('scope', scope);
+    urlParams.set('format', fmt);
     window.location.href = baseUrl + '?' + urlParams.toString();
 }
 
+// 更新已勾选计数显示
+function updateExportSelectedCount() {
+    var checkedBoxes = document.querySelectorAll('input[name="record_ids"]:checked');
+    var count = checkedBoxes.length;
+    var csvBadge = document.getElementById('exportSelectedCount');
+    var xlsxBadge = document.getElementById('exportSelectedXlsxCount');
+    var csvBtn = document.getElementById('exportSelectedCsvBtn');
+    var xlsxBtn = document.getElementById('exportSelectedXlsxBtn');
+    if (csvBadge) csvBadge.textContent = count + '项';
+    if (xlsxBadge) xlsxBadge.textContent = count + '项';
+    if (csvBtn) { if (count > 0) csvBtn.classList.remove('disabled'); else csvBtn.classList.add('disabled'); }
+    if (xlsxBtn) { if (count > 0) xlsxBtn.classList.remove('disabled'); else xlsxBtn.classList.add('disabled'); }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    const exportBtn = document.getElementById('exportCsvBtn');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const checkedBoxes = document.querySelectorAll('input[name="record_ids"]:checked');
-            if (checkedBoxes.length > 0) {
-                exportDataByScope(e, 'selected');
-            } else {
-                const search = new URLSearchParams(window.location.search);
-                if (search.get('search') || search.get('q') || search.get('reason') || search.get('type')) {
-                    exportDataByScope(e, 'filtered');
-                } else {
-                    exportDataByScope(e, 'all');
-                }
-            }
-        });
-    }
+    // 导出按钮已移入下拉菜单，无需单独绑定
+    updateExportSelectedCount();
 });
 
 // ===== 功能三：Excel/CSV 批量导入（字段映射） =====

@@ -99,16 +99,20 @@
             filter: blur(1px) !important;
         }
         
-        /* ===== 移动端响应式适配（APK WebView 专用增强） ===== */
-        /* 安全区域适配：刘海屏、挖孔屏、底部手势条 */
+        @media (max-width: 767.98px) {
+            .main-container { padding-top: 12px; padding-bottom: 24px; padding-left: 10px; padding-right: 10px; }
+            .card-body { padding: 1rem !important; }
+            .table-responsive { font-size: 0.875rem; }
+            .btn-sm { font-size: 0.75rem; padding: 0.2rem 0.4rem; }
+            h2, h3, h4 { font-size: 1.25rem; }
+        }
+        /* ===== 移动端响应式适配（APK WebView 专用增强 V3.0） ===== */
         :root {
             --safe-area-top: env(safe-area-inset-top, 0px);
             --safe-area-bottom: env(safe-area-inset-bottom, 0px);
             --safe-area-left: env(safe-area-inset-left, 0px);
             --safe-area-right: env(safe-area-inset-right, 0px);
         }
-
-        /* 移动端基础重置 */
         @media (max-width: 768px) {
             html { font-size: 15px; }
             body {
@@ -120,84 +124,42 @@
                 -webkit-touch-callout: none;
                 overflow-x: hidden;
             }
-            .main-container {
-                padding-top: 8px;
-                padding-bottom: calc(20px + env(safe-area-inset-bottom));
-                padding-left: 8px;
-                padding-right: 8px;
-                max-width: 100%;
-            }
-            .container {
-                max-width: 100%;
-                padding-left: 8px;
-                padding-right: 8px;
-            }
+            .main-container { padding-top: 8px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); padding-left: 8px; padding-right: 8px; max-width: 100%; }
+            .container { max-width: 100%; padding-left: 8px; padding-right: 8px; }
             .card { border-radius: 8px; margin-bottom: 10px; }
             .card-body { padding: 0.75rem !important; }
             .card-header { padding: 0.5rem 0.75rem !important; font-size: 0.95rem; }
-            h1 { font-size: 1.5rem; }
-            h2 { font-size: 1.3rem; }
-            h3 { font-size: 1.15rem; }
-            h4 { font-size: 1.05rem; }
-            h5 { font-size: 0.95rem; }
-            h6 { font-size: 0.875rem; }
-
-            /* 表格手机适配：横向可滚动 + 紧凑字体 */
+            h1 { font-size: 1.5rem; } h2 { font-size: 1.3rem; } h3 { font-size: 1.15rem; }
+            h4 { font-size: 1.05rem; } h5 { font-size: 0.95rem; } h6 { font-size: 0.875rem; }
             .table { font-size: 0.8rem; }
             .table th, .table td { padding: 0.35rem 0.4rem; white-space: nowrap; }
             .table-responsive { -webkit-overflow-scrolling: touch; }
-
-            /* 按钮触控优化：最小 44x44px 点击区域 */
             .btn { min-height: 44px; min-width: 44px; font-size: 0.85rem; padding: 0.35rem 0.6rem; }
             .btn-sm { min-height: 36px; min-width: 36px; font-size: 0.75rem; padding: 0.2rem 0.4rem; }
             .btn-lg { min-height: 52px; font-size: 1.1rem; }
-
-            /* 表单控件适配 */
             .form-control, .form-select { font-size: 0.9rem; min-height: 44px; padding: 0.4rem 0.6rem; }
             .form-label { font-size: 0.85rem; margin-bottom: 0.2rem; }
             .input-group-text { font-size: 0.85rem; min-height: 44px; }
-
-            /* 导航栏手机适配 */
             .navbar { padding: 0.375rem 0.5rem; padding-top: calc(0.375rem + env(safe-area-inset-top)); }
             .navbar-brand { font-size: 1.05rem; }
             .navbar-toggler { padding: 0.2rem 0.4rem; min-width: 44px; min-height: 44px; }
             .nav-link { padding: 0.4rem 0.6rem; font-size: 0.85rem; }
             .navbar-collapse { max-height: 70vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-
-            /* 模态框手机适配 */
             .modal-dialog { margin: 0.5rem; max-width: calc(100vw - 1rem); }
             .modal-content { border-radius: 8px; }
             .modal-body { padding: 0.75rem; }
             .modal-header, .modal-footer { padding: 0.5rem 0.75rem; }
-
-            /* 分页控件手机适配 */
             .pagination { flex-wrap: wrap; gap: 2px; }
             .page-link { min-width: 36px; min-height: 36px; padding: 0.25rem 0.4rem; font-size: 0.8rem; }
-
-            /* 统计卡片手机适配 */
-            .stat-card, .dashboard-stat-card { padding: 0.75rem !important; }
-            .stat-number, .stat-value { font-size: 1.3rem !important; }
-
-            /* 下拉菜单手机适配 */
             .dropdown-menu { font-size: 0.85rem; min-width: 12rem; }
             .dropdown-item { padding: 0.5rem 0.75rem; min-height: 44px; }
-
-            /* Alert 消息手机适配 */
             .alert { padding: 0.5rem 0.75rem; font-size: 0.85rem; }
-
-            /* 标签 Badge 手机适配 */
             .badge { font-size: 0.7rem; padding: 0.2em 0.4em; }
-
-            /* 输入组与搜索栏手机适配 */
             .input-group { flex-wrap: wrap; }
             .input-group > * { border-radius: 4px !important; margin-bottom: 4px; }
-
-            /* 隐藏桌面端专有元素 */
             .d-none.d-md-inline { display: none !important; }
             .d-none.d-lg-inline { display: none !important; }
         }
-
-        /* 超小屏幕适配（360px 以下） */
         @media (max-width: 360px) {
             html { font-size: 13px; }
             .container { padding-left: 4px; padding-right: 4px; }
@@ -206,20 +168,13 @@
             .table { font-size: 0.72rem; }
             .btn { font-size: 0.75rem; padding: 0.25rem 0.4rem; }
         }
-
-        /* 横屏适配 */
         @media (max-width: 992px) and (orientation: landscape) {
             .main-container { padding-top: 4px; padding-bottom: 4px; }
         }
-
-        /* ===== 原有移动端响应式（保留兼容） ===== */
-        @media (max-width: 767.98px) {
-            .main-container { padding-top: 12px; padding-bottom: 24px; padding-left: 10px; padding-right: 10px; }
-            .card-body { padding: 1rem !important; }
-            .table-responsive { font-size: 0.875rem; }
-            .btn-sm { font-size: 0.75rem; padding: 0.2rem 0.4rem; }
-            h2, h3, h4 { font-size: 1.25rem; }
-        }
+        /* V10.11.1 导航栏防换行优化：菜单项紧凑排列，文字不拆行 */
+        .navbar-nav .nav-link { white-space: nowrap; font-size: 0.875rem; padding-left: 0.6rem; padding-right: 0.6rem; }
+        .navbar-nav .nav-item { flex-shrink: 0; }
+        @media (min-width: 992px) { .navbar-nav .nav-link { font-size: 0.9rem; } }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -294,6 +249,8 @@
                             <li><a class="dropdown-item" href="{{ url_for('admin_broadcasts') }}"><i class="fa-solid fa-bullhorn me-2"></i>系统广播发布</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('admin_webhooks') }}"><i class="fa-solid fa-satellite-dish me-2"></i>Webhook 通知</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('admin_backups') }}"><i class="fa-solid fa-cloud-arrow-up me-2"></i>WebDAV 备份</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#posterQrSettingModal"><i class="fa-solid fa-image me-2"></i>海报二维码设置</a></li>
                         </ul>
                     </li>
                     {% endif %}
@@ -329,7 +286,8 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end shadow">
                             <li><a class="dropdown-item" href="{{ url_for('profile_security') }}"><i class="fa-solid fa-shield-halved me-2 text-warning"></i>个人安全设置</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('export_csv') }}"><i class="fa-solid fa-file-csv me-2 text-success"></i>导出数据(CSV)</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('export_csv', format='csv') }}"><i class="fa-solid fa-file-csv me-2 text-success"></i>导出数据 (CSV)</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('export_csv', format='xlsx') }}"><i class="fa-solid fa-file-excel me-2 text-success"></i>导出数据 (Excel)</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fa-solid fa-right-from-bracket me-2"></i>退出登录</a></li>
                         </ul>
@@ -375,7 +333,7 @@
     </div>
 
     <footer class="text-center text-muted">
-        <div class="container"><span>© 2026 人情礼金记账系统 - 移动端 APK 版 v2.0</span></div>
+        <div class="container"><span>© 2026 人情礼金记账系统 - 移动端 APK 版 v3.0</span></div>
     </footer>
     <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.0/js/bootstrap.bundle.min.js') }}"></script>
     <script>
@@ -631,6 +589,58 @@
             </div>
         </div>
     </div>
+
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <!-- V10.11.1 海报二维码设置 Modal -->
+    <div class="modal fade" id="posterQrSettingModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fa-solid fa-image me-2"></i>海报二维码设置</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">二维码指向 URL（注册页面地址）</label>
+                        <input type="url" class="form-control" id="posterQrUrlInput" placeholder="例如：https://your-domain.com/register">
+                        <div class="form-text small text-muted">设置后，长图海报底部二维码将指向此地址。留空则默认使用当前站点注册页面。</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="savePosterQrUrl()"><i class="fa-solid fa-check me-1"></i>保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    function savePosterQrUrl() {
+        var url = document.getElementById('posterQrUrlInput').value.trim();
+        var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
+        fetch('/api/admin/poster-qr-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ qr_url: url })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.code === 200) { alert('保存成功'); bootstrap.Modal.getInstance(document.getElementById('posterQrSettingModal')).hide(); }
+            else { alert(data.message || '保存失败'); }
+        });
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        var qrModal = document.getElementById('posterQrSettingModal');
+        if (qrModal) {
+            qrModal.addEventListener('shown.bs.modal', function() {
+                fetch('/api/admin/poster-qr-url', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function(res) { return res.json(); })
+                .then(function(data) { if (data.code === 200) document.getElementById('posterQrUrlInput').value = data.qr_url || ''; });
+            });
+        }
+    });
+    </script>
+    {% endif %}
+
     {% block extra_js %}{% endblock %}
     {% block scripts %}{% endblock %}
 </body>

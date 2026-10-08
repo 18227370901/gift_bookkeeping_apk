@@ -34,6 +34,28 @@
     </div>
 </div>
 
+<!-- V10.11.1 日期范围选择器 -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <div id="monthlyRangePicker" class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 small fw-bold text-muted">月份范围：</label>
+                <input type="month" class="form-control form-control-sm" id="startMonth" style="width: auto;">
+                <span class="text-muted">~</span>
+                <input type="month" class="form-control form-control-sm" id="endMonth" style="width: auto;">
+            </div>
+            <div id="yearlyRangePicker" class="d-flex align-items-center gap-2 d-none">
+                <label class="form-label mb-0 small fw-bold text-muted">年份范围：</label>
+                <input type="number" class="form-control form-control-sm" id="startYear" min="2000" max="2099" style="width: 90px;" placeholder="起始年">
+                <span class="text-muted">~</span>
+                <input type="number" class="form-control form-control-sm" id="endYear" min="2000" max="2099" style="width: 90px;" placeholder="结束年">
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="applyDateRange()"><i class="fa-solid fa-filter me-1"></i>查询</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetDateRange()"><i class="fa-solid fa-rotate-left me-1"></i>重置</button>
+        </div>
+    </div>
+</div>
+
 <!-- 汇总统计卡片 -->
 <div class="row g-3 mb-4">
     <div class="col-md-3">
@@ -286,13 +308,53 @@ function switchTrend(mode) {
     currentTrendMode = mode;
     document.getElementById('trendMonthlyBtn').classList.toggle('active', mode === 'monthly');
     document.getElementById('trendYearlyBtn').classList.toggle('active', mode === 'yearly');
+    // 切换日期选择器显示
+    document.getElementById('monthlyRangePicker').classList.toggle('d-none', mode !== 'monthly');
+    document.getElementById('monthlyRangePicker').classList.toggle('d-flex', mode === 'monthly');
+    document.getElementById('yearlyRangePicker').classList.toggle('d-none', mode !== 'yearly');
+    document.getElementById('yearlyRangePicker').classList.toggle('d-flex', mode === 'yearly');
     renderTrendChart();
+}
+
+// ===== 应用日期范围查询 =====
+function applyDateRange() {
+    loadDashboardData();
+}
+
+// ===== 重置日期范围 =====
+function resetDateRange() {
+    var sm = document.getElementById('startMonth');
+    var em = document.getElementById('endMonth');
+    var sy = document.getElementById('startYear');
+    var ey = document.getElementById('endYear');
+    if (sm) sm.value = '';
+    if (em) em.value = '';
+    if (sy) sy.value = '';
+    if (ey) ey.value = '';
+    loadDashboardData();
+}
+
+// ===== 获取日期范围参数字符串 =====
+function getDateRangeParams() {
+    var params = '';
+    if (currentTrendMode === 'monthly') {
+        var sm = document.getElementById('startMonth');
+        var em = document.getElementById('endMonth');
+        if (sm && sm.value) params += '&start_month=' + sm.value;
+        if (em && em.value) params += '&end_month=' + em.value;
+    } else {
+        var sy = document.getElementById('startYear');
+        var ey = document.getElementById('endYear');
+        if (sy && sy.value) params += '&start_year=' + sy.value;
+        if (ey && ey.value) params += '&end_year=' + ey.value;
+    }
+    return params;
 }
 
 // ===== 加载数据 =====
 function loadDashboardData() {
-    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '{{ csrf_token }}';
-    fetch('/api/dashboard/stats', {
+    var params = getDateRangeParams();
+    fetch('/api/dashboard/stats?' + params, {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
     .then(function(res) { return res.json(); })

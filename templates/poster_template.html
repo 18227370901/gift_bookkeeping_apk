@@ -71,10 +71,11 @@
         <div class="poster-footer">
             <div class="brand">人情记账宝</div>
             <div class="slogan">轻松记账 · 人情不糊涂</div>
-            <div class="qr-area"><div class="qr-placeholder">扫码体验</div></div>
+            <div class="qr-area"><canvas id="posterQrCanvas" width="60" height="60"></canvas></div>
         </div>
     </div>
     <script src="{{ url_for('static', filename='vendor/html2canvas/1.4.1/html2canvas.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/qrcode/1.0.0/qrcode.min.js') }}"></script>
     <script>
     // ===== 加载海报数据 =====
     function loadPosterData() {
@@ -110,7 +111,45 @@
                 reasonHtml = '<div style="text-align:center;color:#999;padding:10px;">暂无事由数据</div>';
             }
             document.getElementById('posterReasons').innerHTML = reasonHtml;
+            // 生成二维码
+            if (d.qr_url) {
+                generateQRCode(d.qr_url);
+            }
         });
+    }
+
+    // ===== 纯 JS 二维码生成（无需外部库） =====
+    function generateQRCode(text) {
+        var canvas = document.getElementById('posterQrCanvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        // 使用 Google Charts API 的离线替代方案：直接绘制简化版二维码占位图
+        // 实际使用 qrcode-generator 纯 JS 库生成
+        if (typeof qrcode !== 'function') {
+            // 降级：绘制带文字的占位图
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, 60, 60);
+            ctx.fillStyle = '#8B0000';
+            ctx.font = '8px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('扫码注册', 30, 35);
+            return;
+        }
+        var qr = qrcode(0, 'M');
+        qr.addData(text);
+        qr.make();
+        var moduleCount = qr.getModuleCount();
+        var cellSize = 60 / moduleCount;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, 60, 60);
+        ctx.fillStyle = '#000';
+        for (var row = 0; row < moduleCount; row++) {
+            for (var col = 0; col < moduleCount; col++) {
+                if (qr.isDark(row, col)) {
+                    ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                }
+            }
+        }
     }
 
     function formatNum(n) {

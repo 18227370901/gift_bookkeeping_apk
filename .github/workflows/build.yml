@@ -13,7 +13,7 @@ permissions:
 jobs:
   # ==================== Android APK 构建 ====================
   build-android:
-    name: Build Android APK
+    name: Build Android APK (v3.0)
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -68,18 +68,16 @@ jobs:
           path: |
             ~/.buildozer
             ./.buildozer
-          key: buildozer-android-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          key: buildozer-android-v3-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
-            buildozer-android-${{ runner.os }}-
+            buildozer-android-v3-${{ runner.os }}-
 
       - name: Build APK with Buildozer
         run: |
-          # 设置环境变量
           export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
           export ANDROID_NDK_HOME="$HOME/.buildozer/android/platform/android-ndk"
           export BUILDOZER_WARN_ON_ROOT=0
           
-          # 显示构建配置
           echo "=== Buildozer Spec ==="
           cat buildozer.spec
           echo ""
@@ -89,11 +87,9 @@ jobs:
           echo "Python version: $(python --version)"
           echo "Buildozer version: $(buildozer version)"
           
-          # 执行构建
           buildozer android debug 2>&1 | tee build_log.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           
-          # 如果构建失败，打印最后200行日志用于诊断
           if [ $BUILD_EXIT -ne 0 ]; then
             echo "=== Build FAILED ==="
             echo "Last 200 lines of build log:"
@@ -106,46 +102,49 @@ jobs:
 
       - name: Build AAB (App Bundle)
         run: |
-          buildozer android release || true
+          export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
+          export ANDROID_NDK_HOME="$HOME/.buildozer/android/platform/android-ndk"
+          buildozer android release 2>&1 | tee build_aab_log.txt || true
         continue-on-error: true
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-Android-APK
+          name: GiftBookkeeping-Android-APK-v3.0
           path: bin/*.apk
           if-no-files-found: error
 
       - name: Upload AAB Artifact (if available)
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-Android-AAB
+          name: GiftBookkeeping-Android-AAB-v3.0
           path: bin/*.aab
           if-no-files-found: warn
+        continue-on-error: true
+
+      - name: Upload Build Log (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-v3.0
+          path: build_log.txt
         continue-on-error: true
 
       - name: Create or Update GitHub Release
         if: github.ref_type == 'tag' || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
-          name: "礼金记账簿 ${{ github.ref_name == 'main' && 'Latest' || github.ref_name }}"
+          tag_name: ${{ github.ref_name == 'main' && 'v3.0-latest' || github.ref_name }}
+          name: "礼金记账簿 v3.0 ${{ github.ref_name == 'main' && '(Latest)' || github.ref_name }}"
           body: |
-            ### 📱 礼金记账簿 Android 客户端
+            ### 📱 礼金记账簿 Android 客户端 v3.0
             
             本版本由 GitHub Actions 自动化编译打包生成。
             
-            **包含功能：**
-            - 💰 礼金收支记录（收礼/随礼双向记账）
-            - 📊 数据分析看板（ECharts 图表）
-            - 👥 家庭多成员协作记账
-            - 📑 批量导入与 OCR 智能识别
-            - 🖨️ 人情簿打印与海报导出
-            - 🔄 人情对账与智能还礼建议
-            - 🔔 专属宴席大账本与盈亏分析
-            - 📅 纪念日备忘与提醒
-            - 🔐 用户权限管理与审计日志
-            - 🤖 AI 智能助手（需配置 API Key）
+            **v3.0 更新内容：**
+            - 完整同步源项目 gift_bookkeeping_app 全部功能
+            - 修复 Buildozer 构建配置（p4a recipe + python_depends 分离）
+            - 移动端响应式布局优化（安全区域适配、触控优化）
             
             **安装方式：**
             下载下方 `.apk` 文件传输到安卓手机安装即可。
@@ -159,7 +158,7 @@ jobs:
 
   # ==================== iOS IPA 构建 ====================
   build-ios:
-    name: Build iOS IPA
+    name: Build iOS IPA (v3.0)
     runs-on: macos-14
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     steps:
@@ -184,7 +183,6 @@ jobs:
 
       - name: Create iOS Project Structure
         run: |
-          # 创建 iOS WebView 壳项目目录结构
           mkdir -p ios_project/GiftBookkeeping
           cat > ios_project/GiftBookkeeping/AppDelegate.swift << 'SWIFT_EOF'
           import UIKit
@@ -193,71 +191,29 @@ jobs:
           @main
           class AppDelegate: UIResponder, UIApplicationDelegate {
               var window: UIWindow?
-              
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
                   window = UIWindow(frame: UIScreen.main.bounds)
-                  
                   let viewController = WebViewController()
                   window?.rootViewController = viewController
                   window?.makeKeyAndVisible()
-                  
                   return true
               }
           }
 
           class WebViewController: UIViewController, WKNavigationDelegate {
               var webView: WKWebView!
-              var flaskThread: Thread?
-              
               override func viewDidLoad() {
                   super.viewDidLoad()
-                  
-                  // 启动本地 Flask 服务
-                  startFlaskServer()
-                  
-                  // 配置 WebView
                   let configuration = WKWebViewConfiguration()
                   configuration.preferences.javaScriptEnabled = true
                   configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
-                  
                   webView = WKWebView(frame: view.bounds, configuration: configuration)
                   webView.navigationDelegate = self
                   webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
                   view.addSubview(webView)
-                  
-                  // 等待 Flask 启动后加载页面
                   DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                       let url = URL(string: "http://127.0.0.1:8765/")!
                       self.webView.load(URLRequest(url: url))
-                  }
-              }
-              
-              func startFlaskServer() {
-                  flaskThread = Thread {
-                      // 设置环境变量
-                      setenv("DATABASE_URL", "", 1)
-                      setenv("ADMIN_USER", "admin", 1)
-                      setenv("ADMIN_PASS", "admin123", 1)
-                      
-                      // 启动 Flask 服务（通过 Python bridge 或子进程）
-                      // 注意：iOS 上需要嵌入 Python 运行时
-                      // 这里使用简化的本地 HTTP 服务器作为占位
-                      self.runSimpleHTTPServer()
-                  }
-                  flaskThread?.start()
-              }
-              
-              func runSimpleHTTPServer() {
-                  // iOS 上需要通过 PythonKit 或嵌入式 Python 运行 Flask
-                  // 目前使用 Python 子进程方式（需要 Python.xcframework）
-                  // 构建产物为未签名 IPA，供开发者自行签名测试
-                  let bundlePath = Bundle.main.bundlePath
-                  let pythonScript = "\(bundlePath)/app.py"
-                  
-                  // 简化方案：使用内置 HTTP 服务器加载本地资源
-                  // 完整方案需要嵌入 Python.xcframework
-                  while true {
-                      Thread.sleep(forTimeInterval: 1)
                   }
               }
           }
@@ -268,49 +224,23 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-              <key>CFBundleName</key>
-              <string>GiftBookkeeping</string>
-              <key>CFBundleDisplayName</key>
-              <string>礼金记账簿</string>
-              <key>CFBundleIdentifier</key>
-              <string>org.giftbookkeeping.app</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
-              <key>CFBundleShortVersionString</key>
-              <string>2.0.0</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleExecutable</key>
-              <string>GiftBookkeeping</string>
-              <key>LSRequiresIPhoneOS</key>
-              <true/>
-              <key>UILaunchStoryboardName</key>
-              <string>LaunchScreen</string>
-              <key>UISupportedInterfaceOrientations</key>
-              <array>
-                  <string>UIInterfaceOrientationPortrait</string>
-              </array>
-              <key>UISupportedInterfaceOrientations~ipad</key>
-              <array>
-                  <string>UIInterfaceOrientationPortrait</string>
-                  <string>UIInterfaceOrientationPortraitUpsideDown</string>
-                  <string>UIInterfaceOrientationLandscapeLeft</string>
-                  <string>UIInterfaceOrientationLandscapeRight</string>
-              </array>
-              <key>NSCameraUsageDescription</key>
-              <string>需要相机权限以拍摄人情簿照片进行 OCR 识别录入</string>
-              <key>NSPhotoLibraryUsageDescription</key>
-              <string>需要相册访问权限以选择人情簿照片进行 OCR 识别录入</string>
-              <key>NSAppTransportSecurity</key>
-              <dict>
-                  <key>NSAllowsLocalNetworking</key>
-                  <true/>
-              </dict>
+              <key>CFBundleName</key><string>GiftBookkeeping</string>
+              <key>CFBundleDisplayName</key><string>礼金记账簿</string>
+              <key>CFBundleIdentifier</key><string>org.giftbookkeeping.app</string>
+              <key>CFBundleVersion</key><string>1</string>
+              <key>CFBundleShortVersionString</key><string>3.0.0</string>
+              <key>CFBundlePackageType</key><string>APPL</string>
+              <key>CFBundleExecutable</key><string>GiftBookkeeping</string>
+              <key>LSRequiresIPhoneOS</key><true/>
+              <key>UILaunchStoryboardName</key><string>LaunchScreen</string>
+              <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
+              <key>NSCameraUsageDescription</key><string>需要相机权限以拍摄人情簿照片进行 OCR 识别录入</string>
+              <key>NSPhotoLibraryUsageDescription</key><string>需要相册访问权限以选择人情簿照片进行 OCR 识别录入</string>
+              <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
           </dict>
           </plist>
           PLIST_EOF
 
-          # 创建 Xcode 项目文件（简化版）
           mkdir -p ios_project/GiftBookkeeping.xcodeproj
           cat > ios_project/GiftBookkeeping.xcodeproj/project.pbxproj << 'PBXPROJ_EOF'
           // !$*UTF8*$!
@@ -319,8 +249,6 @@ jobs:
               classes = {};
               objectVersion = 56;
               objects = {
-                  /* 简化的 Xcode 项目配置 */
-                  202E5B2A1234567890 = {isa = PBXBuildFile; fileRef = 202E5B2B1234567890; };
                   202E5B2B1234567890 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = GiftBookkeeping/Info.plist; sourceTree = "<group>"; };
                   202E5B2C1234567890 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = GiftBookkeeping/AppDelegate.swift; sourceTree = "<group>"; };
                   202E5B2D1234567890 = {isa = PBXNativeTarget; buildConfigurationList = 202E5B301234567890; buildPhases = (202E5B2E1234567890); buildRules = (); dependencies = (); name = GiftBookkeeping; productName = GiftBookkeeping; productReference = 202E5B2F1234567890; productType = "com.apple.product-type.application"; };
@@ -341,8 +269,6 @@ jobs:
       - name: Build iOS App (Unsigned)
         run: |
           cd ios_project
-          
-          # 使用 xcodebuild 构建未签名的 App
           xcodebuild clean build \
             -project GiftBookkeeping.xcodeproj \
             -scheme GiftBookkeeping \
@@ -355,50 +281,27 @@ jobs:
             CODE_SIGN_ENTITLEMENTS="" \
             -derivedDataPath build_output || true
           
-          # 查找构建产物
           APP_PATH=$(find build_output -name "GiftBookkeeping.app" -type d | head -1)
           if [ -n "$APP_PATH" ]; then
             echo "Found App: $APP_PATH"
-            
-            # 创建 Payload 目录并打包 IPA
-            mkdir -p Payload
-            cp -r "$APP_PATH" Payload/
-            
-            # 复制 Python 资源到 App 内
             cp -r ../templates "$APP_PATH/"
             cp -r ../static "$APP_PATH/"
-            cp ../app.py "$APP_PATH/"
-            cp ../models.py "$APP_PATH/"
-            cp ../routes_ext.py "$APP_PATH/"
-            cp ../routes_ai.py "$APP_PATH/"
-            cp ../ai_service.py "$APP_PATH/"
-            cp ../pdf_generator.py "$APP_PATH/"
-            cp ../gift_utils.py "$APP_PATH/"
-            cp ../webhook_utils.py "$APP_PATH/"
-            cp ../webdav_utils.py "$APP_PATH/"
-            cp ../web_search.py "$APP_PATH/"
-            cp ../_daemon_lock.py "$APP_PATH/"
-            
-            # 重新打包包含资源
-            rm -rf Payload
+            cp ../app.py ../models.py ../routes_ext.py ../routes_ai.py ../ai_service.py ../pdf_generator.py ../gift_utils.py ../webhook_utils.py ../webdav_utils.py ../web_search.py ../_daemon_lock.py "$APP_PATH/"
             mkdir -p Payload
             cp -r "$APP_PATH" Payload/
-            
-            # 生成 IPA
-            zip -r GiftBookkeeping-unsigned.ipa Payload/
-            echo "IPA created: $(ls -la GiftBookkeeping-unsigned.ipa)"
+            zip -r GiftBookkeeping-v3.0-unsigned.ipa Payload/
+            echo "IPA created: $(ls -la GiftBookkeeping-v3.0-unsigned.ipa)"
           else
             echo "Build output not found, creating placeholder IPA"
-            # 创建占位 IPA 结构
             mkdir -p Payload/GiftBookkeeping.app
-            echo "Placeholder app" > Payload/GiftBookkeeping.app/placeholder.txt
-            zip -r GiftBookkeeping-unsigned.ipa Payload/
+            echo "v3.0 placeholder" > Payload/GiftBookkeeping.app/placeholder.txt
+            zip -r GiftBookkeeping-v3.0-unsigned.ipa Payload/
           fi
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-iOS-IPA-Unsigned
+          name: GiftBookkeeping-iOS-IPA-v3.0-Unsigned
           path: ios_project/*.ipa
           if-no-files-found: warn
         continue-on-error: true
@@ -408,23 +311,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "礼金记账簿 ${{ github.ref_name }}"
+          name: "礼金记账簿 v3.0 ${{ github.ref_name }}"
           body: |
-            ### 📱 礼金记账簿 iOS 客户端（未签名）
+            ### 📱 礼金记账簿 iOS 客户端 v3.0（未签名）
             
             本 IPA 为未签名构建产物，需开发者自行签名后安装。
-            
-            **签名方式：**
-            1. 下载 IPA 文件
-            2. 使用 `codesign` 或 Xcode 重新签名
-            3. 通过 Sideloadly / AltStore / TrollStore 安装到设备
-            
-            ```bash
-            # 使用 codesign 重新签名
-            codesign -f -s "你的开发者证书" GiftBookkeeping.app
-            # 重新打包 IPA
-            zip -r GiftBookkeeping-signed.ipa Payload/
-            ```
           files: ios_project/*.ipa
           draft: false
           prerelease: true

@@ -548,6 +548,42 @@
                                 </select>
                               </div>
                             </div>
+
+                            <!-- V10.11.2 新增：数据分析 -->
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                              <div class="form-check mb-0 d-flex align-items-center">
+                                <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="dashboard" id="menu_dashboard_{{ u.id }}" {% if u.can_access_menu('dashboard') %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold small text-dark" for="menu_dashboard_{{ u.id }}">
+                                  <i class="fa-solid fa-chart-line text-primary me-1"></i>数据分析
+                                </label>
+                              </div>
+                              <div style="min-width: 210px;">
+                                {% set p_dashboard = u.get_menu_perm('dashboard') %}
+                                <select class="form-select form-select-sm" name="menu_perm_dashboard">
+                                  <option value="0" {% if p_dashboard == 0 %}selected{% endif %}>仅查看自身数据</option>
+                                  <option value="1" {% if p_dashboard == 1 %}selected{% endif %}>查看自身 + 他人汇总数据</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <!-- V10.11.2 新增：家庭记账 -->
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                              <div class="form-check mb-0 d-flex align-items-center">
+                                <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="family" id="menu_family_{{ u.id }}" {% if u.can_access_menu('family') %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold small text-dark" for="menu_family_{{ u.id }}">
+                                  <i class="fa-solid fa-people-roof text-warning me-1"></i>家庭记账
+                                </label>
+                              </div>
+                              <div style="min-width: 210px;">
+                                {% set p_family = u.get_menu_perm('family') %}
+                                <select class="form-select form-select-sm" name="menu_perm_family">
+                                  <option value="0" {% if p_family == 0 %}selected{% endif %}>仅管理自身数据</option>
+                                  <option value="1" {% if p_family == 1 %}selected{% endif %}>自身全权 + 仅查看他人数据</option>
+                                  <option value="2" {% if p_family == 2 %}selected{% endif %}>查看+修改他人数据</option>
+                                  <option value="3" {% if p_family == 3 %}selected{% endif %}>查看+修改+删除他人数据</option>
+                                </select>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
@@ -1278,6 +1314,40 @@ function copyCredPassword() {
                 </div>
                 <div style="min-width: 210px;">
                   <select class="form-select form-select-sm" name="menu_perm_recycle_bin">
+                    <option value="0" selected>仅管理自身数据</option>
+                    <option value="1">仅查看他人数据</option>
+                    <option value="2">查看+修改他人数据</option>
+                    <option value="3">查看+修改+删除他人数据</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- V10.11.2 新增：数据分析 -->
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="form-check mb-0 d-flex align-items-center">
+                  <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="dashboard" id="batch_menu_dashboard">
+                  <label class="form-check-label fw-semibold small text-dark" for="batch_menu_dashboard">
+                    <i class="fa-solid fa-chart-line text-primary me-1"></i>数据分析
+                  </label>
+                </div>
+                <div style="min-width: 210px;">
+                  <select class="form-select form-select-sm" name="menu_perm_dashboard">
+                    <option value="0" selected>仅查看自身数据</option>
+                    <option value="1">查看自身 + 他人汇总数据</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- V10.11.2 新增：家庭记账 -->
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="form-check mb-0 d-flex align-items-center">
+                  <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="family" id="batch_menu_family">
+                  <label class="form-check-label fw-semibold small text-dark" for="batch_menu_family">
+                    <i class="fa-solid fa-people-roof text-warning me-1"></i>家庭记账
+                  </label>
+                </div>
+                <div style="min-width: 210px;">
+                  <select class="form-select form-select-sm" name="menu_perm_family">
                     <option value="0" selected>仅管理自身数据</option>
                     <option value="1">仅查看他人数据</option>
                     <option value="2">查看+修改他人数据</option>

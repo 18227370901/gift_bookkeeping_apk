@@ -32,9 +32,16 @@
                     {% else %}
                     <span class="badge bg-secondary text-white small align-self-center py-2 px-3"><i class="fa-solid fa-eye me-1"></i>只读账本</span>
                     {% endif %}
-                    <a href="{{ url_for('banquet_export_excel', banquet_id=banquet.id) }}" class="btn btn-success btn-sm">
-                        <i class="fa-solid fa-file-excel me-1"></i>导出台账(CSV/Excel)
-                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('banquet_export_excel', banquet_id=banquet.id, format='xlsx') }}" class="btn btn-success btn-sm">
+                            <i class="fa-solid fa-file-excel me-1"></i>导出台账
+                        </a>
+                        <button type="button" class="btn btn-success btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown"></button>
+                        <ul class="dropdown-menu shadow border-0">
+                            <li><a class="dropdown-item py-2" href="{{ url_for('banquet_export_excel', banquet_id=banquet.id, format='xlsx') }}"><i class="fa-solid fa-file-excel text-success me-2"></i>导出 Excel (.xlsx)</a></li>
+                            <li><a class="dropdown-item py-2" href="{{ url_for('banquet_export_excel', banquet_id=banquet.id, format='csv') }}"><i class="fa-solid fa-file-csv text-success me-2"></i>导出 CSV</a></li>
+                        </ul>
+                    </div>
                     <a href="{{ url_for('banquets_view') }}" class="btn btn-outline-secondary btn-sm">
                         <i class="fa-solid fa-arrow-left me-1"></i>返回宴席列表
                     </a>

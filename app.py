@@ -2531,7 +2531,7 @@ def admin_batch_user_permissions():
     menus_list = request.form.getlist('allowed_menus') or request.form.getlist('allowed_menus[]')
     allowed_menus_str = ",".join(menus_list)
 
-    ALL_MENUS = ['ledger', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups']
+    ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups']
     menu_perms = {}
     for m in ALL_MENUS:
         val = request.form.get(f'menu_perm_{m}')
@@ -2611,9 +2611,11 @@ def admin_update_user_permissions(user_id):
     user.allowed_menus = ",".join(menus_list)
 
     # 2. 各菜单独立数据权限更新
-    ALL_MENUS = ['ledger', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups']
+    ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups']
     MENU_NAMES = {
         'ledger': '礼金账本',
+        'dashboard': '数据分析',
+        'family': '家庭记账',
         'banquets': '专属宴席',
         'reconciliation': '人情对账',
         'reminders': '纪念日备忘',
@@ -2989,6 +2991,7 @@ def export_csv():
 
     scope = request.args.get('scope', '').strip()  # 'all', 'filtered', 'page', 'selected'
     ids_param = request.args.get('ids', '').strip()
+    export_format = request.args.get('format', 'csv').strip().lower()  # 'csv' or 'xlsx'
 
     if ids_param:
         id_list = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
@@ -3056,15 +3059,13 @@ def export_csv():
         else:
             records = query.all()
 
-    output = io.StringIO()
-    output.write('\ufeff')
-    writer = csv.writer(output)
-    writer.writerow(['ID', '客人姓名', '往来类型', '年龄', '联系电话', '礼金金额(元)', '大写金额', '办席原因', '归属专属宴席', '联系地址', '备注说明', '登记时间', '录入用户'])
-
+    # 构建数据行（CSV 和 Excel 共用）
+    csv_headers = ['ID', '客人姓名', '往来类型', '年龄', '联系电话', '礼金金额(元)', '大写金额', '办席原因', '归属专属宴席', '联系地址', '备注说明', '登记时间', '录入用户']
+    data_rows = []
     for r in records:
         r_type_label = '送礼' if getattr(r, 'record_type', 'receive') in ('send', 'give') else '收礼'
         banquet_title = r.banquet.title if (r.banquet and not r.banquet.deleted_at) else ''
-        writer.writerow([
+        data_rows.append([
             r.id,
             r.name,
             r_type_label,
@@ -3080,36 +3081,120 @@ def export_csv():
             r.owner.username if r.owner else ''
         ])
 
-    response = Response(output.getvalue(), mimetype='text/csv; charset=utf-8')
-    response.headers['Content-Disposition'] = 'attachment; filename=gift_records.csv'
-    log_action('导出数据', f'用户导出了 {len(records)} 条礼金记录 CSV 文件')
-    try:
-        trigger_webhook_event(
-            WebhookConfig.query.filter_by(is_enabled=True).all(), 'security',
-            f'导出礼金数据',
-            f'操作人：{current_user.username} | 页面：礼金账本 | 导出记录数：{len(records)}',
-            page_key='ledger', user_name=current_user.username,
-            operator_id=current_user.id
-        )
-    except Exception:
-        pass
-    return response
+    if export_format == 'xlsx':
+        # Excel 导出（openpyxl）
+        try:
+            from openpyxl import Workbook
+            from openpyxl.utils import get_column_letter
+        except ImportError:
+            flash('Excel 导出需要 openpyxl 库，请先安装。', 'danger')
+            return redirect(url_for('index'))
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = '礼金记录'
+        ws.append(csv_headers)
+        for row in data_rows:
+            ws.append(row)
+        # 自动列宽
+        for col_idx in range(1, len(csv_headers) + 1):
+            max_len = len(str(csv_headers[col_idx - 1]))
+            for row in data_rows:
+                cell_len = len(str(row[col_idx - 1]))
+                if cell_len > max_len:
+                    max_len = cell_len
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 4, 40)
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = Response(output.getvalue(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response.headers['Content-Disposition'] = 'attachment; filename=gift_records.xlsx'
+        log_action('导出数据', f'用户导出了 {len(records)} 条礼金记录 Excel 文件')
+        try:
+            trigger_webhook_event(
+                WebhookConfig.query.filter_by(is_enabled=True).all(), 'security',
+                f'导出礼金数据',
+                f'操作人：{current_user.username} | 页面：礼金账本 | 导出记录数：{len(records)} | 格式：Excel',
+                page_key='ledger', user_name=current_user.username,
+                operator_id=current_user.id
+            )
+        except Exception:
+            pass
+        return response
+    else:
+        # CSV 导出（保持原有逻辑）
+        output = io.StringIO()
+        output.write('\ufeff')
+        writer = csv.writer(output)
+        writer.writerow(csv_headers)
+        for row in data_rows:
+            writer.writerow(row)
+
+        response = Response(output.getvalue(), mimetype='text/csv; charset=utf-8')
+        response.headers['Content-Disposition'] = 'attachment; filename=gift_records.csv'
+        log_action('导出数据', f'用户导出了 {len(records)} 条礼金记录 CSV 文件')
+        try:
+            trigger_webhook_event(
+                WebhookConfig.query.filter_by(is_enabled=True).all(), 'security',
+                f'导出礼金数据',
+                f'操作人：{current_user.username} | 页面：礼金账本 | 导出记录数：{len(records)} | 格式：CSV',
+                page_key='ledger', user_name=current_user.username,
+                operator_id=current_user.id
+            )
+        except Exception:
+            pass
+        return response
 
 
 @app.route('/import/template')
 @login_required
 def download_import_template():
-    output = io.StringIO()
-    output.write('\ufeff')
-    writer = csv.writer(output)
-    writer.writerow(['客人姓名(必填)', '往来类型(选填，收礼/随礼，默认收礼)', '年龄(选填)', '联系电话(选填)', '礼金金额(元)(必填)', '办席原因(必填)', '联系地址(选填)', '备注说明(选填)'])
-    writer.writerow(['张三', '收礼', '30', '13800138000', '500', '婚礼', '北京市朝阳区', '新婚大吉'])
-    writer.writerow(['李四', '随礼', '', '13900139000', '1000', '满月酒', '上海市浦东新区', '贺百天之喜'])
+    export_format = request.args.get('format', 'csv').strip().lower()
 
-    response = Response(output.getvalue(), mimetype='text/csv')
-    response.headers['Content-Disposition'] = 'attachment; filename=gift_records_template.csv'
-    log_action('下载模板', '用户下载了批量导入样例模版 CSV 文件')
-    return response
+    template_headers = ['客人姓名(必填)', '往来类型(选填，收礼/随礼，默认收礼)', '年龄(选填)', '联系电话(选填)', '礼金金额(元)(必填)', '办席原因(必填)', '联系地址(选填)', '备注说明(选填)']
+    template_rows = [
+        ['张三', '收礼', '30', '13800138000', '500', '婚礼', '北京市朝阳区', '新婚大吉'],
+        ['李四', '随礼', '', '13900139000', '1000', '满月酒', '上海市浦东新区', '贺百天之喜']
+    ]
+
+    if export_format == 'xlsx':
+        try:
+            from openpyxl import Workbook
+            from openpyxl.utils import get_column_letter
+        except ImportError:
+            flash('Excel 模版下载需要 openpyxl 库。', 'danger')
+            return redirect(url_for('index'))
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = '导入模版'
+        ws.append(template_headers)
+        for row in template_rows:
+            ws.append(row)
+        for col_idx in range(1, len(template_headers) + 1):
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(len(template_headers[col_idx - 1]) + 4, 40)
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        response = Response(output.getvalue(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response.headers['Content-Disposition'] = 'attachment; filename=gift_records_template.xlsx'
+        log_action('下载模板', '用户下载了批量导入样例模版 Excel 文件')
+        return response
+    else:
+        output = io.StringIO()
+        output.write('\ufeff')
+        writer = csv.writer(output)
+        writer.writerow(template_headers)
+        for row in template_rows:
+            writer.writerow(row)
+
+        response = Response(output.getvalue(), mimetype='text/csv')
+        response.headers['Content-Disposition'] = 'attachment; filename=gift_records_template.csv'
+        log_action('下载模板', '用户下载了批量导入样例模版 CSV 文件')
+        return response
 
 
 @app.route('/import/csv', methods=['POST'])

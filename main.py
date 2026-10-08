@@ -177,7 +177,7 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
                         settings.setCacheMode(WebSettings.LOAD_DEFAULT)
                         # 适配手机视口
                         try:
-                            settings.setUserAgentString("Mozilla/5.0 (Linux; Android) GiftBookkeeping/2.0")
+                            settings.setUserAgentString("Mozilla/5.0 (Linux; Android) GiftBookkeeping/3.0")
                         except Exception:
                             pass
 

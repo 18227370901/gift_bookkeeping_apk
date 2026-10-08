@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档 V2.0</title>
+<title>礼金记账簿 移动端 APK — PSD 设计文档 V3.0</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{primaryColor:'#e8f5e9',primaryTextColor:'#1b5e20',primaryBorderColor:'#4caf50',lineColor:'#999',fontSize:'14px'}});</script>
 <style>
@@ -12,14 +12,12 @@
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;background:var(--bg);color:var(--text);line-height:1.75;font-size:15px}
 .container{max-width:1100px;margin:0 auto;padding:40px 24px 80px}
 h1{font-size:26px;color:var(--green);text-align:center;margin-bottom:8px;padding-bottom:16px;border-bottom:3px solid var(--green)}
-.subtitle{text-align:center;color:var(--gray);font-size:14px;margin-bottom:40px}
 h2{font-size:22px;color:var(--green);margin:48px 0 20px;padding-bottom:10px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:8px}
 h2 .num{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:var(--green);color:#fff;border-radius:50%;font-size:16px;flex-shrink:0}
 h3{font-size:18px;color:#343a40;margin:32px 0 14px}
 h4{font-size:16px;color:#495057;margin:24px 0 10px}
 p{margin-bottom:12px}
 a{color:var(--blue);text-decoration:none}
-a:hover{text-decoration:underline}
 ul,ol{margin:8px 0 16px 24px}
 li{margin-bottom:6px}
 table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px}
@@ -27,280 +25,185 @@ th{background:#2e7d32;color:#fff;padding:10px 12px;text-align:left;font-weight:6
 td{padding:8px 12px;border:1px solid var(--border);vertical-align:top}
 tr:nth-child(even){background:#f8f9fa}
 tr:hover{background:#e8f5e9}
-code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;background:var(--code-bg);padding:2px 6px;border-radius:3px;font-size:13px;color:var(--green)}
-pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:8px;overflow-x:auto;margin:12px 0;font-size:13px;line-height:1.6}
-pre code{background:none;color:inherit;padding:0;font-size:13px}
+code{font-family:"SFMono-Regular",Consolas,monospace;background:var(--code-bg);padding:2px 6px;border-radius:3px;font-size:13px;color:var(--green)}
+pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:8px;overflow-x:auto;margin:12px 0;font-size:13px}
+pre code{background:none;color:inherit;padding:0}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap}
 .badge-red{background:#fde8e8;color:#c41e3a}
 .badge-green{background:#d4edda;color:#155724}
 .badge-amber{background:#fff3cd;color:#856404}
-.badge-blue{background:#d1ecf1;color:#0c5460}
 .badge-gray{background:#e2e3e5;color:#383d41}
 .callout{border-left:4px solid;padding:14px 18px;margin:16px 0;border-radius:0 6px 6px 0}
 .callout-danger{border-color:var(--red);background:#fdf2f2}
-.callout-warn{border-color:var(--amber);background:#fffbeb}
-.callout-info{border-color:var(--blue);background:#eff6ff}
 .callout-success{border-color:var(--green);background:#f0fdf4}
-.callout strong{display:block;margin-bottom:4px}
+.callout-info{border-color:var(--blue);background:#eff6ff}
 .mermaid{margin:20px 0;text-align:center}
 .toc{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px 28px;margin-bottom:40px}
 .toc h3{margin:0 0 12px;color:var(--green)}
 .toc ol{margin-left:20px}
-.toc li{margin-bottom:5px}
-.toc .sub{color:var(--gray);font-size:13px;margin-left:12px}
 .meta{text-align:center;color:var(--gray);font-size:13px;margin-bottom:8px}
-hr{border:none;border-top:1px solid var(--border);margin:32px 0}
 </style>
 </head>
 <body>
 <div class="container">
 
 <h1>礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档</h1>
-<p class="meta">项目路径：<code>gift_bookkeeping_apk/</code> &nbsp;|&nbsp; 文档版本：V2.0（完整功能同步版） &nbsp;|&nbsp; 生成日期：2026-10-08</p>
-<p class="meta">架构基线：本地嵌入式 Flask 服务 + 原生 WebView 容器 &nbsp;|&nbsp; 代码规模：12个Python文件 + 25个HTML模板 + 179条路由 + 22+数据模型</p>
+<p class="meta">项目路径：<code>gift_bookkeeping_apk/</code> &nbsp;|&nbsp; 文档版本：V3.0 &nbsp;|&nbsp; 生成日期：2026-10-08</p>
+<p class="meta">架构基线：本地嵌入式 Flask 服务 + 原生 WebView 容器 &nbsp;|&nbsp; 12个Python文件 + 25个HTML模板 + 181条路由</p>
 
 <div class="toc">
 <h3>目录</h3>
 <ol>
-<li><b>项目全局概览</b> <span class="sub">— 业务定位 · 技术栈全景 · 架构拓扑</span></li>
-<li><b>V2.0 架构演进与核心变更</b> <span class="sub">— 远程WebView → 本地Flask · 功能全量同步 · 移动端适配</span></li>
-<li><b>功能模块全量清单</b> <span class="sub">— 25页面 · 179条路由 · 22+数据模型</span></li>
-<li><b>技术栈全景</b> <span class="sub">— 后端 · 前端 · 移动端 · CI/CD</span></li>
-<li><b>数据持久化设计</b> <span class="sub">— ER关系 · 字段约束 · 迁移策略</span></li>
-<li><b>移动端适配设计</b> <span class="sub">— 响应式布局 · 安全区域 · 触控优化</span></li>
-<li><b>构建与CI/CD</b> <span class="sub">— Buildozer · GitHub Actions · Android+iOS双平台</span></li>
-<li><b>工程与安全保障</b> <span class="sub">— 环境变量 · 认证鉴权 · 安全清单</span></li>
-<li><b>演进路线图</b> <span class="sub">— 已完成 · 待优化 · 长期规划</span></li>
+<li><b>项目全局概览</b> — 业务定位 · 技术栈 · 架构拓扑</li>
+<li><b>V3.0 核心变更</b> — 构建修复 · 版本区分 · 全量同步</li>
+<li><b>功能模块全量清单</b> — 25页面 · 181条路由 · 22+数据模型</li>
+<li><b>技术栈全景</b> — 后端 · 前端 · 移动端 · CI/CD</li>
+<li><b>数据持久化设计</b> — ER关系 · 加密策略 · 迁移</li>
+<li><b>移动端适配设计</b> — 响应式 · 安全区域 · 触控优化</li>
+<li><b>构建与CI/CD</b> — Buildozer · GitHub Actions · 双平台</li>
+<li><b>工程与安全保障</b> — 环境变量 · 认证鉴权 · 安全清单</li>
+<li><b>版本演进路线图</b> — V1.0 → V2.0 → V3.0</li>
 </ol>
 </div>
 
 <h2><span class="num">1</span>项目全局概览</h2>
 
 <h3>1.1 业务定位</h3>
-<p>本项目是「人情记账宝」产品矩阵的<b>移动端交付形态</b>，定位为 Android/iOS 手机/平板上的全功能离线礼金记账工具。</p>
-
 <table>
 <tr><th>形态</th><th>仓库</th><th>定位</th><th>功能覆盖</th></tr>
-<tr><td>Web 原生部署版</td><td><code>gift-bookkeeping-app</code></td><td>全功能基准版</td><td>100% 功能基准</td></tr>
-<tr><td>Docker Compose 版</td><td><code>gift-bookkeeping-app-docker</code></td><td>容器化部署版</td><td>100%（与传统版共享）</td></tr>
-<tr><td><b>移动端 APK 版</b></td><td><b><code>gift_bookkeeping_apk</code></b>（本仓库）</td><td><b>Android/iOS 离线应用</b></td><td><b>100% 全量同步</b></td></tr>
+<tr><td>Web 原生部署版</td><td><code>gift-bookkeeping-app</code></td><td>全功能基准版</td><td>100%</td></tr>
+<tr><td>Docker Compose 版</td><td><code>gift-bookkeeping-app-docker</code></td><td>容器化部署版</td><td>100%</td></tr>
+<tr><td><b>移动端 APK 版</b></td><td><b><code>gift_bookkeeping_apk</code></b></td><td><b>Android/iOS 离线应用</b></td><td><b>100% 全量同步</b></td></tr>
 </table>
-
-<div class="callout callout-success">
-<strong>V2.0 核心变更</strong>
-V1.0 时 APK 仅为加载远程URL的 WebView 壳（功能子集），V2.0 已完整同步源项目全部功能，改为<b>本地嵌入式 Flask 服务 + WebView 容器</b>架构，实现真正的离线运行。
-</div>
 
 <h3>1.2 架构拓扑图</h3>
 <div class="mermaid">
 graph TB
     subgraph device["📱 移动设备 (Android/iOS)"]
-        APK["APK 应用 v2.0.0<br/>arm64-v8a + armeabi-v7a<br/>API 21+"] --> WV["原生 WebView<br/>main.py 容器层<br/>jnius → WebView"]
-        APK --> FLASK_LOCAL["本地 Flask 服务<br/>127.0.0.1:8765<br/>app.py (3291行, 179路由)"]
-        FLASK_LOCAL --> DB_LOCAL["SQLite<br/>本地私有存储<br/>data/gift_bookkeeping.db"]
-        FLASK_LOCAL -->|"Jinja2 SSR"| TPL_LOCAL["templates/ 25个HTML<br/>Bootstrap5 + FA6 + ECharts<br/>本地化引用"]
+        APK["APK v3.0.0<br/>arm64-v8a / API 21+"] --> WV["原生 WebView<br/>main.py"]
+        APK --> FLASK_LOCAL["本地 Flask<br/>127.0.0.1:8765<br/>181路由"]
+        FLASK_LOCAL --> DB_LOCAL["SQLite 本地私有存储"]
+        FLASK_LOCAL -->|"Jinja2 SSR"| TPL_LOCAL["25个HTML模板<br/>本地化引用"]
     end
-    WV -->|"加载 http://127.0.0.1:8765"| FLASK_LOCAL
-    TPL_LOCAL -->|"HTML/CSS/JS"| WV
-    style device fill:#e8f5e9,stroke:#4caf50
-    style FLASK_LOCAL fill:#c8e6c9,stroke:#4caf50
-    style DB_LOCAL fill:#a5d6a7,stroke:#4caf50
+    WV -->|"加载本地页面"| FLASK_LOCAL
 </div>
 
+<h3>1.3 版本演进对比</h3>
+<table>
+<tr><th>指标</th><th>V1.0</th><th>V2.0</th><th><b>V3.0</b></th></tr>
+<tr><td>架构模式</td><td>远程WebView壳</td><td>本地Flask+WebView</td><td><b>本地Flask+WebView（修复构建）</b></td></tr>
+<tr><td>代码文件</td><td>3.py+8.html</td><td>12.py+25.html</td><td><b>12.py+25.html</b></td></tr>
+<tr><td>路由数量</td><td>32</td><td>179</td><td><b>181</b></td></tr>
+<tr><td>构建状态</td><td>—</td><td><span class="badge badge-red">失败</span></td><td><span class="badge badge-green">修复</span></td></tr>
+<tr><td>版本号</td><td>1.0.0</td><td>2.0.0</td><td><b>3.0.0</b></td></tr>
+</table>
+
+<h2><span class="num">2</span>V3.0 核心变更</h2>
+
+<h3>2.1 V2.0 构建失败根因与修复</h3>
+<table>
+<tr><th>#</th><th>根因</th><th>V2.0配置</th><th>V3.0修复</th></tr>
+<tr><td>1</td><td>requirements混入非p4a recipe包名</td><td>flask_sqlalchemy,flask_wtf等</td><td>改为p4a原生recipe + python_depends</td></tr>
+<tr><td>2</td><td>cryptography需Rust工具链</td><td>包含在requirements</td><td>移除，try/except自动降级</td></tr>
+<tr><td>3</td><td>cython&lt;3.0限制过时</td><td>"cython&lt;3.0"</td><td>无限制"cython"</td></tr>
+<tr><td>4</td><td>android.api=34兼容性</td><td>android.api=34</td><td>android.api=33</td></tr>
+</table>
+
+<h3>2.2 buildozer.spec V3.0 配置</h3>
+<pre><code>version = 3.0.0
+requirements = python3,hostpython3,openssl,sqlite3,pyjnius,kivy,flask,sqlalchemy,markupsafe
+python_depends = flask-sqlalchemy,flask-wtf,flask-login,werkzeug,requests,itsdangerous,click,blinker,jinja2
+android.api = 33
+android.archs = arm64-v8a</code></pre>
+
 <div class="callout callout-info">
-<strong>架构关键特征</strong>
+<b>关键设计</b>
 <ul style="margin-top:8px">
-<li><b>完全离线</b>：所有业务逻辑在设备本地运行，无需互联网</li>
-<li><b>数据私有</b>：SQLite 数据库存储在手机私有空间，<code>android.private_storage = True</code></li>
-<li><b>资源内嵌</b>：25个HTML模板 + 静态资源全部打包进APK，不依赖CDN</li>
-<li><b>本地Flask</b>：Flask后端在设备后台线程运行，WebView加载本地页面</li>
+<li><code>requirements</code> 仅包含 p4a 原生 recipe（需C交叉编译）</li>
+<li><code>python_depends</code> 安装纯Python包（pip安装，无需C编译）</li>
+<li>移除 cryptography（需Rust），代码中AES加密通过try/except自动降级</li>
 </ul>
 </div>
 
-<h2><span class="num">2</span>V2.0 架构演进与核心变更</h2>
-
-<h3>2.1 架构模式变更</h3>
-<table>
-<tr><th style="width:120px">维度</th><th>V1.0（远程WebView壳）</th><th>V2.0（本地Flask + WebView）</th></tr>
-<tr><td><b>架构模式</b></td><td>远程WebView容器</td><td>本地嵌入式Flask + WebView</td></tr>
-<tr><td><b>后端运行</b></td><td>远端服务器</td><td>设备本地后台线程</td></tr>
-<tr><td><b>数据库</b></td><td>远端SQLite</td><td>设备本地SQLite（私有存储）</td></tr>
-<tr><td><b>网络依赖</b></td><td>必须联网</td><td>完全离线</td></tr>
-<tr><td><b>功能覆盖</b></td><td>Web版功能子集（32路由）</td><td>Web版全量功能（179路由）</td></tr>
-<tr><td><b>模板资源</b></td><td>CDN加载</td><td>本地化打包（static/vendor/）</td></tr>
-<tr><td><b>main.py</b></td><td>加载远程URL</td><td>启动本地Flask + WebView</td></tr>
-<tr><td><b>buildozer.spec</b></td><td>仅Kivy+pyjnius</td><td>Kivy + Flask全家桶</td></tr>
-</table>
-
-<h3>2.2 项目规模变化</h3>
-<table>
-<tr><th>指标</th><th>V1.0</th><th>V2.0</th><th>变化</th></tr>
-<tr><td>代码文件</td><td>3个 .py + 8个 .html</td><td>12个 .py + 25个 .html</td><td>+9 .py +17 .html</td></tr>
-<tr><td>代码行数</td><td>~2100行</td><td>~15000+行</td><td>7倍增长</td></tr>
-<tr><td>路由数量</td><td>32条</td><td>179条</td><td>全量同步</td></tr>
-<tr><td>数据模型</td><td>3个</td><td>22+个</td><td>全量同步</td></tr>
-<tr><td>静态资源</td><td>CDN引用</td><td>本地化vendor/</td><td>离线可用</td></tr>
-<tr><td>构建平台</td><td>仅Android</td><td>Android + iOS</td><td>新增iOS</td></tr>
-</table>
-
-<h3>2.3 源项目功能同步清单</h3>
-<table>
-<tr><th>文件</th><th>功能</th><th>同步状态</th></tr>
-<tr><td><code>app.py</code></td><td>后端业务逻辑（3291行, 179路由）</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>models.py</code></td><td>数据模型（22+模型, 1129行）</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>routes_ext.py</code></td><td>扩展路由（回收站/对账/宴席/提醒/备份/Webhook/广播/打印/OCR）</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>routes_ai.py</code></td><td>AI助手路由</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>ai_service.py</code></td><td>AI核心服务层（多配置/联网搜索/本地兜底/OCR）</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>pdf_generator.py</code></td><td>PDF对账单生成（ReportLab）</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>gift_utils.py</code></td><td>人情业务工具（NLP解析/还礼建议/对账计算）</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>webhook_utils.py</code></td><td>Webhook多渠道推送</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>webdav_utils.py</code></td><td>WebDAV备份工具</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>web_search.py</code></td><td>AI联网搜索</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>_daemon_lock.py</code></td><td>守护线程单实例锁</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>templates/</code> (25个)</td><td>全部页面模板</td><td><span class="badge badge-green">完整同步</span></td></tr>
-<tr><td><code>static/</code></td><td>全部静态资源（本地化）</td><td><span class="badge badge-green">完整同步</span></td></tr>
-</table>
-
 <h2><span class="num">3</span>功能模块全量清单</h2>
 
-<h3>3.1 页面/路由清单（25个页面，179条路由）</h3>
+<h3>3.1 页面/路由清单（25个页面，181条路由）</h3>
 <table>
 <tr><th>#</th><th>页面模板</th><th>路由</th><th>核心功能</th></tr>
-<tr><td>1</td><td><code>base.html</code></td><td>—</td><td>全局布局（导航栏/Flash/主题/防偷窥/广播/移动端CSS）</td></tr>
-<tr><td>2</td><td><code>index.html</code></td><td><code>/</code></td><td>礼金账本首页（CRUD/搜索/筛选/排序/分页/批量/NLP/导入导出/打印/海报）</td></tr>
-<tr><td>3</td><td><code>login.html</code></td><td><code>/login</code></td><td>登录（风控/验证码/记住密码）</td></tr>
-<tr><td>4</td><td><code>register.html</code></td><td><code>/register</code></td><td>注册（双密保/邀请制）</td></tr>
-<tr><td>5</td><td><code>forgot_password.html</code></td><td><code>/forgot-password</code></td><td>找回密码（双密保/风控）</td></tr>
-<tr><td>6</td><td><code>change_password.html</code></td><td><code>/change-password</code></td><td>修改密码</td></tr>
-<tr><td>7</td><td><code>profile_security.html</code></td><td><code>/profile/security</code></td><td>个人安全设置</td></tr>
-<tr><td>8</td><td><code>dashboard.html</code></td><td><code>/dashboard</code></td><td>数据分析看板（ECharts）</td></tr>
-<tr><td>9</td><td><code>family.html</code></td><td><code>/family</code></td><td>家庭多成员协作记账</td></tr>
-<tr><td>10</td><td><code>banquets.html</code></td><td><code>/banquets</code></td><td>专属宴席大账本列表</td></tr>
-<tr><td>11</td><td><code>banquet_detail.html</code></td><td><code>/banquet/&lt;id&gt;</code></td><td>宴席详情（盈亏分析/现场录入）</td></tr>
-<tr><td>12</td><td><code>reconciliation.html</code></td><td><code>/reconciliation</code></td><td>人情对账（往来明细/还礼建议）</td></tr>
-<tr><td>13</td><td><code>reminders.html</code></td><td><code>/reminders</code></td><td>纪念日备忘（提醒/Webhook推送）</td></tr>
-<tr><td>14</td><td><code>recycle_bin.html</code></td><td><code>/recycle_bin</code></td><td>回收站（跨模块/还原/彻底删除）</td></tr>
-<tr><td>15</td><td><code>ai_assistant.html</code></td><td><code>/ai-assistant</code></td><td>AI智能助手</td></tr>
-<tr><td>16</td><td><code>permission_tickets.html</code></td><td><code>/permission_tickets</code></td><td>权限工单</td></tr>
-<tr><td>17</td><td><code>admin_users.html</code></td><td><code>/admin/users</code></td><td>用户管理（4级权限/双密保）</td></tr>
-<tr><td>18</td><td><code>admin_logs.html</code></td><td><code>/admin/logs</code></td><td>操作审计日志</td></tr>
-<tr><td>19</td><td><code>admin_broadcasts.html</code></td><td><code>/admin/broadcasts</code></td><td>系统广播发布</td></tr>
-<tr><td>20</td><td><code>admin_webhooks.html</code></td><td><code>/admin/webhooks</code></td><td>Webhook通知配置</td></tr>
-<tr><td>21</td><td><code>admin_backups.html</code></td><td><code>/admin/backups</code></td><td>WebDAV备份管理</td></tr>
-<tr><td>22</td><td><code>admin_ai_config.html</code></td><td><code>/admin/ai-config</code></td><td>AI配置管理</td></tr>
-<tr><td>23</td><td><code>print_giftbook.html</code></td><td><code>/print_giftbook</code></td><td>人情簿A4打印</td></tr>
-<tr><td>24</td><td><code>poster_template.html</code></td><td><code>/poster_template</code></td><td>海报模板（手机分享长图）</td></tr>
-<tr><td>25</td><td><code>shared_ledger.html</code></td><td><code>/shared_ledger/&lt;token&gt;</code></td><td>共享外链（只读/密码/脱敏）</td></tr>
-</table>
-
-<h3>3.2 数据模型清单（22+个模型）</h3>
-<table>
-<tr><th>模型类</th><th>表名</th><th>功能</th></tr>
-<tr><td>User</td><td>users</td><td>用户（双密保/AI配置/4级权限/授权）</td></tr>
-<tr><td>GiftRecord</td><td>gift_records</td><td>礼金记录（收礼/随礼/软删除/宴席关联）</td></tr>
-<tr><td>Banquet</td><td>banquets</td><td>专属宴席（自动归集/盈亏分析）</td></tr>
-<tr><td>AnniversaryReminder</td><td>anniversary_reminders</td><td>纪念日提醒</td></tr>
-<tr><td>SystemSetting</td><td>system_settings</td><td>系统配置键值表</td></tr>
-<tr><td>RegistrationToken</td><td>registration_tokens</td><td>注册邀请令牌</td></tr>
-<tr><td>LoginRisk</td><td>login_risks</td><td>登录风控（持久化）</td></tr>
-<tr><td>SecurityRisk</td><td>security_risks</td><td>密保风控（持久化）</td></tr>
-<tr><td>OperationLog</td><td>operation_logs</td><td>操作审计日志</td></tr>
-<tr><td>Broadcast / BroadcastRead</td><td>broadcasts / broadcast_reads</td><td>系统广播与已读</td></tr>
-<tr><td>SharedLedgerLink</td><td>shared_ledger_links</td><td>共享外链</td></tr>
-<tr><td>WebhookConfig / WebhookLog</td><td>webhook_configs / webhook_logs</td><td>Webhook配置与日志</td></tr>
-<tr><td>BackupConfig</td><td>backup_configs</td><td>WebDAV备份配置</td></tr>
-<tr><td>ScheduledBackupTask / ExecutionLog</td><td>scheduled_backup_tasks / _logs</td><td>定时备份任务</td></tr>
-<tr><td>BackupAttachment</td><td>backup_attachments</td><td>备份附件</td></tr>
-<tr><td>PermissionTicket</td><td>permission_tickets</td><td>权限工单</td></tr>
-<tr><td>ChatSession / ChatMessage</td><td>chat_sessions / chat_messages</td><td>AI聊天会话与消息</td></tr>
-<tr><td>AIQueryLog</td><td>ai_query_logs</td><td>AI查询日志</td></tr>
-<tr><td>FamilyGroup / FamilyMember</td><td>family_groups / family_members</td><td>家庭组与成员</td></tr>
+<tr><td>1</td><td>base.html</td><td>—</td><td>全局布局+移动端CSS</td></tr>
+<tr><td>2</td><td>index.html</td><td><code>/</code></td><td>礼金账本首页</td></tr>
+<tr><td>3</td><td>login.html</td><td><code>/login</code></td><td>登录</td></tr>
+<tr><td>4</td><td>register.html</td><td><code>/register</code></td><td>注册</td></tr>
+<tr><td>5</td><td>forgot_password.html</td><td><code>/forgot-password</code></td><td>找回密码</td></tr>
+<tr><td>6</td><td>change_password.html</td><td><code>/change-password</code></td><td>修改密码</td></tr>
+<tr><td>7</td><td>profile_security.html</td><td><code>/profile/security</code></td><td>个人安全设置</td></tr>
+<tr><td>8</td><td>dashboard.html</td><td><code>/dashboard</code></td><td>数据分析看板</td></tr>
+<tr><td>9</td><td>family.html</td><td><code>/family</code></td><td>家庭多成员协作</td></tr>
+<tr><td>10</td><td>banquets.html</td><td><code>/banquets</code></td><td>专属宴席大账本</td></tr>
+<tr><td>11</td><td>banquet_detail.html</td><td><code>/banquet/&lt;id&gt;</code></td><td>宴席详情</td></tr>
+<tr><td>12</td><td>reconciliation.html</td><td><code>/reconciliation</code></td><td>人情对账</td></tr>
+<tr><td>13</td><td>reminders.html</td><td><code>/reminders</code></td><td>纪念日备忘</td></tr>
+<tr><td>14</td><td>recycle_bin.html</td><td><code>/recycle_bin</code></td><td>回收站</td></tr>
+<tr><td>15</td><td>ai_assistant.html</td><td><code>/ai-assistant</code></td><td>AI智能助手</td></tr>
+<tr><td>16</td><td>permission_tickets.html</td><td><code>/permission_tickets</code></td><td>权限工单</td></tr>
+<tr><td>17-22</td><td>admin_*.html</td><td><code>/admin/*</code></td><td>管理后台(6页)</td></tr>
+<tr><td>23</td><td>print_giftbook.html</td><td><code>/print_giftbook</code></td><td>人情簿打印</td></tr>
+<tr><td>24</td><td>poster_template.html</td><td><code>/poster_template</code></td><td>海报模板</td></tr>
+<tr><td>25</td><td>shared_ledger.html</td><td><code>/shared_ledger/&lt;token&gt;</code></td><td>共享外链</td></tr>
 </table>
 
 <h2><span class="num">4</span>技术栈全景</h2>
 
-<h3>4.1 后端技术栈</h3>
+<h3>4.1 后端</h3>
 <table>
-<tr><th>层面</th><th>技术/框架</th><th>版本</th></tr>
-<tr><td>Web 框架</td><td>Flask</td><td>3.0.3</td></tr>
-<tr><td>ORM</td><td>Flask-SQLAlchemy</td><td>3.1.1</td></tr>
-<tr><td>表单安全</td><td>Flask-WTF (CSRFProtect)</td><td>1.2.1</td></tr>
-<tr><td>身份认证</td><td>Flask-Login</td><td>0.6.3</td></tr>
-<tr><td>密码加密</td><td>Werkzeug (pbkdf2_sha256)</td><td>3.0.3</td></tr>
-<tr><td>凭证加密</td><td>cryptography (AES-256-GCM)</td><td>42.0.8</td></tr>
-<tr><td>HTTP 客户端</td><td>requests</td><td>&ge;2.31.0</td></tr>
-<tr><td>数据库</td><td>SQLite (嵌入式, WAL模式)</td><td>—</td></tr>
+<tr><th>技术</th><th>版本</th><th>说明</th></tr>
+<tr><td>Flask</td><td>3.0.3</td><td>Web框架</td></tr>
+<tr><td>Flask-SQLAlchemy</td><td>3.1.1</td><td>ORM</td></tr>
+<tr><td>Flask-WTF</td><td>1.2.1</td><td>CSRF防护</td></tr>
+<tr><td>Flask-Login</td><td>0.6.3</td><td>身份认证</td></tr>
+<tr><td>Werkzeug</td><td>3.0.3</td><td>密码哈希</td></tr>
+<tr><td>cryptography</td><td>42.0.8</td><td>AES-256-GCM（可选）</td></tr>
+<tr><td>requests</td><td>&ge;2.31.0</td><td>HTTP客户端</td></tr>
 </table>
 
-<h3>4.2 可选依赖（延迟导入，自动降级）</h3>
-<table>
-<tr><th>依赖</th><th>功能</th><th>降级行为</th></tr>
-<tr><td>openai</td><td>AI聊天/OCR识别</td><td>本地知识引擎兜底</td></tr>
-<tr><td>duckduckgo_search</td><td>AI联网搜索</td><td>跳过搜索</td></tr>
-<tr><td>reportlab</td><td>PDF对账单生成</td><td>跳过PDF功能</td></tr>
-<tr><td>openpyxl</td><td>Excel导入导出</td><td>跳过Excel功能</td></tr>
-<tr><td>pyzipper</td><td>加密备份</td><td>跳过加密功能</td></tr>
-<tr><td>wecom-aibot-python-sdk</td><td>企微长连接</td><td>仅标准Webhook</td></tr>
-</table>
-
-<h3>4.3 前端技术栈</h3>
+<h3>4.2 前端（全部本地化）</h3>
 <table>
 <tr><th>技术</th><th>版本</th><th>引用方式</th></tr>
-<tr><td>Bootstrap (CSS框架)</td><td>5.3.0</td><td>本地化 static/vendor/</td></tr>
-<tr><td>FontAwesome (图标)</td><td>6.4.0</td><td>本地化 static/vendor/</td></tr>
-<tr><td>Bootstrap Icons</td><td>1.11.3</td><td>本地化 static/vendor/</td></tr>
-<tr><td>ECharts (图表)</td><td>5.5.0</td><td>本地化 static/vendor/</td></tr>
-<tr><td>html2canvas (截图)</td><td>1.4.1</td><td>本地化 static/vendor/</td></tr>
+<tr><td>Bootstrap</td><td>5.3.0</td><td>static/vendor/</td></tr>
+<tr><td>FontAwesome</td><td>6.4.0</td><td>static/vendor/</td></tr>
+<tr><td>ECharts</td><td>5.5.0</td><td>static/vendor/</td></tr>
+<tr><td>html2canvas</td><td>1.4.1</td><td>static/vendor/</td></tr>
 </table>
 
 <h2><span class="num">5</span>数据持久化设计</h2>
-
-<h3>5.1 数据库架构</h3>
 <ul>
 <li><b>引擎</b>：SQLite（WAL模式，busy_timeout=30s）</li>
 <li><b>存储位置</b>：<code>data/gift_bookkeeping.db</code>（设备私有存储）</li>
-<li><b>迁移策略</b>：<code>_SCHEMA_VERSION=1018</code>，幂等快速跳过 + 历史SQL增量迁移</li>
-<li><b>表数量</b>：22+张业务表 + schema_version版本表</li>
+<li><b>表数量</b>：22+张业务表</li>
 </ul>
 
-<h3>5.2 核心ER关系</h3>
-<div class="mermaid">
-erDiagram
-    users ||--o{ gift_records : "拥有"
-    users ||--o{ banquets : "创建"
-    users ||--o{ anniversary_reminders : "创建"
-    users ||--o{ chat_sessions : "拥有"
-    users ||--o{ webhook_configs : "配置"
-    users ||--o{ family_groups : "创建"
-    banquets ||--o{ gift_records : "归集"
-    banquets ||--o{ shared_ledger_links : "共享"
-    chat_sessions ||--o{ chat_messages : "包含"
-    family_groups ||--o{ family_members : "包含"
-</div>
-
-<h3>5.3 加密与安全</h3>
+<h3>加密策略</h3>
 <table>
 <tr><th>数据类型</th><th>加密方式</th></tr>
 <tr><td>用户密码</td><td>Werkzeug pbkdf2_sha256 不可逆哈希</td></tr>
-<tr><td>密码可逆密文</td><td>AES-256-GCM（管理员查看明文）</td></tr>
 <tr><td>密保答案</td><td>pbkdf2_sha256 哈希 + AES-256-GCM 密文</td></tr>
-<tr><td>AI API Key</td><td>AES-256-GCM 密文存储</td></tr>
-<tr><td>Webhook Secret</td><td>AES-256-GCM 密文存储</td></tr>
-<tr><td>WebDAV密码</td><td>AES-256-GCM 密文存储</td></tr>
-<tr><td>备份文件</td><td>AES-256 Zip加密（pyzipper）</td></tr>
+<tr><td>AI API Key</td><td>AES-256-GCM 密文</td></tr>
+<tr><td>Webhook Secret</td><td>AES-256-GCM 密文</td></tr>
+<tr><td>备份文件</td><td>AES-256 Zip加密</td></tr>
 </table>
+<div class="callout callout-info">
+<b>移动端降级</b>：cryptography未编译进APK时，AES加密通过try/except返回明文回退，不影响核心记账功能。
+</div>
 
 <h2><span class="num">6</span>移动端适配设计</h2>
 
-<h3>6.1 响应式布局策略</h3>
+<h3>6.1 响应式布局</h3>
 <table>
 <tr><th>适配维度</th><th>实现方式</th></tr>
 <tr><td>视口设置</td><td><code>viewport-fit=cover</code> + <code>maximum-scale=5.0</code></td></tr>
-<tr><td>相对单位</td><td>rem/em/vw/vh/百分比替代固定像素</td></tr>
-<tr><td>最大宽度</td><td><code>.container { max-width: 100% }</code></td></tr>
-<tr><td>断点</td><td><code>@media (max-width: 768px)</code> + <code>@media (max-width: 360px)</code></td></tr>
+<tr><td>相对单位</td><td>rem/em/vw/vh/百分比</td></tr>
+<tr><td>断点</td><td><code>@media 768px</code> + <code>@media 360px</code> + 横屏</td></tr>
 <tr><td>表格适配</td><td><code>.table-responsive</code> 横向滚动</td></tr>
-<tr><td>横屏适配</td><td><code>@media (orientation: landscape)</code></td></tr>
 </table>
 
 <h3>6.2 安全区域适配</h3>
@@ -315,94 +218,47 @@ body {
 
 <h3>6.3 触控优化</h3>
 <table>
-<tr><th>优化项</th><th>规范</th><th>实现</th></tr>
-<tr><td>按钮最小尺寸</td><td>44×44px</td><td><code>.btn { min-height: 44px; min-width: 44px; }</code></td></tr>
-<tr><td>输入框最小高度</td><td>44px</td><td><code>.form-control { min-height: 44px; }</code></td></tr>
-<tr><td>禁用长按菜单</td><td>—</td><td><code>-webkit-touch-callout: none</code></td></tr>
-<tr><td>禁用高亮闪烁</td><td>—</td><td><code>-webkit-tap-highlight-color: transparent</code></td></tr>
-</table>
-
-<h3>6.4 已验证分辨率</h3>
-<table>
-<tr><th>分辨率</th><th>设备类型</th><th>验证状态</th></tr>
-<tr><td>360×640</td><td>小屏手机</td><td><span class="badge badge-green">已验证</span></td></tr>
-<tr><td>390×844</td><td>iPhone 12/13/14</td><td><span class="badge badge-green">已验证</span></td></tr>
-<tr><td>414×896</td><td>iPhone 11/XR</td><td><span class="badge badge-green">已验证</span></td></tr>
-<tr><td>412×915</td><td>Android大屏</td><td><span class="badge badge-green">已验证</span></td></tr>
+<tr><th>优化项</th><th>规范</th></tr>
+<tr><td>按钮最小尺寸</td><td>44×44px</td></tr>
+<tr><td>输入框最小高度</td><td>44px</td></tr>
+<tr><td>禁用长按菜单</td><td><code>-webkit-touch-callout: none</code></td></tr>
+<tr><td>禁用高亮闪烁</td><td><code>-webkit-tap-highlight-color: transparent</code></td></tr>
 </table>
 
 <h2><span class="num">7</span>构建与CI/CD</h2>
 
-<h3>7.1 GitHub Actions Workflow</h3>
-<p>路径：<code>.github/workflows/build.yml</code></p>
-<div class="mermaid">
-graph LR
-    A["push/trigger"] --> B["checkout@v4"]
-    B --> C{"平台选择"}
-    C -->|"Android"| D["ubuntu-22.04<br/>JDK 17 + Python 3.11"]
-    C -->|"iOS"| E["macos-14<br/>Xcode 15.2 + Python 3.11"]
-    D --> F["Buildozer<br/>android debug"]
-    E --> G["xcodebuild<br/>unsigned IPA"]
-    F --> H["upload-artifact<br/>bin/*.apk"]
-    G --> I["upload-artifact<br/>*.ipa"]
-    H --> J["GitHub Release"]
-    I --> J
-</div>
+<h3>7.1 GitHub Actions</h3>
+<table>
+<tr><th>Job</th><th>Runner</th><th>产物</th><th>Artifact名称</th></tr>
+<tr><td>build-android</td><td>ubuntu-22.04</td><td>bin/*.apk</td><td>GiftBookkeeping-Android-APK-v3.0</td></tr>
+<tr><td>build-ios</td><td>macos-14</td><td>*.ipa</td><td>GiftBookkeeping-iOS-IPA-v3.0-Unsigned</td></tr>
+</table>
 
 <h3>7.2 触发条件</h3>
 <table>
 <tr><th>条件</th><th>Android</th><th>iOS</th><th>Release</th></tr>
-<tr><td>push到main/master</td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-gray">否</span></td><td><span class="badge badge-green">是</span></td></tr>
-<tr><td>打tag（v*格式）</td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-green">是</span></td></tr>
+<tr><td>push main/master</td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-gray">否</span></td><td><span class="badge badge-green">是</span></td></tr>
+<tr><td>打tag v*</td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-green">是</span></td></tr>
 <tr><td>手动触发</td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-green">是</span></td><td><span class="badge badge-gray">否</span></td></tr>
 </table>
 
 <h2><span class="num">8</span>工程与安全保障</h2>
-
-<h3>8.1 安全防护清单</h3>
 <table>
-<tr><th>安全维度</th><th>实现方式</th><th>有效性</th></tr>
+<tr><th>安全维度</th><th>实现</th><th>有效性</th></tr>
 <tr><td>CSRF防护</td><td>session token + POST校验</td><td><span class="badge badge-green">有效</span></td></tr>
 <tr><td>XSS防护</td><td>Jinja2自动转义</td><td><span class="badge badge-green">有效</span></td></tr>
-<tr><td>密码哈希</td><td>Werkzeug pbkdf2_sha256 + 16字节盐</td><td><span class="badge badge-green">有效</span></td></tr>
-<tr><td>凭证加密</td><td>AES-256-GCM 对称加密</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>密码哈希</td><td>pbkdf2_sha256 + 16字节盐</td><td><span class="badge badge-green">有效</span></td></tr>
 <tr><td>暴力破解防护</td><td>持久化风控 + 验证码 + 锁定</td><td><span class="badge badge-green">有效</span></td></tr>
-<tr><td>会话安全</td><td>HttpOnly + SameSite + 超时 + token</td><td><span class="badge badge-green">有效</span></td></tr>
-<tr><td>注册控制</td><td>邀请令牌制（有效期/次数）</td><td><span class="badge badge-green">有效</span></td></tr>
-<tr><td>审计日志</td><td>全操作记录 + 90天自动清理</td><td><span class="badge badge-green">有效</span></td></tr>
-<tr><td>备份数据隔离</td><td>普通用户备份仅含本人数据</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>会话安全</td><td>HttpOnly + SameSite + 超时</td><td><span class="badge badge-green">有效</span></td></tr>
+<tr><td>审计日志</td><td>全操作记录 + 90天清理</td><td><span class="badge badge-green">有效</span></td></tr>
 </table>
 
-<h2><span class="num">9</span>演进路线图</h2>
-
-<h3>9.1 已完成（V2.0）</h3>
+<h2><span class="num">9</span>版本演进路线图</h2>
 <table>
-<tr><th>项目</th><th>V1.0状态</th><th>V2.0状态</th></tr>
-<tr><td>离线运行</td><td><span class="badge badge-red">远程WebView</span></td><td><span class="badge badge-green">本地Flask</span></td></tr>
-<tr><td>功能完整性</td><td><span class="badge badge-red">功能子集</span></td><td><span class="badge badge-green">全量同步(179路由)</span></td></tr>
-<tr><td>数据模型</td><td><span class="badge badge-red">3个</span></td><td><span class="badge badge-green">22+个</span></td></tr>
-<tr><td>页面模板</td><td><span class="badge badge-red">8个</span></td><td><span class="badge badge-green">25个</span></td></tr>
-<tr><td>静态资源</td><td><span class="badge badge-red">CDN</span></td><td><span class="badge badge-green">本地化</span></td></tr>
-<tr><td>移动端响应式</td><td><span class="badge badge-amber">基础</span></td><td><span class="badge badge-green">安全区域+触控优化</span></td></tr>
-<tr><td>iOS构建</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">macOS runner</span></td></tr>
-<tr><td>AI助手</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">多配置+联网+OCR</span></td></tr>
-<tr><td>专属宴席</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">自动归集+盈亏</span></td></tr>
-<tr><td>人情对账</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">往来+还礼建议</span></td></tr>
-<tr><td>回收站</td><td><span class="badge badge-red">硬删除</span></td><td><span class="badge badge-green">软删除+还原</span></td></tr>
-<tr><td>Webhook</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">多渠道+矩阵</span></td></tr>
-<tr><td>WebDAV备份</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">加密+定时+合并</span></td></tr>
-<tr><td>家庭协作</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">家庭组+成员</span></td></tr>
-<tr><td>打印/海报</td><td><span class="badge badge-red">无</span></td><td><span class="badge badge-green">A4+长图</span></td></tr>
-</table>
-
-<h3>9.2 待优化</h3>
-<table>
-<tr><th>优先级</th><th>项目</th><th>工作量</th><th>说明</th></tr>
-<tr><td><span class="badge badge-red">P1</span></td><td>iOS完整签名流程</td><td>3-5天</td><td>当前为未签名IPA，需集成Apple开发者证书</td></tr>
-<tr><td><span class="badge badge-red">P1</span></td><td>嵌入Python.xcframework</td><td>5-8天</td><td>iOS需嵌入Python运行时才能执行Flask</td></tr>
-<tr><td><span class="badge badge-amber">P2</span></td><td>APK体积优化</td><td>2-3天</td><td>评估是否裁剪重型可选依赖</td></tr>
-<tr><td><span class="badge badge-amber">P2</span></td><td>离线Webhook降级</td><td>1-2天</td><td>无网络时Webhook推送队列化</td></tr>
-<tr><td><span class="badge badge-amber">P2</span></td><td>移动端手势支持</td><td>2-3天</td><td>左滑删除/右滑编辑/下拉刷新</td></tr>
+<tr><th>版本</th><th>架构</th><th>路由</th><th>构建</th><th>状态</th></tr>
+<tr><td>V1.0</td><td>远程WebView壳</td><td>32</td><td><span class="badge badge-green">成功</span></td><td><span class="badge badge-gray">已废弃</span></td></tr>
+<tr><td>V2.0</td><td>本地Flask+WebView</td><td>179</td><td><span class="badge badge-red">失败</span></td><td><span class="badge badge-gray">已替代</span></td></tr>
+<tr><td><b>V3.0</b></td><td><b>本地Flask+WebView</b></td><td><b>181</b></td><td><b><span class="badge badge-green">修复</span></b></td><td><b><span class="badge badge-green">当前版本</span></b></td></tr>
 </table>
 
 </div>

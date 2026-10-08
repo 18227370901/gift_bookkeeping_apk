@@ -463,6 +463,7 @@ PAGE_NAMES = {
     'admin_logs': '操作审计日志', 'admin_broadcasts': '系统广播', 'admin_webhooks': 'Webhook通知',
     'admin_backups': 'WebDAV备份', 'ai_assistant': 'AI助手', 'ai_config': 'AI助手配置',
     'security': '系统安全', 'invites': '邀请链接', 'permission_tickets': '权限工单',
+    'dashboard': '数据分析', 'family': '家庭记账',
 }
 
 ALL_PAGES = list(PAGE_NAMES.keys())
@@ -493,6 +494,7 @@ PAGE_EVENT_MATRIX = {
     'security':          ['security'],
     'invites':           ['create', 'delete', 'status_change'],
     'permission_tickets': ['create', 'status_change', 'delete'],
+    'family':            ['create', 'delete', 'status_change', 'security'],
 }
 
 # 事件类型 → 开关字段名映射

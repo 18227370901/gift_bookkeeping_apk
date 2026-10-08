@@ -16,8 +16,5 @@ requests>=2.31.0
 # - pyzipper: 加密备份（未安装时跳过加密功能）
 # - wecom-aibot-python-sdk: 企业微信长连接（未安装时仅支持标准 Webhook）
 # - websockets/aiohttp/pyee: WebSocket 长连接（同上）
-# - psycopg2-binary: PostgreSQL 支持（移动端使用 SQLite，不需要）
+# - psycopg2-binary/psycopg: PostgreSQL 支持（移动端使用 SQLite，不需要）
 # - gunicorn: WSGI 服务器（移动端直接使用 Flask 内置服务器）
-
-# 桌面端调试用（移动端不需要，但 buildozer 会自动过滤）
-pywebview>=4.0.0

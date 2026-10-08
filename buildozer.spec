@@ -25,7 +25,7 @@ source.exclude_dirs = tests, bin, .gradle, .buildozer, .git, .github, __pycache_
 source.exclude_exts = spec, pyc, pyd, pyo, db, bak, log, png_bak
 
 # (str) Application versioning
-version = 2.0.0
+version = 3.0.0
 
 # (list) Application requirements
 # 包含 Flask 生态核心依赖 + cryptography（AES-256-GCM 加密）

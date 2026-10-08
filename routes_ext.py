@@ -954,6 +954,12 @@ def register_routes_ext(app, log_operation=None, get_accessible_records_query=No
             'api_family_create': 'family',
             'api_family_invite': 'family',
             'api_family_dissolve': 'family',
+            'api_family_invitable_users': 'family',
+            'api_family_my_perspective_users': 'family',
+            'export_print_giftbook': 'ledger',
+            'export_pdf_statement': 'ledger',
+            'poster_view': 'ledger',
+            'api_poster_data': 'ledger',
         }
         required_menu = menu_map.get(endpoint)
         if required_menu and hasattr(current_user, 'can_access_menu'):
@@ -2415,39 +2421,72 @@ def register_routes_ext(app, log_operation=None, get_accessible_records_query=No
             return redirect(url_for('banquets_view'))
 
         records = GiftRecord.query.filter_by(banquet_id=b.id).filter(GiftRecord.deleted_at.is_(None)).order_by(GiftRecord.created_at.asc()).all()
-
-        output = io.StringIO()
-        output.write('\ufeff')
-        import csv
-        writer = csv.writer(output)
-        writer.writerow([f"【{b.title}】收礼台账与盈亏简报"])
-        writer.writerow([f"活动类型: {b.event_type or '宴席'}", f"举办日期: {b.event_date or '未定'}", f"地点: {b.venue or '无'}"])
         total_income = sum(r.amount for r in records if getattr(r, 'record_type', 'receive') != 'send')
         cost = b.banquet_cost or 0.0
-        writer.writerow([f"总收礼金额: ¥{total_income:.2f}", f"办宴成本: ¥{cost:.2f}", f"净盈亏: ¥{total_income - cost:.2f}"])
-        writer.writerow([])
-        writer.writerow(['序号', '客人姓名', '礼金金额(元)', '联系电话', '联系地址', '备注说明', '登记时间'])
 
-        for idx, r in enumerate(records, start=1):
-            writer.writerow([
-                idx,
-                r.name,
-                f"{r.amount:.2f}",
-                r.phone or '',
-                r.address or '',
-                r.notes or '',
-                r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else ''
-            ])
+        export_format = request.args.get('format', 'xlsx').strip().lower()
 
-        response = Response(output.getvalue(), mimetype='text/csv; charset=utf-8')
-        filename = f"banquet_{b.id}_{b.title}_ledger.csv"
-        response.headers['Content-Disposition'] = f"attachment; filename={urllib.parse.quote(filename)}"
-        safe_log('导出宴席台账', f"导出了宴席 [{b.title}] 的全部礼金记录")
+        if export_format == 'csv':
+            # CSV 导出
+            output = io.StringIO()
+            output.write('\ufeff')
+            import csv as _csv_mod
+            writer = _csv_mod.writer(output)
+            writer.writerow([f"【{b.title}】收礼台账与盈亏简报"])
+            writer.writerow([f"活动类型: {b.event_type or '宴席'}", f"举办日期: {b.event_date or '未定'}", f"地点: {b.venue or '无'}"])
+            writer.writerow([f"总收礼金额: ¥{total_income:.2f}", f"办宴成本: ¥{cost:.2f}", f"净盈亏: ¥{total_income - cost:.2f}"])
+            writer.writerow([])
+            writer.writerow(['序号', '客人姓名', '礼金金额(元)', '联系电话', '联系地址', '备注说明', '登记时间'])
+            for idx, r in enumerate(records, start=1):
+                writer.writerow([idx, r.name, f"{r.amount:.2f}", r.phone or '', r.address or '', r.notes or '', r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else ''])
+            response = Response(output.getvalue(), mimetype='text/csv; charset=utf-8')
+            filename = f"banquet_{b.id}_{b.title}_ledger.csv"
+            response.headers['Content-Disposition'] = f"attachment; filename={urllib.parse.quote(filename)}"
+        else:
+            # Excel 导出（openpyxl 真实 .xlsx）
+            try:
+                from openpyxl import Workbook
+                from openpyxl.utils import get_column_letter
+            except ImportError:
+                flash('Excel 导出需要 openpyxl 库。', 'danger')
+                return redirect(url_for('banquet_detail_view', banquet_id=banquet_id))
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = b.title[:31] if b.title else '台账'
+            # 标题行
+            ws.append([f"【{b.title}】收礼台账与盈亏简报"])
+            ws.append([f"活动类型: {b.event_type or '宴席'}", f"举办日期: {b.event_date or '未定'}", f"地点: {b.venue or '无'}"])
+            ws.append([f"总收礼金额: ¥{total_income:.2f}", f"办宴成本: ¥{cost:.2f}", f"净盈亏: ¥{total_income - cost:.2f}"])
+            ws.append([])
+            # 表头
+            headers = ['序号', '客人姓名', '礼金金额(元)', '联系电话', '联系地址', '备注说明', '登记时间']
+            ws.append(headers)
+            for idx, r in enumerate(records, start=1):
+                ws.append([idx, r.name, float(r.amount), r.phone or '', r.address or '', r.notes or '', r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else ''])
+            # 自动列宽
+            for col_idx in range(1, len(headers) + 1):
+                max_len = len(str(headers[col_idx - 1]))
+                for row_idx in range(5, 5 + len(records)):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell_len = len(str(cell.value)) if cell.value else 0
+                    if cell_len > max_len:
+                        max_len = cell_len
+                ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 4, 40)
+
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            response = Response(output.getvalue(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            filename = f"banquet_{b.id}_{b.title}_ledger.xlsx"
+            response.headers['Content-Disposition'] = f"attachment; filename={urllib.parse.quote(filename)}"
+
+        safe_log('导出宴席台账', f"导出了宴席 [{b.title}] 的全部礼金记录（{export_format.upper()}）")
         try:
             trigger_webhook_event(
                 WebhookConfig.query.filter_by(is_enabled=True).all(), 'security',
                 f'导出宴席台账',
-                f'操作人：{current_user.username} | 页面：专属宴席 | 宴席：{b.title} | 记录数：{len(records)}',
+                f'操作人：{current_user.username} | 页面：专属宴席 | 宴席：{b.title} | 记录数：{len(records)} | 格式：{export_format.upper()}',
                 page_key='banquets', user_name=current_user.username,
                 operator_id=current_user.id
             )
@@ -5105,6 +5144,8 @@ def register_routes_ext(app, log_operation=None, get_accessible_records_query=No
     # 可申请的菜单列表
     TICKET_MENU_OPTIONS = [
         ('ledger', '礼金账本'),
+        ('dashboard', '数据分析'),
+        ('family', '家庭记账'),
         ('banquets', '专属宴席'),
         ('reconciliation', '人情对账'),
         ('reminders', '纪念日备忘'),
@@ -5516,13 +5557,40 @@ def register_routes_ext(app, log_operation=None, get_accessible_records_query=No
     @app.route('/api/dashboard/stats')
     @login_required
     def api_dashboard_stats():
-        """数据分析看板 API — 返回汇总/月度/年度/事由分布/TOP10 数据"""
+        """数据分析看板 API — 返回汇总/月度/年度/事由分布/TOP10 数据，支持日期范围筛选"""
         try:
             # 获取当前用户可访问的记录
             if current_user.is_admin or current_user.can_view_others_for('ledger'):
                 query = GiftRecord.query.filter(GiftRecord.deleted_at.is_(None))
             else:
                 query = GiftRecord.query.filter(GiftRecord.deleted_at.is_(None), GiftRecord.user_id == current_user.id)
+
+            # V10.11.1 日期范围筛选参数
+            start_month = request.args.get('start_month', '').strip()
+            end_month = request.args.get('end_month', '').strip()
+            start_year = request.args.get('start_year', '').strip()
+            end_year = request.args.get('end_year', '').strip()
+
+            # 根据月度范围筛选
+            if start_month and end_month:
+                try:
+                    start_date = datetime.strptime(start_month + '-01', '%Y-%m-%d')
+                    end_date = datetime.strptime(end_month + '-01', '%Y-%m-%d')
+                    # end_month 取当月最后一天
+                    if end_date.month == 12:
+                        end_date = end_date.replace(day=31)
+                    else:
+                        end_date = end_date.replace(month=end_date.month + 1, day=1) - timedelta(days=1)
+                    query = query.filter(GiftRecord.created_at >= start_date, GiftRecord.created_at <= end_date)
+                except Exception:
+                    pass
+            elif start_year and end_year:
+                try:
+                    start_date = datetime(int(start_year), 1, 1)
+                    end_date = datetime(int(end_year), 12, 31, 23, 59, 59)
+                    query = query.filter(GiftRecord.created_at >= start_date, GiftRecord.created_at <= end_date)
+                except Exception:
+                    pass
 
             records = query.order_by(GiftRecord.created_at.desc()).all()
 
@@ -5660,6 +5728,14 @@ def register_routes_ext(app, log_operation=None, get_accessible_records_query=No
             db.session.add(member)
             db.session.commit()
             safe_log('创建家庭组', f'家庭名称: {name}', user=current_user)
+            try:
+                trigger_webhook_event(
+                    WebhookConfig.query.filter_by(is_enabled=True).all(),
+                    'create', f'家庭组 [{name}] 已创建',
+                    page_key='family', user_name=current_user.username, operator_id=current_user.id
+                )
+            except Exception:
+                pass
             return jsonify({'code': 200, 'message': '家庭组创建成功', 'group_id': group.id})
         except Exception as e:
             db.session.rollback()
@@ -5706,6 +5782,14 @@ def register_routes_ext(app, log_operation=None, get_accessible_records_query=No
             db.session.add(member)
             db.session.commit()
             safe_log('邀请家庭成员', f'家庭组: {group.name}, 用户ID: {user_id}, 角色: {role}', user=current_user)
+            try:
+                trigger_webhook_event(
+                    WebhookConfig.query.filter_by(is_enabled=True).all(),
+                    'status_change', f'家庭组 [{group.name}] 新增成员',
+                    page_key='family', user_name=current_user.username, operator_id=current_user.id
+                )
+            except Exception:
+                pass
             return jsonify({'code': 200, 'message': '邀请成功'})
         except Exception as e:
             db.session.rollback()
@@ -5724,6 +5808,14 @@ def register_routes_ext(app, log_operation=None, get_accessible_records_query=No
             safe_log('解散家庭组', f'家庭名称: {group.name}', user=current_user)
             db.session.delete(group)  # 级联删除成员
             db.session.commit()
+            try:
+                trigger_webhook_event(
+                    WebhookConfig.query.filter_by(is_enabled=True).all(),
+                    'delete', f'家庭组 [{group.name}] 已解散',
+                    page_key='family', user_name=current_user.username, operator_id=current_user.id
+                )
+            except Exception:
+                pass
             return jsonify({'code': 200, 'message': '家庭组已解散'})
         except Exception as e:
             db.session.rollback()
@@ -6137,6 +6229,12 @@ def register_routes_ext(app, log_operation=None, get_accessible_records_query=No
                 v['percentage'] = round(v['amount'] / total_reason_amount * 100, 1) if total_reason_amount > 0 else 0
                 reasons.append(v)
 
+            # 海报二维码 URL（管理员可在系统设置中自定义注册链接）
+            qr_url = SystemSetting.get_val('poster_qr_url', '')
+            if not qr_url:
+                # 默认使用当前站点注册页面
+                qr_url = request.url_root.rstrip('/') + '/register'
+
             return jsonify({
                 'code': 200,
                 'data': {
@@ -6148,10 +6246,39 @@ def register_routes_ext(app, log_operation=None, get_accessible_records_query=No
                         'total_count': len(records)
                     },
                     'top5': top5,
-                    'reasons': reasons
+                    'reasons': reasons,
+                    'qr_url': qr_url
                 }
             })
         except Exception as e:
+            return jsonify({'code': 500, 'message': str(e)}), 500
+
+    # ==================== 海报二维码 URL 管理（管理员） ====================
+
+    @app.route('/api/admin/poster-qr-url')
+    @login_required
+    def api_admin_poster_qr_url_get():
+        """获取海报二维码 URL 设置"""
+        if not current_user.is_admin:
+            return jsonify({'code': 403, 'message': '仅管理员可操作'}), 403
+        qr_url = SystemSetting.get_val('poster_qr_url', '')
+        return jsonify({'code': 200, 'qr_url': qr_url or ''})
+
+    @app.route('/api/admin/poster-qr-url', methods=['POST'])
+    @login_required
+    def api_admin_poster_qr_url_save():
+        """保存海报二维码 URL 设置"""
+        if not current_user.is_admin:
+            return jsonify({'code': 403, 'message': '仅管理员可操作'}), 403
+        try:
+            data = request.get_json(force=True)
+            qr_url = (data.get('qr_url') or '').strip()
+            SystemSetting.set_val('poster_qr_url', qr_url)
+            db.session.commit()
+            safe_log('海报二维码设置', f'URL: {qr_url or "(空)"}', user=current_user)
+            return jsonify({'code': 200, 'message': '保存成功'})
+        except Exception as e:
+            db.session.rollback()
             return jsonify({'code': 500, 'message': str(e)}), 500
 
     # 启动企业微信智能机器人长连接后台监听守护线程与亲友纪念日自动提醒后台调度器
