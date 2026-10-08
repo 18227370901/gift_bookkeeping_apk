@@ -25,21 +25,16 @@ source.exclude_dirs = tests, bin, .gradle, .buildozer, .git, .github, __pycache_
 source.exclude_exts = spec, pyc, pyd, pyo, db, bak, log, png_bak
 
 # (str) Application versioning
-version = 3.0.0
+version = 3.1.0
 
 # (list) Application requirements
-# 包含 Flask 生态核心依赖 + cryptography（AES-256-GCM 加密）
-# 重型可选依赖（openai/reportlab/openpyxl/pyzipper 等）代码中已做延迟导入，
-# 未编译进 APK 时自动降级，不影响核心功能
-# p4a recipes: kivy, pyjnius, openssl, sqlite3, flask, sqlalchemy, markupsafe
-# python_depends (pure-python pip): flask-sqlalchemy, flask-wtf, flask-login, werkzeug, requests, itsdangerous, click, blinker, jinja2
-# 注意：cryptography 需要 Rust 工具链，编译耗时极长且容易失败，
-#   移动端降级为纯 Python 回退（models.py 中 AES 加密通过 try/except 延迟导入，
-#   未安装时 encrypt_credential/decrypt_credential 返回明文回退，不影响核心功能）
-requirements = python3,hostpython3,openssl,sqlite3,pyjnius,kivy,flask,sqlalchemy,markupsafe
-
-# (list) Pure-Python dependencies (installed via pip into the APK, no C compilation needed)
-python_depends = flask-sqlalchemy,flask-wtf,flask-login,werkzeug,requests,itsdangerous,click,blinker,jinja2
+# 【V3.1 关键修复】此前版本误将纯 Python 包写在无效的 python_depends 键中，
+# 该键被 buildozer 静默忽略，导致 flask_sqlalchemy/flask_wtf/flask_login 等
+# 根本没有打进 APK，import 即报 ModuleNotFoundError，Flask 起不来，页面空白。
+# 正确方式：p4a 对 requirements 中【有 recipe 的包】用 recipe 交叉编译，
+# 对【无 recipe 的纯 Python 包】自动 pip 安装进 APK，因此全部写在 requirements 即可。
+# 注意：cryptography 需要 Rust 工具链，仍不打包（代码内 try/except 延迟导入自动降级）。
+requirements = python3,hostpython3,openssl,sqlite3,pyjnius,kivy,flask,sqlalchemy,markupsafe,greenlet,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,requests,itsdangerous,click,blinker,jinja2,wtforms
 
 # (str) Supported orientation
 orientation = portrait
@@ -89,6 +84,12 @@ log_level = 2
 
 # (bool) Enable AndroidX
 android.enable_androidx = True
+
+# (str) 注入 <application> 标签的额外属性（V3.1 新增）
+# Android 9+(API 28+) targetSdk>=28 时 usesCleartextTraffic 默认 false，
+# WebView 加载 http://127.0.0.1 本地服务可能被拒（ERR_CLEARTEXT_NOT_PERMITTED）。
+# 通过此配置显式允许明文 HTTP，保障本地回环服务可用。
+android.extra_manifest_application_arguments = extra_manifest_args.txt
 
 [buildozer]
 

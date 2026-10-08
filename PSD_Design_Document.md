@@ -12,7 +12,7 @@ AIGC:
 # 礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档
 
 > **项目路径**：`gift_bookkeeping_apk/`  
-> **文档版本**：V3.0.1（全量同步 + 构建修复 + 空白页面修复）  
+> **文档版本**：V3.1（空白页面真实根因修复版）  
 > **生成日期**：2026-10-08  
 > **架构基线**：本地嵌入式 Flask 服务 + 原生 WebView 容器  
 > **代码规模**：12个Python文件 + 25个HTML模板 + 181条路由 + 22+数据模型
@@ -23,14 +23,14 @@ AIGC:
 
 1. **项目全局概览** — 业务定位 · 技术栈全景 · 架构拓扑
 2. **V3.0 核心变更** — 构建修复 · 版本区分 · 全量同步
-3. **V3.0.1 空白页面修复** — 6根因分析 · 异步启动 · 静态资源 · 数据库路径
+3. **V3.1 空白页面真实根因与修复** — python_depends 无效键 · 诊断页方案 · cleartext
 4. **功能模块全量清单** — 25页面 · 181条路由 · 22+数据模型
 5. **技术栈全景** — 后端 · 前端 · 移动端 · CI/CD
 6. **数据持久化设计** — ER关系 · 加密策略 · 迁移策略
 7. **移动端适配设计** — 响应式布局 · 安全区域 · 触控优化
 8. **构建与CI/CD** — Buildozer · GitHub Actions · Android+iOS双平台
 9. **工程与安全保障** — 环境变量 · 认证鉴权 · 安全清单
-10. **版本演进路线图** — V1.0 → V2.0 → V3.0 → V3.0.1
+10. **版本演进路线图** — V1.0 → V2.0 → V3.0 → V3.1
 
 ---
 
@@ -129,105 +129,86 @@ android.archs = arm64-v8a
 
 ---
 
-## 3. V3.0.1 空白页面修复
+## 3. V3.1 空白页面真实根因与修复
 
 ### 3.1 故障现象
 
-APK 安装后启动，页面一直显示空白，无任何内容渲染。
+V3.0/V3.0.1 APK 安装到魅族20（Android 16，API 36）后，启动页面一直空白。
 
-### 3.2 根因分析（6 个根因）
+### 3.2 真实根因（经 buildozer 源码验证）
 
-| # | 根因 | 影响 | 修复 | 修复文件 |
-|:--|:-----|:-----|:-----|:---------|
-| 1 | `app.py` 未显式设置 `static_folder` | Flask 使用默认包路径找 `static/`，Android 上路径不匹配 → CSS/JS/字体全 404 → 页面空白 | 显式设置 `static_folder = os.path.join(BUNDLE_DIR, 'static')` | `app.py:43` |
-| 2 | `build()` 方法同步阻塞主线程 | `start_flask_server()` 最多阻塞 9 秒 → Android ANR → WebView 无法创建 | 改为后台线程异步启动 Flask，`build()` 立即返回 | `main.py:84-92` |
-| 3 | WebView 加载时 Flask 可能未就绪 | Flask 首次启动需建表+迁移（可能 >10秒），WebView 1秒后就加载 → 连接拒绝 → 空白 | WebView 延迟 3 秒创建 + 增加就绪检查 + 5 秒重试机制 | `main.py:93-99` |
-| 4 | `import webbrowser` Android 崩溃 | `webbrowser` 模块在 Android 上可能不存在 → `app.py` 导入失败 → Flask 无法启动 | 改为 `try/except ImportError` 延迟导入 | `app.py:11` |
-| 5 | 数据库路径 `data/` 在 Android 只读 | `BUNDLE_DIR/data/` 在 APK 内部只读路径 → `os.makedirs()` 失败 → `init_database()` 异常 | 新增 `GIFT_DATA_DIR` 环境变量，Android 上使用 `getFilesDir()` 可写目录 | `app.py:60-78`, `main.py:28-47` |
-| 6 | `onReceivedError` 静默吞错 | 页面加载失败无任何反馈或重试 → 用户只看到空白 | 增加错误日志打印 + 2 秒后自动重试 + 加载进度日志 | `main.py:135-148` |
+> **V3.0.1 的“6 根因”分析中，静态资源路径、异步启动、数据库路径等修复是正确的工程加固，但都不是空白页面的决定性原因。真正的致命根因如下：**
 
-### 3.3 修复详情
+#### 根因 ①（决定性）：`python_depends` 不是有效的 buildozer.spec 配置键
 
-#### 修复 1：显式设置 `static_folder`（app.py）
+通过阅读 buildozer 官方源码（`buildozer/targets/android.py` + `buildozer/__init__.py`）验证：
 
-```python
-# 修复前
-app = Flask(__name__, template_folder=template_folder)
+- `TargetAndroid` 读取的全部配置键中**不存在 `python_depends`**；
+- `check_configuration_tokens()` 只校验 `title/source.dir/package.name/version/orientation` 五项，对未知键**不报错、静默忽略**；
+- 因此 V3.0/V3.0.1 构建出的 APK 中**根本没有 flask-sqlalchemy、flask-wtf、flask-login 等包**；
+- 结果：`app.py:15` 的 `from flask_sqlalchemy import SQLAlchemy` 在 APK 内直接抛 `ModuleNotFoundError` → `from app import app` 失败 → Flask 服务永远无法启动 → WebView 请求 `http://127.0.0.1:8765` 连接拒绝 → **白屏**；
+- 且所有报错只输出到 logcat，用户完全无感知，只能看到空白页面。
 
-# 修复后
-static_folder = os.path.join(BUNDLE_DIR, 'static')
-app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+#### 根因 ②：Android 9+（API 28+）明文 HTTP 默认被禁
+
+targetSdk≥28 时 `usesCleartextTraffic` 默认为 false，WebView 加载 `http://127.0.0.1` 本地服务可能报 `ERR_CLEARTEXT_NOT_PERMITTED`。V3.1 通过 `android.extra_manifest_application_arguments` 向 `<application>` 标签注入 `android:usesCleartextTraffic="true"` 显式放行。
+
+#### 根因 ③：启动时序依赖固定延迟（V3.0 已缓解但未根治）
+
+即使依赖齐全，首次启动需建 22 张表 + 迁移（低端机可能 >10 秒），固定延迟的 WebView 加载策略仍可能失败。V3.1 改用**内嵌诊断页 + JS 轮询跳转**彻底根治。
+
+### 3.3 V3.1 修复方案
+
+| # | 修复 | 文件 |
+|:--|:---|:---|
+| 1 | requirements 直接列出全部包：p4a 对有 recipe 的包交叉编译，对无 recipe 的纯 Python 包自动 pip 安装进 APK；删除无效 `python_depends` 键 | `buildozer.spec` |
+| 2 | 新增 `android.extra_manifest_application_arguments = extra_manifest_args.txt`，注入 `usesCleartextTraffic="true"` | `buildozer.spec` + `extra_manifest_args.txt` |
+| 3 | WebView 首屏加载内嵌“启动中”诊断页（`loadDataWithBaseURL`，baseURL 指向本地服务使 fetch 同源免 CORS），JS 每 700ms 轮询 `/login`，就绪后 `location.replace` 自动跳转 | `main.py` |
+| 4 | Flask 启动失败时，12 秒后将 Python traceback 渲染到 WebView 展示（不再白屏盲调，用户可直接截图反馈） | `main.py` |
+| 5 | 双通道日志：print（logcat）+ files/app_debug.log（adb pull 可取） | `main.py` |
+| 6 | 开启 `WebView.setWebContentsDebuggingEnabled(True)`，电脑 Chrome `chrome://inspect` 可远程调试 | `main.py` |
+| 7 | requirements 追加 `greenlet`（有 p4a recipe，交叉编译），消除 SQLAlchemy 2.0 运行时风险 | `buildozer.spec` |
+
+### 3.4 V3.1 requirements 最终形态
+
+```
+requirements = python3,hostpython3,openssl,sqlite3,pyjnius,kivy,flask,sqlalchemy,
+  markupsafe,greenlet,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,requests,
+  itsdangerous,click,blinker,jinja2,wtforms
 ```
 
-#### 修复 2：异步启动 Flask（main.py）
+**p4a 依赖处理机制**：
+- 有 recipe 的包（flask/sqlalchemy/markupsafe/greenlet/sqlite3 等）→ recipe 交叉编译；
+- 无 recipe 的纯 Python 包（flask_sqlalchemy/flask_wtf/flask_login/werkzeug 等）→ 自动 pip 安装进 APK site-packages。
 
-```python
-# 修复前：build() 中同步调用，阻塞主线程
-flask_ok = start_flask_server(FLASK_PORT)
+### 3.5 诊断页设计（V3.1 核心体验改进）
 
-# 修复后：后台线程异步启动，build() 立即返回
-def _start_flask_async():
-    self.flask_ready = start_flask_server(FLASK_PORT)
-    if not self.flask_ready:
-        time.sleep(3)
-        self.flask_ready = start_flask_server(FLASK_PORT)
-
-flask_init_thread = threading.Thread(target=_start_flask_async, daemon=True)
-flask_init_thread.start()
+```mermaid
+sequenceDiagram
+    participant W as WebView
+    participant L as 内嵌诊断页(JS)
+    participant F as Flask(本地127.0.0.1)
+    W->>L: loadDataWithBaseURL(启动中页)
+    loop 每700ms
+        L->>F: fetch /login (同源)
+        F-->>L: 连接拒绝(未就绪)
+    end
+    Note over F: import app + 建表完成
+    L->>F: fetch /login
+    F-->>L: 200 OK
+    L->>W: location.replace('/login')
+    W->>F: 加载真实登录页
+    F-->>W: 200 + 移动端CSS渲染
 ```
 
-#### 修复 3：WebView 延迟创建 + 重试机制（main.py）
+失败分支：12 秒后 Python 侧检测到 `startup_error`，将 traceback 推送到 WebView 展示（深色卡片 + 完整报错 + 版本信息）。
 
-```python
-# WebView 延迟 3 秒创建（给 Flask 充足启动时间）
-Clock.schedule_once(self.init_android_webview, 3.0)
-# 5 秒后检查 Flask 是否就绪
-Clock.schedule_once(self._check_webview, 5.0)
-```
+### 3.6 验证结果
 
-#### 修复 4：webbrowser 延迟导入（app.py）
-
-```python
-# 修复前
-import webbrowser
-
-# 修复后
-try:
-    import webbrowser
-except ImportError:
-    webbrowser = None
-```
-
-#### 修复 5：Android 可写数据库路径（app.py + main.py）
-
-```python
-# app.py：优先使用 GIFT_DATA_DIR 环境变量
-custom_data_dir = os.environ.get('GIFT_DATA_DIR', '').strip()
-if custom_data_dir and os.path.isdir(custom_data_dir):
-    db_path = os.path.join(custom_data_dir, 'gift_bookkeeping.db')
-
-# main.py：Android 上通过 getFilesDir() 获取可写目录
-def _get_android_storage_dir():
-    from jnius import autoclass
-    PythonActivity = autoclass('org.kivy.android.PythonActivity')
-    return str(PythonActivity.mActivity.getFilesDir().getAbsolutePath())
-```
-
-#### 修复 6：WebView 错误处理与重试（main.py）
-
-```python
-@java_method('(Landroid/webkit/WebView;ILjava/lang/String;Ljava/lang/String;)V')
-def onReceivedError(self, view, errorCode, description, failingUrl):
-    print(f"[WebView] 加载错误: code={errorCode}, desc={description}, url={failingUrl}")
-    Clock.schedule_once(lambda dt: view.loadUrl(self.target_url), 2.0)
-```
-
-### 3.4 验证结果
-
-- 5 个 Python 文件语法检查全部通过
-- Flask 应用成功导入，`static_folder` 正确指向项目 `static/` 目录
-- 登录页 HTTP 200，包含 `viewport-fit` 和 `safe-area-inset` 移动端 CSS
-- 静态资源 Bootstrap CSS 和 ECharts JS 均返回 200
+- 6 个 Python 文件语法检查全部通过；
+- 诊断页模板验证通过（轮询 JS / 跳转 JS / HTML 转义均正确）；
+- 端到端验证：`start_flask_server` → Flask 就绪检测 → `/login` 200 → 静态资源 200；
+- 构建产物与旧版区分：version 3.1.0、UA GiftBookkeeping/3.1、Artifact 名含 v3.1、Release tag v3.1-latest。
 
 ---
 
@@ -431,5 +412,6 @@ body {
 |:---|:---|:---|:---|:---|:---|
 | V1.0 | 远程WebView壳 | 32 | ✅ | ✅ | 已废弃 |
 | V2.0 | 本地Flask+WebView | 179 | ❌失败 | — | 已被替代 |
-| V3.0 | 本地Flask+WebView | 181 | ✅修复 | ❌空白页面 | 已被替代 |
-| **V3.0.1** | **本地Flask+WebView** | **181** | **✅** | **✅修复空白** | **当前版本** |
+| V3.0 | 本地Flask+WebView | 181 | ✅ | ❌空白（缺Flask扩展库） | 已被替代 |
+| V3.0.1 | 本地Flask+WebView | 181 | ✅ | ❌空白（同V3.0根因） | 已被替代 |
+| **V3.1** | **本地Flask+WebView+诊断页** | **181** | **✅** | **✅根治** | **当前版本** |

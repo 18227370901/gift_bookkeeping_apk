@@ -5,11 +5,57 @@ import threading
 import socket
 import traceback
 
-# ==================== 本地 Flask 服务启动 ====================
+# ==================== 本地 Flask 服务启动（V3.1） ====================
 # 移动端架构：Flask 后端在设备本地运行（127.0.0.1），WebView 加载本地页面
-# 桌面端调试：自动打开浏览器访问本地服务
+# V3.1 核心改进：
+#   1. WebView 首屏加载内嵌"启动中"诊断页，JS 轮询本地服务，就绪后自动跳转
+#      —— 彻底根治 Flask 启动时序问题（不再依赖固定延迟秒数）
+#   2. Flask 启动失败时，将 Python traceback 渲染到 WebView 上
+#      —— 不再白屏盲调，用户可直接截图看到具体报错
+#   3. 全程日志写入 files/app_debug.log，可 adb pull / 文件管理器查看
 
 FLASK_PORT = 8765  # 本地服务端口（避免与常用端口冲突）
+
+# 全局引用：WebView 实例（用于后续推送错误页）与启动错误信息
+WEBVIEW_REF = None
+_webview_lock = threading.Lock()
+
+
+def _get_log_path():
+    """获取日志文件路径（Android 写入应用私有 files 目录，桌面端返回 None 仅打屏）"""
+    global _log_path
+    try:
+        return _log_path
+    except NameError:
+        pass
+    path = None
+    try:
+        from kivy.utils import platform
+        if platform == 'android':
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            files_dir = str(PythonActivity.mActivity.getFilesDir().getAbsolutePath())
+            path = os.path.join(files_dir, 'app_debug.log')
+    except Exception:
+        path = None
+    globals()['_log_path'] = path
+    return path
+
+
+def _log(msg):
+    """双通道日志：print（logcat 可见）+ 文件（adb pull 可见）"""
+    try:
+        print(f"[Main] {msg}")
+    except Exception:
+        pass
+    path = _get_log_path()
+    if path:
+        try:
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+        except Exception:
+            pass
+
 
 def find_free_port(start=8765, end=9999):
     """在指定范围内查找可用端口"""
@@ -23,36 +69,126 @@ def find_free_port(start=8765, end=9999):
             continue
     return start
 
+
 def _get_android_storage_dir():
-    """获取 Android 可写存储目录"""
+    """获取 Android 可写存储目录（应用私有 files 目录）"""
     try:
         from jnius import autoclass
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        activity = PythonActivity.mActivity
-        # Android 11+ getFilesDir() 返回 /data/data/<package>/files
-        files_dir = activity.getFilesDir()
-        storage_path = str(files_dir.getAbsolutePath())
-        if storage_path and os.path.isdir(storage_path):
-            return storage_path
-    except Exception:
-        pass
-    # 回退方案
-    try:
-        # p4a 默认私有存储路径
-        app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        return app_root
-    except Exception:
-        return os.path.dirname(os.path.abspath(__file__))
+        files_dir = str(PythonActivity.mActivity.getFilesDir().getAbsolutePath())
+        if files_dir and os.path.isdir(files_dir):
+            return files_dir
+    except Exception as e:
+        _log(f"获取 Android 存储目录失败: {e}")
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+# ==================== 内嵌诊断页模板 ====================
+
+LOADING_HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>启动中</title>
+<style>
+body{font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;background:#f4f6f9;
+display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;color:#212529}
+.card{background:#fff;border-radius:14px;padding:36px 28px;max-width:340px;width:88%;
+box-shadow:0 4px 20px rgba(0,0,0,.08);text-align:center}
+.spinner{width:46px;height:46px;border:4px solid #e9ecef;border-top-color:#4caf50;
+border-radius:50%;margin:0 auto 18px;animation:spin 0.9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+h2{font-size:18px;margin:0 0 8px}
+p{font-size:14px;color:#6c757d;margin:4px 0;line-height:1.6}
+.timer{font-size:13px;color:#adb5bd;margin-top:10px}
+.hint{display:none;margin-top:16px;padding:12px;background:#fff8e1;border-radius:8px;
+font-size:12.5px;color:#856404;text-align:left;line-height:1.7}
+.dot{animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.2}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="spinner"></div>
+  <h2>礼金记账簿启动中<span class="dot">.</span><span class="dot" style="animation-delay:.2s">.</span><span class="dot" style="animation-delay:.4s">.</span></h2>
+  <p>正在初始化本地数据库与服务</p>
+  <p>首次启动需要数秒，请稍候</p>
+  <div class="timer" id="timer">已等待 0 秒</div>
+  <div class="hint" id="hint">
+    等待时间较长？可能原因：<br>
+    1. 首次启动正在创建 22 张数据表<br>
+    2. 本地服务仍在预热中<br>
+    3. 若超过 2 分钟仍无响应，请完全退出后重开
+  </div>
+</div>
+<script>
+var start = Date.now();
+var tries = 0;
+var timerEl = document.getElementById('timer');
+var hintEl = document.getElementById('hint');
+setInterval(function(){
+  timerEl.textContent = '已等待 ' + Math.round((Date.now()-start)/1000) + ' 秒';
+  if (tries > 40) hintEl.style.display = 'block';
+}, 500);
+function poll(){
+  fetch('/login', {method:'GET', cache:'no-store'})
+    .then(function(r){
+      if (r.status >= 200 && r.status < 500){
+        location.replace('/login');
+      } else { tries++; }
+    })
+    .catch(function(){ tries++; });
+}
+setInterval(poll, 700);
+poll();
+</script>
+</body>
+</html>"""
+
+ERROR_HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>启动失败</title>
+<style>
+body{font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;background:#f4f6f9;
+margin:0;padding:24px 14px;color:#212529}
+.card{background:#fff;border-radius:14px;padding:22px 18px;max-width:420px;margin:0 auto;
+box-shadow:0 4px 20px rgba(0,0,0,.08)}
+h2{font-size:17px;color:#dc3545;margin:0 0 10px}
+p{font-size:13.5px;color:#495057;line-height:1.7;margin:8px 0}
+pre{background:#1e1e2e;color:#ffcc66;padding:14px;border-radius:8px;font-size:11.5px;
+white-space:pre-wrap;word-break:break-all;max-height:52vh;overflow:auto;line-height:1.5}
+.tag{font-size:12px;color:#6c757d;margin-top:12px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>启动失败</h2>
+  <p>本地服务初始化遇到异常，详细信息如下（请截图反馈给开发者）：</p>
+  <pre>__ERROR_DETAIL__</pre>
+  <div class="tag">版本：礼金记账簿 v3.1.0 Android<br>可尝试：完全退出应用后重新打开</div>
+</div>
+</body>
+</html>"""
+
+
+def _escape_html(text):
+    """HTML 转义，防注入"""
+    return (str(text).replace('&', '&amp;').replace('<', '&lt;')
+            .replace('>', '&gt;').replace('"', '&quot;'))
+
 
 def start_flask_server(port):
-    """在后台线程中启动 Flask 服务器"""
+    """启动 Flask 服务器，返回 (是否成功, 错误详情traceback或None)"""
     try:
-        # 设置环境变量，确保使用本地 SQLite
         os.environ.setdefault('DATABASE_URL', '')
         os.environ.setdefault('ADMIN_USER', 'admin')
         os.environ.setdefault('ADMIN_PASS', 'admin123')
 
-        # Android 环境下设置可写数据目录
+        # Android 环境下设置可写数据目录（APK 内部路径只读，无法建库）
         try:
             from kivy.utils import platform
             if platform == 'android':
@@ -60,57 +196,44 @@ def start_flask_server(port):
                 data_dir = os.path.join(storage_dir, 'data')
                 os.makedirs(data_dir, exist_ok=True)
                 os.environ['GIFT_DATA_DIR'] = data_dir
-                print(f"[Main] Android 数据目录: {data_dir}")
-        except Exception:
-            pass
-
-        # 导入 Flask 应用（此时会自动执行 init_database 初始化数据库）
-        print("[Main] 正在导入 Flask 应用...")
-        from app import app
-
-        # 设置 Flask 静态资源路径（确保在 Android 打包后能找到 static 目录）
-        try:
-            bundle_dir = os.path.dirname(os.path.abspath(__file__))
-            static_dir = os.path.join(bundle_dir, 'static')
-            if os.path.isdir(static_dir):
-                app.static_folder = static_dir
-                print(f"[Main] 静态资源路径: {static_dir}")
+                _log(f"Android 数据目录: {data_dir}")
         except Exception as e:
-            print(f"[Main] 设置静态资源路径失败: {e}")
+            _log(f"设置数据目录异常(可忽略): {e}")
 
-        print("[Main] Flask 应用导入成功，正在启动服务...")
+        _log("正在导入 Flask 应用（含数据库初始化）...")
+        from app import app
+        _log("Flask 应用导入成功，启动 HTTP 服务...")
 
-        # 在后台线程中运行 Flask
         def _run():
             try:
-                app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False, threaded=True)
+                app.run(host='127.0.0.1', port=port, debug=False,
+                        use_reloader=False, threaded=True)
             except Exception as e:
-                print(f"[Main] Flask 运行异常: {e}")
-                traceback.print_exc()
+                _log(f"Flask 运行异常: {e}\n{traceback.format_exc()}")
 
-        flask_thread = threading.Thread(target=_run, daemon=True)
-        flask_thread.start()
+        threading.Thread(target=_run, daemon=True).start()
 
-        # 等待 Flask 服务器就绪
-        for _ in range(60):  # 增加等待次数到 60（最多 18 秒）
+        # 等待 Flask 就绪（最长 60 秒，覆盖首次建表场景）
+        for i in range(200):
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(1)
                 result = sock.connect_ex(('127.0.0.1', port))
                 sock.close()
                 if result == 0:
-                    print(f"[Main] Flask 服务已在 127.0.0.1:{port} 启动")
-                    return True
+                    _log(f"Flask 服务已在 127.0.0.1:{port} 就绪")
+                    return True, None
             except Exception:
                 pass
             time.sleep(0.3)
 
-        print("[Main] Flask 服务启动超时（18秒）")
-        return False
+        _log("Flask 服务启动超时（60秒）")
+        return False, "Flask 服务启动超时（60 秒未监听端口），详见 app_debug.log"
     except Exception as e:
-        print(f"[Main] Flask 服务启动异常: {e}")
-        traceback.print_exc()
-        return False
+        detail = traceback.format_exc()
+        _log(f"Flask 启动异常: {e}\n{detail}")
+        return False, detail
+
 
 # ==================== Kivy + Android WebView 容器 ====================
 
@@ -130,62 +253,40 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
         Window.clearcolor = (0.96, 0.96, 0.98, 1)
         root = Widget()
 
-        # 异步启动 Flask 服务（不阻塞 Kivy 主线程）
         global FLASK_PORT
         FLASK_PORT = find_free_port(FLASK_PORT)
-        self.target_url = f"http://127.0.0.1:{FLASK_PORT}/"
+        self.base_url = f"http://127.0.0.1:{FLASK_PORT}/"
         self.flask_ready = False
-        self.webview_created = False
+        self.startup_error = None
 
-        # 在后台线程启动 Flask，避免阻塞 Kivy 事件循环
+        # 后台线程异步启动 Flask（不阻塞 Kivy 主线程，避免 ANR）
         def _start_flask_async():
-            self.flask_ready = start_flask_server(FLASK_PORT)
-            if not self.flask_ready:
-                print("[Main] Flask 启动失败，将延迟重试...")
-                # 延迟 3 秒后重试一次
+            ok, err = start_flask_server(FLASK_PORT)
+            self.flask_ready = ok
+            self.startup_error = err
+            if not ok:
+                _log("Flask 首次启动失败，3 秒后重试一次...")
                 time.sleep(3)
-                self.flask_ready = start_flask_server(FLASK_PORT)
+                ok2, err2 = start_flask_server(FLASK_PORT)
+                self.flask_ready = ok2
+                if not ok2:
+                    self.startup_error = err2 or err
 
-        flask_init_thread = threading.Thread(target=_start_flask_async, daemon=True)
-        flask_init_thread.start()
+        threading.Thread(target=_start_flask_async, daemon=True).start()
 
         if platform == 'android':
-            # 延迟 3 秒创建 WebView，给 Flask 充足的启动时间
-            Clock.schedule_once(self.init_android_webview, 3.0)
-            # 5 秒后检查 WebView 是否创建成功，如果 Flask 还没好则再等
-            Clock.schedule_once(self._check_webview, 5.0)
+            # WebView 尽早创建并显示"启动中"诊断页（loading 页自己轮询跳转，
+            # 不再依赖 Python 侧固定延迟）
+            Clock.schedule_once(self.init_android_webview, 0.8)
+            # 12 秒后若启动失败，把 traceback 推送到 WebView 展示
+            Clock.schedule_once(self._push_error_page_if_any, 12.0)
         elif IS_KIVY:
             Clock.schedule_once(self.open_desktop_browser, 5.0)
         else:
             self.open_desktop_browser()
         return root
 
-    def _check_webview(self, *args):
-        """检查 WebView 状态，如果 Flask 还没就绪则重新加载"""
-        if not self.flask_ready:
-            print("[Main] WebView 检查：Flask 尚未就绪，延迟重试...")
-            Clock.schedule_once(self._retry_webview, 5.0)
-
-    def _retry_webview(self, *args):
-        """重试加载 WebView"""
-        if self.flask_ready:
-            print("[Main] Flask 已就绪，重新加载 WebView...")
-            # 这里不再重新创建 WebView，而是让 WebView 自动刷新
-            # 如果 WebView 已创建，通过 Java 层重新加载 URL
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                activity = PythonActivity.mActivity
-                # 查找已添加的 WebView 并重新加载
-                webview = activity.findViewById(0x12345)  # 自定义 ID
-                if webview:
-                    webview.loadUrl(self.target_url)
-            except Exception:
-                pass
-        else:
-            print("[Main] Flask 仍未就绪，10 秒后再试...")
-            Clock.schedule_once(self._retry_webview, 10.0)
-
+    # ---------------- WebView 初始化 ----------------
     def init_android_webview(self, *args):
         try:
             from jnius import autoclass, PythonJavaClass, java_method
@@ -198,21 +299,22 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
             LayoutParams = autoclass('android.view.ViewGroup$LayoutParams')
             CookieManager = autoclass('android.webkit.CookieManager')
 
+            base_url = self.base_url
+            loading_html = LOADING_HTML_TEMPLATE
+
             class SafeWebClient(PythonJavaClass):
                 __javainterfaces__ = ['android/webkit/WebViewClient']
                 __javacontext__ = 'app'
 
-                def __init__(self, target_url, flask_ready_callback=None):
+                def __init__(self, target_base):
                     super(SafeWebClient, self).__init__()
-                    self.target_url = target_url
-                    self.flask_ready_callback = flask_ready_callback
+                    self.target_base = target_base
 
                 @java_method('(Landroid/webkit/WebView;Ljava/lang/String;)Z')
                 def shouldOverrideUrlLoading(self, view, url):
-                    # 允许本地 URL 和内部导航
+                    # 本地服务内导航全部放行（含 loading 页 location.replace）
                     if url.startswith('http://127.0.0.1') or url.startswith('http://localhost'):
                         return False
-                    # 外部链接在 WebView 内加载
                     view.loadUrl(url)
                     return True
 
@@ -222,18 +324,7 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
 
                 @java_method('(Landroid/webkit/WebView;ILjava/lang/String;Ljava/lang/String;)V')
                 def onReceivedError(self, view, errorCode, description, failingUrl):
-                    print(f"[WebView] 加载错误: code={errorCode}, desc={description}, url={failingUrl}")
-                    # 延迟 2 秒后重试
-                    Clock.schedule_once(lambda dt: view.loadUrl(self.target_url), 2.0)
-
-                # Android 6+ 新版错误回调
-                @java_method('(Landroid/webkit/WebView;Landroid/webkit/WebResourceRequest;Landroid/webkit/WebResourceError;)V')
-                def onReceivedError(self, view, request, error):
-                    try:
-                        desc = str(error.getDescription()) if error else 'unknown'
-                        print(f"[WebView] 资源加载错误: {desc}")
-                    except Exception:
-                        pass
+                    _log(f"WebView 加载错误: code={errorCode} desc={description} url={failingUrl}")
 
             class CustomChromeClient(PythonJavaClass):
                 __javainterfaces__ = ['android/webkit/WebChromeClient']
@@ -244,13 +335,13 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
 
                 @java_method('(Landroid/webkit/WebView;I)V')
                 def onProgressChanged(self, view, newProgress):
-                    print(f"[WebView] 加载进度: {newProgress}%")
+                    if newProgress in (0, 100):
+                        _log(f"WebView 加载进度: {newProgress}%")
 
                 @java_method('(Landroid/webkit/ConsoleMessage;)Z')
                 def onConsoleMessage(self, consoleMessage):
                     try:
-                        msg = str(consoleMessage.message()) if consoleMessage else ''
-                        print(f"[WebView Console] {msg}")
+                        _log(f"[JS] {consoleMessage.message()}")
                     except Exception:
                         pass
                     return True
@@ -259,16 +350,17 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
                 __javainterfaces__ = ['java/lang/Runnable']
                 __javacontext__ = 'app'
 
-                def __init__(self, activity, url):
+                def __init__(self, activity, base_url, html):
                     super(WebViewInitRunnable, self).__init__()
                     self.activity = activity
-                    self.url = url
+                    self.base_url = base_url
+                    self.html = html
 
                 @java_method('()V')
                 def run(self):
                     try:
+                        global WEBVIEW_REF
                         webview = WebView(self.activity)
-                        webview.setId(0x12345)  # 设置固定 ID 便于后续查找
                         settings = webview.getSettings()
 
                         settings.setJavaScriptEnabled(True)
@@ -283,20 +375,24 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
                         settings.setDisplayZoomControls(False)
                         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW)
                         settings.setCacheMode(WebSettings.LOAD_DEFAULT)
-                        # 适配手机视口
                         try:
-                            settings.setUserAgentString("Mozilla/5.0 (Linux; Android) GiftBookkeeping/3.0")
+                            settings.setUserAgentString("Mozilla/5.0 (Linux; Android) GiftBookkeeping/3.1")
                         except Exception:
                             pass
 
                         try:
-                            cookie_manager = CookieManager.getInstance()
-                            cookie_manager.setAcceptCookie(True)
-                            cookie_manager.setAcceptThirdPartyCookies(webview, True)
+                            CookieManager.getInstance().setAcceptCookie(True)
+                            CookieManager.getInstance().setAcceptThirdPartyCookies(webview, True)
                         except Exception:
                             pass
 
-                        webview.setWebViewClient(SafeWebClient(self.url))
+                        # 开启远程调试：电脑 Chrome 访问 chrome://inspect 可实时查看
+                        try:
+                            WebView.setWebContentsDebuggingEnabled(True)
+                        except Exception:
+                            pass
+
+                        webview.setWebViewClient(SafeWebClient(self.base_url))
                         webview.setWebChromeClient(CustomChromeClient())
                         webview.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY)
                         webview.setFocusable(True)
@@ -307,23 +403,69 @@ class GiftBookkeepingApp(App if IS_KIVY else object):
                             LayoutParams.MATCH_PARENT
                         )
                         self.activity.addContentView(webview, params)
-                        webview.loadUrl(self.url)
-                        webview.requestFocus()
-                        print(f"[WebView] WebView 已创建，加载 URL: {self.url}")
-                    except Exception as ex:
-                        print(f"[WebView] 创建 WebView 异常: {ex}")
-                        traceback.print_exc()
 
-            activity.runOnUiThread(WebViewInitRunnable(activity, self.target_url))
+                        # 【核心】先加载内嵌"启动中"诊断页：
+                        # baseURL 指向本地服务 → 页面内 fetch('/login') 同源不受 CORS 限制
+                        # 服务就绪后 JS 自动 location.replace 跳转真实页面
+                        webview.loadDataWithBaseURL(self.base_url, self.html,
+                                                    'text/html', 'utf-8', None)
+                        webview.requestFocus()
+                        with _webview_lock:
+                            WEBVIEW_REF = webview
+                        _log(f"WebView 已创建，诊断页已加载（等待 {self.base_url} 就绪后自动跳转）")
+                    except Exception as ex:
+                        _log(f"创建 WebView 异常: {ex}\n{traceback.format_exc()}")
+
+            activity.runOnUiThread(WebViewInitRunnable(activity, base_url, loading_html))
 
         except Exception as e:
-            print(f"[WebView] Android WebView 初始化异常: {e}")
-            traceback.print_exc()
+            _log(f"Android WebView 初始化异常: {e}\n{traceback.format_exc()}")
+
+    # ---------------- 失败时推送错误页 ----------------
+    def _push_error_page_if_any(self, *args):
+        """Flask 启动失败时，将 traceback 渲染到 WebView（不再白屏盲调）"""
+        if self.flask_ready or not self.startup_error:
+            return
+        try:
+            if WEBVIEW_REF is None:
+                # WebView 尚未就绪，5 秒后再试
+                Clock.schedule_once(self._push_error_page_if_any, 5.0)
+                return
+
+            from jnius import autoclass, PythonJavaClass, java_method
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            activity = PythonActivity.mActivity
+
+            error_html = ERROR_HTML_TEMPLATE.replace(
+                '__ERROR_DETAIL__', _escape_html(self.startup_error))
+
+            webview = WEBVIEW_REF
+            base_url = self.base_url
+
+            class ErrorPageRunnable(PythonJavaClass):
+                __javainterfaces__ = ['java/lang/Runnable']
+                __javacontext__ = 'app'
+
+                def __init__(self):
+                    super(ErrorPageRunnable, self).__init__()
+
+                @java_method('()V')
+                def run(self):
+                    try:
+                        webview.loadDataWithBaseURL(base_url, error_html,
+                                                    'text/html', 'utf-8', None)
+                        _log("已将启动错误详情推送到 WebView 展示")
+                    except Exception as ex:
+                        _log(f"推送错误页失败: {ex}")
+
+            activity.runOnUiThread(ErrorPageRunnable())
+        except Exception as e:
+            _log(f"推送错误页异常: {e}")
 
     def open_desktop_browser(self, *args):
         try:
             import webbrowser
-            webbrowser.open(self.target_url if hasattr(self, 'target_url') else f"http://127.0.0.1:{FLASK_PORT}/")
+            webbrowser.open(self.base_url)
         except Exception:
             pass
 
@@ -334,10 +476,11 @@ if __name__ == '__main__':
     else:
         # 桌面端：启动 Flask 并打开浏览器
         FLASK_PORT = find_free_port(FLASK_PORT)
-        start_flask_server(FLASK_PORT)
+        ok, err = start_flask_server(FLASK_PORT)
+        if not ok:
+            print(f"[桌面调试] Flask 启动失败:\n{err}")
         import webbrowser
         webbrowser.open(f"http://127.0.0.1:{FLASK_PORT}/")
-        # 保持主线程存活
         try:
             while True:
                 time.sleep(1)

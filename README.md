@@ -13,7 +13,7 @@ AIGC:
 
 本项目是将【礼金记账簿】(Gift Bookkeeping App) 完整移植为 Android/iOS 手机端原生可安装运行的应用。通过**本地嵌入式 Flask 服务 + 原生 WebView 容器**技术，用户可以在手机上脱机离线使用完整的礼金记账、亲友管理、统计分析、AI 助手、导入导出等所有功能。
 
-> **V3.0.1 更新**：修复 V3.0 APK 安装后页面空白问题（6 根因修复），全量同步源项目最新功能（181条路由），版本号升级至 3.0.0 以区分此前版本。
+> **V3.1 更新**：根治 APK 安装后页面空白问题——修复 buildozer.spec 无效 `python_depends` 键（导致 Flask 扩展库未进包）、新增 WebView 内嵌启动诊断页（就绪自动跳转/失败展示报错）、注入 `usesCleartextTraffic` 保障本地 HTTP 可达。全量同步源项目最新功能（181条路由）。
 
 ---
 
@@ -98,17 +98,17 @@ gift_bookkeeping_apk/
 ### 方式一：GitHub Releases 下载
 
 1. 访问本仓库的 **[Releases 页面](../../releases)**
-2. 下载 **v3.0** 版本中的：
-   - `GiftBookkeeping-Android-APK-v3.0/*.apk` → Android 安装包
-   - `GiftBookkeeping-iOS-IPA-v3.0-Unsigned/*.ipa` → iOS 未签名包
+2. 下载 **v3.1** 版本中的：
+   - `GiftBookkeeping-Android-APK-v3.1/*.apk` → Android 安装包
+   - `GiftBookkeeping-iOS-IPA-v3.1-Unsigned/*.ipa` → iOS 未签名包
 
 ### 方式二：GitHub Actions 构建产物下载
 
 1. 访问仓库的 **Actions** 标签页
 2. 点击最新的运行记录
 3. 在 **Artifacts** 中下载：
-   - `GiftBookkeeping-Android-APK-v3.0` → Android APK
-   - `GiftBookkeeping-iOS-IPA-v3.0-Unsigned` → iOS IPA
+   - `GiftBookkeeping-Android-APK-v3.1` → Android APK
+   - `GiftBookkeeping-iOS-IPA-v3.1-Unsigned` → iOS IPA
 
 ### 方式三：本地构建
 
@@ -165,28 +165,26 @@ python main.py
 
 | Job | Runner | 产物 | Artifact名称 |
 |:---|:---|:---|:---|
-| `build-android` | ubuntu-22.04 | `bin/*.apk` | GiftBookkeeping-Android-APK-v3.0 |
-| `build-ios` | macos-14 | `*.ipa`（未签名） | GiftBookkeeping-iOS-IPA-v3.0-Unsigned |
+| `build-android` | ubuntu-22.04 | `bin/*.apk` | GiftBookkeeping-Android-APK-v3.1 |
+| `build-ios` | macos-14 | `*.ipa`（未签名） | GiftBookkeeping-iOS-IPA-v3.1-Unsigned |
 
-### V3.0.1 空白页面修复
+### V3.1 空白页面真实根因修复
 
-V3.0 APK 安装后页面空白的 6 个根因及修复：
+V3.0/V3.0.1 安装后页面空白（如魅族20 / Android 16 实测）的真实根因与修复：
 
 | 根因 | 修复 |
 |:---|:---|
-| `app.py` 未显式设置 `static_folder` → CSS/JS 404 | 显式设置 `static_folder = os.path.join(BUNDLE_DIR, 'static')` |
-| `build()` 同步阻塞主线程 → ANR | 改为后台线程异步启动 Flask |
-| WebView 加载时 Flask 未就绪 → 连接拒绝 | WebView 延迟 3 秒创建 + 5 秒重试 |
-| `import webbrowser` Android 崩溃 | try/except ImportError 延迟导入 |
-| 数据库路径 `data/` Android 只读 | GIFT_DATA_DIR 环境变量 + getFilesDir() |
-| `onReceivedError` 静默吞错 | 增加错误日志 + 2 秒自动重试 |
+| `python_depends` 不是有效 buildozer 键被静默忽略，flask-sqlalchemy/flask-wtf/flask-login 从未进包，`from app import app` 即 ImportError | requirements 直接列出全部包，p4a 对无 recipe 的纯 Python 包自动 pip 安装 |
+| Android 9+ 明文 HTTP 默认禁用，WebView 可能拒载 `http://127.0.0.1` | `extra_manifest_args.txt` 注入 `usesCleartextTraffic="true"` |
+| 启动时序依赖固定延迟，首次建表可能 >10 秒 | WebView 首屏加载内嵌诊断页，JS 每 700ms 轮询，就绪后自动跳转 |
+| 启动失败用户只能看到白屏，无法定位 | 失败时 12 秒后将 traceback 渲染到页面，可直接截图反馈 |
+| 无现场日志可提取 | 双通道日志：logcat + `files/app_debug.log`（可 adb pull） |
 
 ### V3.0 构建修复要点
 
 | 问题 | V2.0 | V3.0 |
 |:---|:---|:---|
-| requirements | 混入非p4a recipe包名 | p4a recipe + python_depends 分离 |
-| cryptography | 需Rust工具链，编译失败 | 移除，try/except自动降级 |
+| requirements | cryptography 需Rust工具链编译失败 | 移除，代码内 try/except 自动降级 |
 | cython | `<3.0` 限制过时 | 无限制 |
 | android.api | 34 | 33 |
 
