@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-礼金记账簿 — 移动端启动入口（V3.2.0 webview bootstrap 架构）
+礼金记账簿 — 移动端启动入口（V3.3.0，webview bootstrap 架构）
 
 【V3.2 架构说明】
 p4a 官方 webview bootstrap：WebView 由 Java 层（org.kivy.android.PythonActivity）
@@ -29,7 +29,7 @@ import traceback
 # webview bootstrap 的 Java 侧 WebViewLoader 轮询 127.0.0.1:5000（p4a 默认值），
 # 此端口必须与约定一致，不可随意更改
 FLASK_PORT = 5000
-APP_VERSION = '3.2.0'
+APP_VERSION = '3.3.0'
 
 # Android 环境判定：p4a 启动时注入 ANDROID_ARGUMENT 且带 getandroidapilevel
 IS_ANDROID = ('ANDROID_ARGUMENT' in os.environ or hasattr(sys, 'getandroidapilevel'))

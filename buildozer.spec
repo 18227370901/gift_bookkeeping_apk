@@ -27,7 +27,8 @@ source.exclude_exts = spec, pyc, pyd, pyo, db, bak, log, png_bak
 # (str) Application versioning
 # 【V3.2.0 版本区分】架构级重构：webview bootstrap 彻底移除 Kivy/SDL/GL 渲染链
 # （v3.2.0 增强：新增自定义 presplash 启动提示图，覆盖首次解压 1-3 分钟场景）
-version = 3.2.0
+# 【V3.3.0】新增天气查询（15 天预报 + 行政区划级联选择）+ 表格列宽手动调整（对齐 Web 版 V10.11.7）
+version = 3.3.0
 
 # (list) Application requirements
 # 【V3.2 架构级修复】真机排查史：V1.x ~ V3.1.1 所有版本在实测机型（魅族20/Android 16）

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>礼金记账簿 移动端 APK — PSD 设计文档 V3.2.0</title>
+<title>礼金记账簿 移动端 APK — PSD 设计文档 V3.3.0</title>
 <style>
 :root{--green:#4caf50;--red:#dc3545;--amber:#ffc107;--blue:#007bff;--gray:#6c757d;--bg:#f8f9fa;--card:#fff;--border:#dee2e6;--code-bg:#f1f3f5;--text:#212529}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -48,7 +48,7 @@ div.mermaid svg foreignObject div{overflow:visible !important}
 
 <h1>礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档</h1>
 <p class="meta">项目路径：<code>gift_bookkeeping_apk/</code> &nbsp;|&nbsp; 生成日期：2026-10-09</p>
-<p class="meta">文档版本：V3.2.0（webview bootstrap 架构级重构：彻底移除 Kivy/SDL/GL）</p>
+<p class="meta">文档版本：V3.3.0（天气查询 + 行政区划级联 + 表格列宽调整，对齐 Web 版 V10.11.7）</p>
 
 <div class="toc">
 <h3>目录</h3>
@@ -62,7 +62,8 @@ div.mermaid svg foreignObject div{overflow:visible !important}
 <li><b>移动端适配设计</b> — 响应式 · 安全区域 · 触控优化</li>
 <li><b>构建与CI/CD</b> — Buildozer · GitHub Actions · 双平台</li>
 <li><b>工程与安全保障</b> — 环境变量 · 认证鉴权 · 安全清单</li>
-<li><b>版本演进路线图</b> — V1.0 → V2.0 → V3.0 → V3.1 → V3.1.1 → V3.2.0</li>
+<li><b>版本演进路线图</b> — V1.0 → V2.0 → V3.0 → V3.1 → V3.1.1 → V3.2.0 → <b>V3.3.0（天气 + 列宽，对齐 Web 版 V10.11.7）</b></li>
+<li><b>V3.3.0 功能增量</b> — 天气查询 · 行政区划级联 · 表格列宽调整</li>
 </ol>
 </div>
 
@@ -236,7 +237,7 @@ Python: 环境设置(GIFT_DATA_DIR) → marker(dirs_ready)
 
 <h2><span class="num">4</span>功能模块全量清单</h2>
 
-<h3>3.1 页面/路由清单（25个页面，181条路由）</h3>
+<h3>3.1 页面/路由清单（26个页面，181条路由）</h3>
 <table>
 <tr><th>#</th><th>页面模板</th><th>路由</th><th>核心功能</th></tr>
 <tr><td>1</td><td>base.html</td><td>—</td><td>全局布局+移动端CSS</td></tr>
@@ -259,6 +260,7 @@ Python: 环境设置(GIFT_DATA_DIR) → marker(dirs_ready)
 <tr><td>23</td><td>print_giftbook.html</td><td><code>/print_giftbook</code></td><td>人情簿打印</td></tr>
 <tr><td>24</td><td>poster_template.html</td><td><code>/poster_template</code></td><td>海报模板</td></tr>
 <tr><td>25</td><td>shared_ledger.html</td><td><code>/shared_ledger/&lt;token&gt;</code></td><td>共享外链</td></tr>
+<tr><td>26</td><td>weather.html</td><td><code>/weather</code></td><td>天气查询（实时+15天预报/行政区划级联/ECharts趋势图）</td></tr>
 </table>
 
 <h2><span class="num">4</span>技术栈全景</h2>
@@ -339,10 +341,10 @@ body {
 <h3>7.1 GitHub Actions</h3>
 <table>
 <tr><th>Job</th><th>Runner</th><th>产物</th><th>Artifact名称</th></tr>
-<tr><td>build-android</td><td>ubuntu-22.04</td><td>bin/*.apk</td><td>GiftBookkeeping-Android-APK-v3.2.0</td></tr>
-<tr><td>build-android</td><td>ubuntu-22.04</td><td>bin/*.aab</td><td>GiftBookkeeping-Android-AAB-v3.2.0</td></tr>
+<tr><td>build-android</td><td>ubuntu-22.04</td><td>bin/*.apk</td><td>GiftBookkeeping-Android-APK-v3.3.0</td></tr>
+<tr><td>build-android</td><td>ubuntu-22.04</td><td>bin/*.aab</td><td>GiftBookkeeping-Android-AAB-v3.3.0</td></tr>
 <tr><td>build-android</td><td>—（新增步骤）</td><td>Verify APK Contents</td><td>构建后解包自检（V3.2 新增）</td></tr>
-<tr><td>build-ios</td><td>macos-14</td><td>*.ipa</td><td>GiftBookkeeping-iOS-IPA-v3.2.0-Unsigned</td></tr>
+<tr><td>build-ios</td><td>macos-14</td><td>*.ipa</td><td>GiftBookkeeping-iOS-IPA-v3.3.0-Unsigned</td></tr>
 </table>
 
 <h3>7.2 触发条件</h3>
@@ -373,7 +375,39 @@ body {
 <tr><td>V3.0.1</td><td>本地Flask+WebView</td><td>181</td><td><span class="badge badge-green">成功</span></td><td><span class="badge badge-red">空白（同V3.0根因）</span></td><td><span class="badge badge-gray">已替代</span></td></tr>
 <tr><td>V3.1</td><td>本地Flask+WebView+诊断页</td><td>181</td><td><span class="badge badge-red">失败（run 37746146665）</span></td><td>—</td><td><span class="badge badge-gray">已替代</span></td></tr>
 <tr><td>V3.1.1</td><td>同V3.1+OCR修复</td><td>181</td><td><span class="badge badge-green">成功</span></td><td><span class="badge badge-red">空白（连诊断页都无→Kivy链嫌疑）</span></td><td><span class="badge badge-gray">已替代</span></td></tr>
-<tr><td><b>V3.2.0</b></td><td><b>webview bootstrap（纯Java WebView，无Kivy）</b></td><td><b>181</b></td><td><b><span class="badge badge-amber">待CI验证</span></b></td><td><b><span class="badge badge-amber">待真机验证</span></b></td><td><b><span class="badge badge-green">当前版本</span></b></td></tr>
+<tr><td>V3.2.0</td><td>webview bootstrap（纯Java WebView，无Kivy）</td><td>181</td><td><span class="badge badge-green">成功</span></td><td>✅真机可运行（见 V3.2.1 迭代）</td><td><span class="badge badge-gray">已被替代</span></td></tr>
+<tr><td><b>V3.3.0</b></td><td><b>webview bootstrap + 天气查询 + 表格列宽调整（对齐 Web 版 V10.11.7）</b></td><td><b>181</b></td><td><b><span class="badge badge-amber">待CI验证</span></b></td><td><b><span class="badge badge-amber">待真机验证</span></b></td><td><b><span class="badge badge-green">当前版本</span></b></td></tr>
+</table>
+
+<h2><span class="num">11</span>V3.3.0 功能增量（对齐 Web 版 V10.11.4/6/7）</h2>
+
+<h3>11.1 天气查询（新增 weather_service.py + routes_weather.py + templates/weather.html）</h3>
+<table>
+<tr><th>项</th><th>说明</th></tr>
+<tr><td>数据源</td><td>Open-Meteo（免费无密钥）；实时含温度/体感/湿度/风速风向（角度→中文方位）/阵风/气压/云量；每日含最高最低温/降水概率/日出日落/紫外线/累计降水</td></tr>
+<tr><td>15 天预报</td><td><code>forecast_days</code> 参数化（默认 15，1~16）；<code>/api/weather/query</code> 支持 <code>days</code> 参数</td></tr>
+<tr><td>级联选择</td><td>省/市/区县三级下拉（34 省/476 市/2875 区县），阿里云 DataV GeoAtlas 数据本地内置 <code>static/js/china-regions.js</code>（144KB 含行政中心坐标）；GeoNames 缺中国区县级地名，级联选中后按内置坐标直查（零错配）</td></tr>
+<tr><td>布局</td><td>大卡片（2×4 指标网格）→ 15 天温度趋势双折线图（本地化 ECharts 5.5.0）→ 15 天卡片网格（今天高亮）；记住上次查询方式与地区自动恢复</td></tr>
+<tr><td>网络策略</td><td><code>_http_get</code>：禁代理直连优先 + 系统代理兜底</td></tr>
+<tr><td>权限管控</td><td>weather 受控菜单（0/1 级）：menu_map 门控 + 导航条件渲染 + 用户管理单用户/批量配置 + 工单申请 + <code>_do_startup_sync</code> 启动幂等回填老用户权限；Webhook 矩阵补只读行</td></tr>
+</table>
+
+<h3>11.2 表格列宽手动调整（新增 static/js/table-resizer.js，21 张主业务表）</h3>
+<table>
+<tr><th>项</th><th>说明</th></tr>
+<tr><td>机制</td><td><code>table[data-resizable]</code> + <code>th[data-col]</code>；首次固化自然宽度 + <code>table-layout: fixed</code>；表头右缘 8px 分隔条拖拽实时生效</td></tr>
+<tr><td>约束/持久化</td><td>min 60 / max 480（单列可覆盖）；localStorage 按用户+表格隔离；容器右上角「重置列宽」按钮</td></tr>
+<tr><td>移动端适配</td><td>APK 为触屏窄屏场景：<code>&lt;768px</code> 自动降级禁用拖拽与恢复，保持自然布局（代码与 Web 版一致，行为自动适配）</td></tr>
+</table>
+
+<h3>11.3 验证结论（11446 临时实例验证）</h3>
+<table>
+<tr><th>场景</th><th>结果</th></tr>
+<tr><td>礼金账本 14 列 resizer + fixed + 重置按钮</td><td><span class="badge badge-green">通过</span></td></tr>
+<tr><td>天气默认查询 + 级联（四川→成都→双流）15 天 + 趋势图</td><td><span class="badge badge-green">通过</span></td></tr>
+<tr><td>全部 Python 文件编译通过</td><td><span class="badge badge-green">通过</span></td></tr>
+<tr><td>路由实测：url_map 全量 181 条（较 V3.2.1 基线 179 新增天气 2 条）</td><td><span class="badge badge-green">通过</span></td></tr>
+<tr><td>版本号全线升级 3.3.0（buildozer versionName / main.py APP_VERSION / 页脚 / CI Artifact·Release tag / iOS plist）</td><td><span class="badge badge-green">通过</span></td></tr>
 </table>
 
 </div>

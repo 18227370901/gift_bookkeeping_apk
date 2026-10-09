@@ -175,10 +175,42 @@
         .navbar-nav .nav-link { white-space: nowrap; font-size: 0.875rem; padding-left: 0.6rem; padding-right: 0.6rem; }
         .navbar-nav .nav-item { flex-shrink: 0; }
         @media (min-width: 992px) { .navbar-nav .nav-link { font-size: 0.9rem; } }
+
+        /* ===== V10.11.7 表格列宽手动调整（table-resizer.js 配套样式） ===== */
+        /* th 定位基准（分隔条绝对定位依赖） */
+        table[data-resizable] thead th { position: relative; }
+        /* 分隔条：右缘 8px 命中区，拖拽光标 */
+        table[data-resizable] .colw-resizer {
+            position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
+            cursor: col-resize; z-index: 5; border-radius: 2px;
+            background: transparent;
+        }
+        /* 悬停高亮（双主题自适应） */
+        table[data-resizable] .colw-resizer:hover,
+        table[data-resizable] .colw-resizer.colw-active { background: rgba(13, 110, 253, 0.45); }
+        [data-bs-theme="dark"] table[data-resizable] .colw-resizer:hover,
+        [data-bs-theme="dark"] table[data-resizable] .colw-resizer.colw-active { background: rgba(64, 150, 255, 0.55); }
+        /* 拖动中：禁止选中文本 + 全局列宽光标 */
+        body.colw-resizing { user-select: none !important; -webkit-user-select: none !important; }
+        body.colw-resizing * { cursor: col-resize !important; }
+        /* fixed 布局下单元格单行截断（超宽列出横向滚动，不撑开） */
+        table.colw-fixed td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* 重置按钮：容器右上角悬浮小按钮 */
+        .colw-wrap { position: relative; }
+        .colw-reset-btn {
+            position: absolute; top: 4px; right: 10px; z-index: 20;
+            opacity: 0.5; font-size: 0.72rem; padding: 1px 8px; border-radius: 6px;
+            transition: opacity 0.15s ease;
+        }
+        .colw-reset-btn:hover { opacity: 1; }
+        /* 移动端降级：不显示分隔条与重置按钮（JS 同步禁用拖拽） */
+        @media (max-width: 767.98px) {
+            table[data-resizable] .colw-resizer, .colw-reset-btn { display: none !important; }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body data-user-id="{{ current_user.id if current_user.is_authenticated else '0' }}">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index') }}">
@@ -223,6 +255,12 @@
                     {% if current_user.is_admin or current_user.can_access_menu('recycle_bin') %}
                     <li class="nav-item">
                         <a class="nav-link text-secondary" href="{{ url_for('recycle_bin_view') }}"><i class="fa-solid fa-trash-arrow-up me-1"></i>回收站</a>
+                    </li>
+                    {% endif %}
+                    <!-- V10.11.7 新增：天气菜单（受权限管控） -->
+                    {% if current_user.is_admin or current_user.can_access_menu('weather') %}
+                    <li class="nav-item">
+                        <a class="nav-link text-info" href="{{ url_for('weather_page') }}"><i class="fa-solid fa-cloud-sun me-1"></i>天气</a>
                     </li>
                     {% endif %}
                     {% if current_user.can_use_ai() %}
@@ -333,9 +371,11 @@
     </div>
 
     <footer class="text-center text-muted">
-        <div class="container"><span>© 2026 人情礼金记账系统 - 移动端 APK 版 v3.2.0</span></div>
+        <div class="container"><span>© 2026 人情礼金记账系统 - 移动端 APK 版 v3.3.0</span></div>
     </footer>
     <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.0/js/bootstrap.bundle.min.js') }}"></script>
+    <!-- V10.11.7 表格列宽手动拖拽调整（全局：自动初始化所有 table[data-resizable]） -->
+    <script src="{{ url_for('static', filename='js/table-resizer.js') }}"></script>
     <script>
         // 全局提示语（Flash Alerts）自动淡出并消失逻辑（3.5秒自动清理，保证操作体验流畅）
         // V10.10.14：本段脚本从带 src 的 <script> 中拆出独立执行（浏览器规范：script 带 src 时内嵌代码被忽略，

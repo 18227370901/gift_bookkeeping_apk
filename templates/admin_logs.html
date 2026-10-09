@@ -118,19 +118,19 @@
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0" data-resizable="admin_logs_list">
                     <thead class="table-light">
                         <tr>
-                            <th style="width: 40px;" class="ps-3">
+                            <th style="width: 40px;" class="ps-3" data-col="checkbox" data-col-min="36" data-col-max="60">
                                 <input type="checkbox" class="form-check-input" id="selectAll">
                             </th>
-                            <th style="width: 80px;">ID</th>
-                        <th style="width: 120px;">操作用户</th>
-                        <th style="width: 130px;">动作类型</th>
-                        <th>日志详情描述</th>
-                        <th style="width: 130px;">IP 地址</th>
-                        <th style="width: 160px;">操作时间</th>
-                        <th style="width: 80px;" class="pe-3 text-end">操作</th>
+                            <th style="width: 80px;" data-col="id" data-col-min="60" data-col-max="120">ID</th>
+                        <th style="width: 120px;" data-col="user" data-col-min="90" data-col-max="160">操作用户</th>
+                        <th style="width: 130px;" data-col="action" data-col-min="90" data-col-max="180">动作类型</th>
+                        <th data-col="detail">日志详情描述</th>
+                        <th style="width: 130px;" data-col="ip" data-col-min="100" data-col-max="160">IP 地址</th>
+                        <th style="width: 160px;" data-col="time" data-col-min="120" data-col-max="200">操作时间</th>
+                        <th style="width: 80px;" class="pe-3 text-end" data-col="actions" data-col-min="60" data-col-max="120">操作</th>
                     </tr>
                 </thead>
                 <tbody>

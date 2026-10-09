@@ -163,16 +163,16 @@
       </div>
     </div>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0">
+      <table class="table table-sm table-hover align-middle mb-0" data-resizable="admin_invite_tokens">
         <thead class="table-light">
           <tr>
-            <th style="width: 40px;" class="text-center">#</th>
-            <th>邀请注册链接</th>
-            <th>创建时间</th>
-            <th>到期时间</th>
-            <th>使用次数</th>
-            <th>状态</th>
-            <th class="text-end">操作</th>
+            <th style="width: 40px;" class="text-center" data-col="checkbox" data-col-min="36" data-col-max="60">#</th>
+            <th data-col="link" data-col-min="220">邀请注册链接</th>
+            <th data-col="created">创建时间</th>
+            <th data-col="expires">到期时间</th>
+            <th data-col="uses">使用次数</th>
+            <th data-col="status">状态</th>
+            <th class="text-end" data-col="actions" data-col-min="100">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -235,22 +235,22 @@
   </div>
   <div class="card-body p-0">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0" data-resizable="admin_users_list">
         <thead class="table-light">
           <tr>
-            <th style="width: 40px;" class="ps-3 text-center">
+            <th style="width: 40px;" class="ps-3 text-center" data-col="checkbox" data-col-min="36" data-col-max="60">
               <input class="form-check-input" type="checkbox" id="selectAllUsers" style="cursor: pointer;" title="全选/取消全选普通用户">
             </th>
-            <th class="ps-2">ID</th>
-            <th>用户名</th>
-            <th>角色身份</th>
-            <th>跨用户数据权限</th>
-            <th>账号状态</th>
-            <th>登录风控</th>
-            <th>密保风控</th>
-            <th>密保问题</th>
-            <th>注册时间</th>
-            <th class="text-end pe-4">操作选项</th>
+            <th class="ps-2" data-col="id" data-col-min="50">ID</th>
+            <th data-col="username">用户名</th>
+            <th data-col="role">角色身份</th>
+            <th data-col="perms">跨用户数据权限</th>
+            <th data-col="status">账号状态</th>
+            <th data-col="login_risk">登录风控</th>
+            <th data-col="qa_risk">密保风控</th>
+            <th data-col="question">密保问题</th>
+            <th data-col="created">注册时间</th>
+            <th class="text-end pe-4" data-col="actions" data-col-min="150">操作选项</th>
           </tr>
         </thead>
         <tbody>
@@ -581,6 +581,23 @@
                                   <option value="1" {% if p_family == 1 %}selected{% endif %}>自身全权 + 仅查看他人数据</option>
                                   <option value="2" {% if p_family == 2 %}selected{% endif %}>查看+修改他人数据</option>
                                   <option value="3" {% if p_family == 3 %}selected{% endif %}>查看+修改+删除他人数据</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <!-- V10.11.7 新增：天气（只读工具菜单，0/1 级） -->
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                              <div class="form-check mb-0 d-flex align-items-center">
+                                <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="weather" id="menu_weather_{{ u.id }}" {% if u.can_access_menu('weather') %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold small text-dark" for="menu_weather_{{ u.id }}">
+                                  <i class="fa-solid fa-cloud-sun text-info me-1"></i>天气
+                                </label>
+                              </div>
+                              <div style="min-width: 210px;">
+                                {% set p_weather = u.get_menu_perm('weather') %}
+                                <select class="form-select form-select-sm" name="menu_perm_weather">
+                                  <option value="0" {% if p_weather == 0 %}selected{% endif %}>无天气访问权限</option>
+                                  <option value="1" {% if p_weather == 1 %}selected{% endif %}>可查看实时天气</option>
                                 </select>
                               </div>
                             </div>
@@ -1370,6 +1387,22 @@ function copyCredPassword() {
                     <option value="1">仅查看他人数据</option>
                     <option value="2">查看+修改他人数据</option>
                     <option value="3">查看+修改+删除他人数据</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 7. 天气（V10.11.7 新增：只读工具菜单，0/1 级） -->
+              <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                <div class="form-check mb-0 d-flex align-items-center">
+                  <input class="form-check-input me-2" type="checkbox" name="allowed_menus" value="weather" id="batch_menu_weather">
+                  <label class="form-check-label fw-semibold small text-dark" for="batch_menu_weather">
+                    <i class="fa-solid fa-cloud-sun text-info me-1"></i>天气
+                  </label>
+                </div>
+                <div style="min-width: 210px;">
+                  <select class="form-select form-select-sm" name="menu_perm_weather">
+                    <option value="0" selected>无天气访问权限</option>
+                    <option value="1">可查看实时天气</option>
                   </select>
                 </div>
               </div>

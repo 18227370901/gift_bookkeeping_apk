@@ -213,12 +213,12 @@
       <div class="card-body p-0">
         {% if all_users %}
         <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
+          <table class="table table-hover align-middle mb-0" data-resizable="admin_backup_auth">
             <thead class="table-light">
               <tr>
-                <th class="ps-3">用户名</th>
-                <th style="width:100px">备份授权</th>
-                <th style="width:140px">操作</th>
+                <th class="ps-3" data-col="username">用户名</th>
+                <th style="width:100px" data-col="auth" data-col-min="90" data-col-max="140">备份授权</th>
+                <th style="width:140px" data-col="actions" data-col-min="110" data-col-max="180">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -290,12 +290,12 @@
         <!-- 每用户定时任务授权列表 -->
         {% if all_users %}
         <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
+          <table class="table table-hover align-middle mb-0" data-resizable="admin_task_auth">
             <thead class="table-light">
               <tr>
-                <th class="ps-3">用户名</th>
-                <th style="width:100px">任务授权</th>
-                <th style="width:140px">操作</th>
+                <th class="ps-3" data-col="username">用户名</th>
+                <th style="width:100px" data-col="auth" data-col-min="90" data-col-max="140">任务授权</th>
+                <th style="width:140px" data-col="actions" data-col-min="110" data-col-max="180">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -340,13 +340,13 @@
       <div class="card-body p-0">
         {% if scheduled_tasks %}
         <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
+          <table class="table table-hover align-middle mb-0" data-resizable="admin_scheduled_tasks">
             <thead class="table-light">
               <tr>
-                <th class="ps-3">任务名称</th>
-                <th>类型 / Cron</th>
-                <th>上次执行 / 创建人</th>
-                <th class="text-end pe-3" style="width:140px">操作</th>
+                <th class="ps-3" data-col="name">任务名称</th>
+                <th data-col="cron">类型 / Cron</th>
+                <th data-col="last_run">上次执行 / 创建人</th>
+                <th class="text-end pe-3" style="width:140px" data-col="actions" data-col-min="120" data-col-max="200">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -475,15 +475,15 @@
         </div>
 
         <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
+          <table class="table table-hover align-middle mb-0" data-resizable="admin_webdav_backups">
             <thead class="table-light">
               <tr>
-                <th style="width:36px"><input type="checkbox" id="selectAllBackups" onclick="toggleSelectAllBackups(this)"></th>
-                <th class="ps-1">备份文件</th>
-                <th>大小</th>
-                <th>备份时间</th>
-                <th>创建者</th>
-                <th class="text-end pe-4">操作</th>
+                <th style="width:36px" data-col="checkbox" data-col-min="32" data-col-max="60"><input type="checkbox" id="selectAllBackups" onclick="toggleSelectAllBackups(this)"></th>
+                <th class="ps-1" data-col="file" data-col-min="200">备份文件</th>
+                <th data-col="size" data-col-min="70" data-col-max="120">大小</th>
+                <th data-col="time" data-col-min="130">备份时间</th>
+                <th data-col="creator" data-col-min="80">创建者</th>
+                <th class="text-end pe-4" data-col="actions" data-col-min="150">操作</th>
               </tr>
             </thead>
             <tbody id="webdavBackupsTableBody">

@@ -23,17 +23,17 @@
   </div>
   <div class="card-body p-0">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0" data-resizable="admin_webhooks_list">
         <thead class="table-light">
           <tr>
-            <th class="ps-4">ID</th>
-            <th>渠道名称</th>
-            <th>连接方式</th>
-            <th>目标地址 / 凭证信息</th>
-            <th>触发通知</th>
-            <th>状态</th>
-            <th>创建时间</th>
-            <th class="text-end pe-4">操作</th>
+            <th class="ps-4" data-col="id" data-col-min="50">ID</th>
+            <th data-col="channel">渠道名称</th>
+            <th data-col="conn">连接方式</th>
+            <th data-col="target" data-col-min="180">目标地址 / 凭证信息</th>
+            <th data-col="events">触发通知</th>
+            <th data-col="status">状态</th>
+            <th data-col="created">创建时间</th>
+            <th class="text-end pe-4" data-col="actions" data-col-min="130">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -234,20 +234,20 @@
   <!-- 日志表格 -->
   <div class="card-body p-0">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0 small" id="webhookLogsTable">
+      <table class="table table-hover align-middle mb-0 small" id="webhookLogsTable" data-resizable="admin_webhooks_logs">
         <thead class="table-light">
           <tr>
-            <th class="ps-4" style="width: 45px;">
+            <th class="ps-4" style="width: 45px;" data-col="checkbox" data-col-min="40" data-col-max="60">
               <input class="form-check-input" type="checkbox" id="selectAllLogs" onchange="toggleSelectAllLogs(this)" title="当前页全选/反选">
             </th>
-            <th>时间</th>
-            <th>触发通道</th>
-            <th>发起用户</th>
-            <th>事件类型</th>
-            <th>状态</th>
-            <th>响应结果 / 状态码</th>
-            <th>请求数据摘要</th>
-            <th class="text-end pe-4">操作</th>
+            <th data-col="time">时间</th>
+            <th data-col="channel">触发通道</th>
+            <th data-col="user">发起用户</th>
+            <th data-col="event">事件类型</th>
+            <th data-col="status">状态</th>
+            <th data-col="response" data-col-min="200">响应结果 / 状态码</th>
+            <th data-col="payload" data-col-min="200">请求数据摘要</th>
+            <th class="text-end pe-4" data-col="actions" data-col-min="60">操作</th>
           </tr>
         </thead>
         <tbody id="webhookLogsTbody">

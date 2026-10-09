@@ -92,21 +92,21 @@
             </div>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0" data-resizable="permission_tickets">
                 <thead class="table-light">
                     <tr>
                         {% if current_user.is_admin %}
-                        <th style="width:36px"><input type="checkbox" id="selectAllTickets" onclick="toggleSelectAllTickets(this)"></th>
+                        <th style="width:36px" data-col="checkbox" data-col-min="32" data-col-max="60"><input type="checkbox" id="selectAllTickets" onclick="toggleSelectAllTickets(this)"></th>
                         {% endif %}
-                        <th style="width:50px"><a href="javascript:location.href='?'+toggleSortQs('id')" class="text-decoration-none text-reset">#</a></th>
-                        <th><a href="javascript:location.href='?'+toggleSortQs('applicant')" class="text-decoration-none text-reset">申请人{% if sort_key == 'applicant' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
-                        <th>申请模块</th>
-                        <th><a href="javascript:location.href='?'+toggleSortQs('reason')" class="text-decoration-none text-reset">申请理由{% if sort_key == 'reason' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
-                        <th style="width:90px"><a href="javascript:location.href='?'+toggleSortQs('status')" class="text-decoration-none text-reset">状态{% if sort_key == 'status' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
-                        <th><a href="javascript:location.href='?'+toggleSortQs('created_at')" class="text-decoration-none text-reset">提交时间{% if sort_key == 'created_at' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
-                        <th>审批人</th>
-                        <th><a href="javascript:location.href='?'+toggleSortQs('updated_at')" class="text-decoration-none text-reset">审批时间{% if sort_key == 'updated_at' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
-                        <th style="width:160px">操作</th>
+                        <th style="width:50px" data-col="id" data-col-min="44" data-col-max="80"><a href="javascript:location.href='?'+toggleSortQs('id')" class="text-decoration-none text-reset">#</a></th>
+                        <th data-col="applicant"><a href="javascript:location.href='?'+toggleSortQs('applicant')" class="text-decoration-none text-reset">申请人{% if sort_key == 'applicant' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th data-col="menu">申请模块</th>
+                        <th data-col="reason"><a href="javascript:location.href='?'+toggleSortQs('reason')" class="text-decoration-none text-reset">申请理由{% if sort_key == 'reason' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th style="width:90px" data-col="status" data-col-min="70" data-col-max="120"><a href="javascript:location.href='?'+toggleSortQs('status')" class="text-decoration-none text-reset">状态{% if sort_key == 'status' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th data-col="created_at"><a href="javascript:location.href='?'+toggleSortQs('created_at')" class="text-decoration-none text-reset">提交时间{% if sort_key == 'created_at' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th data-col="approver">审批人</th>
+                        <th data-col="updated_at"><a href="javascript:location.href='?'+toggleSortQs('updated_at')" class="text-decoration-none text-reset">审批时间{% if sort_key == 'updated_at' %}<i class="fa-solid fa-sort-{{ 'up' if order == 'asc' else 'down' }} ms-1"></i>{% endif %}</a></th>
+                        <th style="width:160px" data-col="actions" data-col-min="130">操作</th>
                     </tr>
                 </thead>
                 <tbody>

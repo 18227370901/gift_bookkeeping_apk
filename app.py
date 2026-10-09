@@ -768,6 +768,24 @@ def _do_startup_sync():
         db.session.commit()
         print(f"[Init] 已同步更新管理员账号 [{admin.username}] 密码为最新配置并确保处于激活状态")
 
+    # V10.11.7: 天气菜单权限回填（幂等）
+    # 背景：天气功能初始对所有登录用户开放；纳入权限管控后，
+    #       为既有普通用户幂等追加 weather 菜单访问权，避免老用户权限回退；
+    #       新注册用户默认无天气权限（需管理员授权或工单申请）
+    try:
+        _backfilled = 0
+        for u in User.query.filter_by(is_admin=False).all():
+            menus = [m.strip() for m in (u.allowed_menus or '').split(',') if m.strip()]
+            if 'weather' not in menus:
+                menus.append('weather')
+                u.allowed_menus = ','.join(menus)
+                _backfilled += 1
+        if _backfilled > 0:
+            db.session.commit()
+            print(f"[Init] V10.11.7 已为 {_backfilled} 个普通用户回填「天气」菜单权限")
+    except Exception as _e:
+        print(f"[Init] V10.11.7 天气权限回填跳过: {_e}")
+
 def init_database():
     with app.app_context():
         # V10.10.16: 幂等快速跳过——已标记最新版本的库跳过完整迁移流程
@@ -2544,7 +2562,7 @@ def admin_batch_user_permissions():
     menus_list = request.form.getlist('allowed_menus') or request.form.getlist('allowed_menus[]')
     allowed_menus_str = ",".join(menus_list)
 
-    ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups']
+    ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups', 'weather']
     menu_perms = {}
     for m in ALL_MENUS:
         val = request.form.get(f'menu_perm_{m}')
@@ -2624,7 +2642,7 @@ def admin_update_user_permissions(user_id):
     user.allowed_menus = ",".join(menus_list)
 
     # 2. 各菜单独立数据权限更新
-    ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups']
+    ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups', 'weather']
     MENU_NAMES = {
         'ledger': '礼金账本',
         'dashboard': '数据分析',
@@ -2633,7 +2651,8 @@ def admin_update_user_permissions(user_id):
         'reconciliation': '人情对账',
         'reminders': '纪念日备忘',
         'recycle_bin': '回收站',
-        'backups': 'WebDAV备份'
+        'backups': 'WebDAV备份',
+        'weather': '天气'
     }
     PERM_LABELS = {
         0: '仅自身',
@@ -3372,6 +3391,10 @@ register_routes_ext(
 # 注册 AI 助手路由
 from routes_ai import register_ai_routes
 register_ai_routes(app, log_action=log_action)
+
+# 注册天气查询路由（V10.11.7 同步：15 天预报 + 行政区划级联 + 坐标直查）
+from routes_weather import register_weather_routes
+register_weather_routes(app)
 
 
 if __name__ == '__main__':

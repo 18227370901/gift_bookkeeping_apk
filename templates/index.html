@@ -228,27 +228,27 @@
         <form id="batchDeleteForm" action="{{ url_for('batch_delete_records') }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 text-nowrap">
+            <table class="table table-hover align-middle mb-0 text-nowrap" data-resizable="gift_ledger">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-3" style="width: 40px;">
+                        <th class="ps-3" style="width: 40px;" data-col="checkbox" data-col-min="36" data-col-max="60">
                             <input class="form-check-input" type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)">
                         </th>
-                        <th>#</th>
-                        <th>客人姓名</th>
-                        <th>往来类型</th>
-                        <th>年龄</th>
-                        <th>联系电话</th>
-                        <th class="text-end">礼金金额(元)</th>
-                        <th>大写金额</th>
-                        <th>办席原因</th>
-                        <th>联系地址</th>
-                        <th>备注说明</th>
-                        <th>登记时间</th>
+                        <th data-col="seq" data-col-min="44" data-col-max="80">#</th>
+                        <th data-col="name">客人姓名</th>
+                        <th data-col="type">往来类型</th>
+                        <th data-col="age" data-col-min="50">年龄</th>
+                        <th data-col="phone">联系电话</th>
+                        <th class="text-end" data-col="amount">礼金金额(元)</th>
+                        <th data-col="amount_cn">大写金额</th>
+                        <th data-col="reason">办席原因</th>
+                        <th data-col="address">联系地址</th>
+                        <th data-col="note">备注说明</th>
+                        <th data-col="created_at">登记时间</th>
                         {% if current_user.is_admin or current_user.can_view_others_for('ledger') %}
-                        <th>录入用户</th>
+                        <th data-col="owner">录入用户</th>
                         {% endif %}
-                        <th class="text-end pe-3">操作</th>
+                        <th class="text-end pe-3" data-col="actions" data-col-min="110">操作</th>
                     </tr>
                 </thead>
                 <tbody>

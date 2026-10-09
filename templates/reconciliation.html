@@ -103,15 +103,15 @@
 
                 <!-- 数据表格 -->
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0" data-resizable="reconciliation_main">
                         <thead class="table-light">
                             <tr>
-                                <th class="ps-3">亲友 / 联系人</th>
-                                <th>收礼金额 (对方来)</th>
-                                <th>送礼金额 (我方出)</th>
-                                <th>对账差额 (收 - 送)</th>
-                                <th>人情状态</th>
-                                <th class="text-end pe-3">往来明细</th>
+                                <th class="ps-3" data-col="person">亲友 / 联系人</th>
+                                <th data-col="received">收礼金额 (对方来)</th>
+                                <th data-col="given">送礼金额 (我方出)</th>
+                                <th data-col="balance">对账差额 (收 - 送)</th>
+                                <th data-col="status">人情状态</th>
+                                <th class="text-end pe-3" data-col="detail" data-col-min="110">往来明细</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -214,14 +214,14 @@
             </div>
             <div class="modal-body p-3">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0" data-resizable="reconciliation_history">
                         <thead class="table-light">
                             <tr>
-                                <th>往来类型</th>
-                                <th>金额</th>
-                                <th>办席事由</th>
-                                <th>登记日期</th>
-                                <th>备注说明</th>
+                                <th data-col="type">往来类型</th>
+                                <th data-col="amount">金额</th>
+                                <th data-col="reason">办席事由</th>
+                                <th data-col="date">登记日期</th>
+                                <th data-col="note">备注说明</th>
                             </tr>
                         </thead>
                         <tbody id="historyTableBody">

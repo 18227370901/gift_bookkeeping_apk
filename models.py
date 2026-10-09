@@ -165,7 +165,7 @@ class User(UserMixin, db.Model):
                 res = json.loads(raw)
             except Exception:
                 res = {}
-        ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups']
+        ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups', 'weather']
         final_perms = {}
         for m in ALL_MENUS:
             val = res.get(m)
@@ -191,7 +191,7 @@ class User(UserMixin, db.Model):
     def set_menu_permissions(self, perms_dict):
         """设置各菜单独立数据权限配置"""
         clean_perms = {}
-        ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups']
+        ALL_MENUS = ['ledger', 'dashboard', 'family', 'banquets', 'reconciliation', 'reminders', 'recycle_bin', 'backups', 'weather']
         for m in ALL_MENUS:
             val = perms_dict.get(m, 0) if isinstance(perms_dict, dict) else 0
             try:

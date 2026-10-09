@@ -142,19 +142,19 @@
 
                     <!-- 数据表格 -->
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0" data-resizable="recycle_bin">
                             <thead class="table-light">
                                 <tr>
-                                    <th style="width: 40px;" class="ps-3"></th>
-                                    <th>所属标签页</th>
-                                    <th>名称 / 标题</th>
-                                    <th>类型性质</th>
-                                    <th>分类 / 事由</th>
-                                    <th>涉及金额</th>
-                                    <th>联系电话 / 场地</th>
-                                    <th>删除时间</th>
-                                    <th>备注说明</th>
-                                    <th class="text-end pe-3">操作</th>
+                                    <th style="width: 40px;" class="ps-3" data-col="checkbox" data-col-min="36" data-col-max="60"></th>
+                                    <th data-col="source">所属标签页</th>
+                                    <th data-col="name">名称 / 标题</th>
+                                    <th data-col="entity_type">类型性质</th>
+                                    <th data-col="category">分类 / 事由</th>
+                                    <th data-col="amount">涉及金额</th>
+                                    <th data-col="contact">联系电话 / 场地</th>
+                                    <th data-col="deleted_at">删除时间</th>
+                                    <th data-col="note">备注说明</th>
+                                    <th class="text-end pe-3" data-col="actions" data-col-min="130">操作</th>
                                 </tr>
                             </thead>
                             <tbody>

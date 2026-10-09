@@ -194,20 +194,20 @@
 
                 <!-- 4. 表格展示视图 (支持一键切换) -->
                 <div class="table-responsive border rounded-3 mb-3" id="banquetTableView" style="display: none;">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0" data-resizable="banquets_table_view">
                         <thead class="table-light">
                             <tr>
-                                <th style="width: 45px;" class="text-center">#</th>
-                                <th>宴席名称</th>
-                                <th>宴席类型</th>
-                                <th>台账归属 / 来源</th>
-                                <th>举办日期</th>
-                                <th>举办地点</th>
-                                <th>收礼笔数</th>
-                                <th>收礼总额</th>
-                                <th>办宴成本</th>
-                                <th>净盈亏</th>
-                                <th class="text-end pe-3">操作</th>
+                                <th style="width: 45px;" class="text-center" data-col="seq" data-col-min="40" data-col-max="80">#</th>
+                                <th data-col="title">宴席名称</th>
+                                <th data-col="type">宴席类型</th>
+                                <th data-col="source">台账归属 / 来源</th>
+                                <th data-col="date">举办日期</th>
+                                <th data-col="venue">举办地点</th>
+                                <th data-col="count">收礼笔数</th>
+                                <th data-col="total">收礼总额</th>
+                                <th data-col="cost">办宴成本</th>
+                                <th data-col="profit">净盈亏</th>
+                                <th class="text-end pe-3" data-col="actions" data-col-min="130">操作</th>
                             </tr>
                         </thead>
                         <tbody id="banquetTableTbody">

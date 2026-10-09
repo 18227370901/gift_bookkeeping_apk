@@ -12,10 +12,10 @@ AIGC:
 # 礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档
 
 > **项目路径**：`gift_bookkeeping_apk/`  
-> **文档版本**：V3.2.0（webview bootstrap 架构级重构：彻底移除 Kivy/SDL/GL）  
+> **文档版本**：V3.3.0（天气查询 + 行政区划级联 + 表格列宽调整，对齐 Web 版 V10.11.7）  
 > **生成日期**：2026-10-09  
 > **架构基线**：本地嵌入式 Flask 服务 + 原生 WebView 容器  
-> **代码规模**：12个Python文件 + 25个HTML模板 + 181条路由 + 22+数据模型
+> **代码规模**：14个Python文件 + 26个HTML模板 + 185条路由 + 22+数据模型
 
 ---
 
@@ -30,7 +30,8 @@ AIGC:
 7. **移动端适配设计** — 响应式布局 · 安全区域 · 触控优化
 8. **构建与CI/CD** — Buildozer · GitHub Actions · Android+iOS双平台
 9. **工程与安全保障** — 环境变量 · 认证鉴权 · 安全清单
-10. **版本演进路线图** — V1.0 → V2.0 → V3.0 → V3.1 → V3.1.1 → V3.2.0
+10. **版本演进路线图** — V1.0 → V2.0 → V3.0 → V3.1 → V3.1.1 → V3.2.0 → **V3.3.0（天气 + 列宽，对齐 Web 版 V10.11.7）**
+11. **V3.3.0 功能增量** — 天气查询 · 行政区划级联 · 表格列宽调整
 
 ---
 
@@ -325,7 +326,7 @@ Java PythonActivity.onCreate
 
 ## 4. 功能模块全量清单
 
-### 3.1 页面/路由清单（25个页面，181条路由）
+### 3.1 页面/路由清单（26个页面，181条路由）
 
 | # | 页面模板 | 路由 | 核心功能 |
 |:---|:---|:---|:---|
@@ -354,6 +355,7 @@ Java PythonActivity.onCreate
 | 23 | print_giftbook.html | `/print_giftbook` | 人情簿A4打印 |
 | 24 | poster_template.html | `/poster_template` | 海报模板 |
 | 25 | shared_ledger.html | `/shared_ledger/<token>` | 共享外链 |
+| 26 | weather.html | `/weather` | 天气查询（实时+15天预报/行政区划级联/ECharts趋势图） |
 
 ### 3.2 数据模型清单（22+个模型）
 
@@ -528,4 +530,38 @@ body {
 | V3.0.1 | 本地Flask+WebView（Kivy容器） | 181 | ✅ | ❌空白（同V3.0根因） | 已被替代 |
 | V3.1 | 本地Flask+WebView+诊断页（Kivy容器） | 181 | ❌失败（run 37746146665） | — | 已被替代 |
 | V3.1.1 | 同V3.1+OCR修复 | 181 | ✅ | ❌空白（连诊断页都无→Kivy链嫌疑） | 已被替代 |
-| **V3.2.0** | **webview bootstrap（纯Java WebView，无Kivy）** | **181** | **待CI验证** | **待真机验证** | **当前版本** |
+| V3.2.0 | webview bootstrap（纯Java WebView，无Kivy） | 181 | ✅ | ✅真机可运行（见 V3.2.1 迭代） | 已被替代 |
+| **V3.3.0** | **webview bootstrap + 天气查询 + 表格列宽调整（对齐 Web 版 V10.11.7）** | **181** | **待CI验证** | **待真机验证** | **当前版本** |
+
+---
+
+## 11. V3.3.0 功能增量（对齐 Web 版 V10.11.4/6/7）
+
+### 11.1 天气查询（新增 `weather_service.py` + `routes_weather.py` + `templates/weather.html`）
+
+| 项 | 说明 |
+|---|---|
+| 数据源 | Open-Meteo（免费无密钥）；实时含温度/体感/湿度/风速风向（角度→中文方位）/阵风/气压/云量；每日含最高最低温/降水概率/日出日落/紫外线/累计降水 |
+| 15 天预报 | `forecast_days` 参数化（默认 15，1~16）；`/api/weather/query` 支持 `days` 参数 |
+| 级联选择 | 省/市/区县三级下拉（34 省/476 市/2875 区县），阿里云 DataV GeoAtlas 数据本地内置 `static/js/china-regions.js`（144KB 含行政中心坐标）；GeoNames 缺中国区县级地名，级联选中后按内置坐标直查（零错配） |
+| 布局 | 大卡片（2×4 指标网格）→ 15 天温度趋势双折线图（本地化 ECharts 5.5.0）→ 15 天卡片网格（今天高亮）；记住上次查询方式与地区自动恢复 |
+| 网络策略 | `_http_get`：禁代理直连优先 + 系统代理兜底 |
+| 权限管控 | weather 受控菜单（0/1 级）：menu_map 门控 + 导航条件渲染 + 用户管理单用户/批量配置 + 工单申请 + `_do_startup_sync` 启动幂等回填老用户权限；Webhook 矩阵补只读行 |
+
+### 11.2 表格列宽手动调整（新增 `static/js/table-resizer.js`，21 张主业务表）
+
+| 项 | 说明 |
+|---|---|
+| 机制 | `table[data-resizable]` + `th[data-col]`；首次固化自然宽度 + `table-layout: fixed`；表头右缘 8px 分隔条拖拽实时生效 |
+| 约束/持久化 | min 60 / max 480（单列可覆盖）；localStorage 按用户+表格隔离；容器右上角「重置列宽」按钮 |
+| 移动端适配 | APK 为触屏窄屏场景：`<768px` 自动降级禁用拖拽与恢复，保持自然布局（代码与 Web 版一致，行为自动适配） |
+
+### 11.3 验证结论（11446 临时实例验证）
+
+| 场景 | 结果 |
+|---|---|
+| 礼金账本 14 列 resizer + fixed + 重置按钮 | ✅ |
+| 天气默认查询 + 级联（四川→成都→双流）15 天 + 趋势图 | ✅ |
+| 全部 Python 文件编译通过 | ✅ |
+| 路由实测：url_map 全量 181 条（较 V3.2.1 基线 179 新增天气 2 条） | ✅ |
+| 版本号全线升级 3.3.0（buildozer versionName / main.py APP_VERSION / 页脚 / CI Artifact·Release tag / iOS plist） | ✅ |

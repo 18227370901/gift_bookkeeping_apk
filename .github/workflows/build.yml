@@ -13,7 +13,7 @@ permissions:
 jobs:
   # ==================== Android APK 构建 ====================
   build-android:
-    name: Build Android APK (v3.2.0)
+    name: Build Android APK (v3.3.0)
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -125,13 +125,13 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-Android-APK-v3.2.0
+          name: GiftBookkeeping-Android-APK-v3.3.0
           path: bin/*.apk
           if-no-files-found: error
       - name: Upload AAB Artifact (if available)
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-Android-AAB-v3.2.0
+          name: GiftBookkeeping-Android-AAB-v3.3.0
           path: bin/*.aab
           if-no-files-found: warn
         continue-on-error: true
@@ -141,7 +141,7 @@ jobs:
           export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
           APK=$(ls bin/*.apk | head -1)
           echo "[check] APK: $APK ($(du -m "$APK" | cut -f1) MB)"
-          echo "## APK 自检报告（v3.2.0）" >> "$GITHUB_STEP_SUMMARY"
+          echo "## APK 自检报告（v3.3.0）" >> "$GITHUB_STEP_SUMMARY"
           echo "APK: \`$APK\` ($(du -m "$APK" | cut -f1) MB)" >> "$GITHUB_STEP_SUMMARY"
 
           # 1) AndroidManifest 版本验证（aapt2 优先，aapt 降级；均为软检查）
@@ -152,10 +152,10 @@ jobs:
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             echo "$BADGING" | head -2 >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
-            if echo "$BADGING" | grep -q "versionName='3.2.0'"; then
-              echo "[check] versionName=3.2.0 OK"
+            if echo "$BADGING" | grep -q "versionName='3.3.0'"; then
+              echo "[check] versionName=3.3.0 OK"
             else
-              echo "[check][WARN] versionName 非 3.2.0（软警告，不阻断）"
+              echo "[check][WARN] versionName 非 3.3.0（软警告，不阻断）"
             fi
           else
             echo "[check][WARN] 未找到 aapt/aapt2，跳过 manifest 检查（软警告）"
@@ -193,14 +193,15 @@ jobs:
               errors.append('APK 缺少 lib/<abi>/libpybundle.so')
               log('- libpybundle.so: MISSING (lib/ .so total %d: %s)' % (len(all_so), str(all_so[:8])))
 
-          # 2c) private.tar 内：项目 12 个核心 .py(/.pyc) + templates + static
+          # 2c) private.tar 内：项目 14 个核心 .py(/.pyc) + templates + static
           if 'assets/private.tar' in names:
               tar = tarfile.open(fileobj=io.BytesIO(z.read('assets/private.tar')))
               tnames = tar.getnames()
               required_py = ['main.py', 'app.py', 'models.py', 'routes_ext.py',
                              'routes_ai.py', 'ai_service.py', 'pdf_generator.py',
                              'gift_utils.py', 'webhook_utils.py', 'webdav_utils.py',
-                             'web_search.py', '_daemon_lock.py']
+                             'web_search.py', '_daemon_lock.py',
+                             'weather_service.py', 'routes_weather.py']
               missing = []
               for f in required_py:
                   stem = f[:-3]
@@ -217,7 +218,7 @@ jobs:
                   report.append('```')
               tpl = [n for n in tnames if 'templates/' in n and n.endswith('.html')]
               sta = [n for n in tnames if 'static/' in n]
-              core_msg = 'OK 12/12' if not missing else 'MISSING ' + str(missing)
+              core_msg = 'OK 14/14' if not missing else 'MISSING ' + str(missing)
               log('- private.tar 核心 py: ' + core_msg)
               tpl_state = 'OK' if len(tpl) >= 20 else 'WARN(<20, soft)'
               log('- templates/*.html: %d 个 %s' % (len(tpl), tpl_state))
@@ -274,7 +275,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-v3.2.0
+          name: build-log-v3.3.0
           path: |
             build_log.txt
             build_aab_log.txt
@@ -285,12 +286,17 @@ jobs:
         if: github.ref_type == 'tag' || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name == 'main' && 'v3.2.0-latest' || github.ref_name }}
-          name: "礼金记账簿 v3.2.0 ${{ github.ref_name == 'main' && '(Latest)' || github.ref_name }}"
+          tag_name: ${{ github.ref_name == 'main' && 'v3.3.0-latest' || github.ref_name }}
+          name: "礼金记账簿 v3.3.0 ${{ github.ref_name == 'main' && '(Latest)' || github.ref_name }}"
           body: |
-            ### 📱 礼金记账簿 Android 客户端 v3.2.0
+            ### 📱 礼金记账簿 Android 客户端 v3.3.0
             
             本版本由 GitHub Actions 自动化编译打包生成。
+            
+            **v3.3.0 更新内容（天气查询 + 表格列宽调整，对齐 Web 版 V10.11.7）：**
+            - 新增天气查询页：Open-Meteo 实时天气 + 15 天预报，行政区划级联选择（中国→省→市→区县，阿里云 DataV 数据本地内置含坐标，零错配）
+            - 21 张主业务表支持列宽拖拽调整（按用户+表格记忆、双击自适应、移动端窄屏自动降级）
+            - 应用版本号全线升级 3.3.0（versionName / 启动横幅 / 页脚 / 诊断快照）
             
             **v3.2.0 更新内容（架构级重构：彻底移除 Kivy/SDL/GL 渲染链）：**
             - 切换 p4a 官方 webview bootstrap：WebView 由 Java 层直接创建，Python 仅负责后台 Flask，不再依赖 Kivy/SDL/OpenGL
@@ -316,7 +322,7 @@ jobs:
 
   # ==================== iOS IPA 构建 ====================
   build-ios:
-    name: Build iOS IPA (v3.2.0)
+    name: Build iOS IPA (v3.3.0)
     runs-on: macos-14
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     steps:
@@ -386,7 +392,7 @@ jobs:
               <key>CFBundleDisplayName</key><string>礼金记账簿</string>
               <key>CFBundleIdentifier</key><string>org.giftbookkeeping.app</string>
               <key>CFBundleVersion</key><string>1</string>
-              <key>CFBundleShortVersionString</key><string>3.2.0</string>
+              <key>CFBundleShortVersionString</key><string>3.3.0</string>
               <key>CFBundlePackageType</key><string>APPL</string>
               <key>CFBundleExecutable</key><string>GiftBookkeeping</string>
               <key>LSRequiresIPhoneOS</key><true/>
@@ -444,22 +450,22 @@ jobs:
             echo "Found App: $APP_PATH"
             cp -r ../templates "$APP_PATH/"
             cp -r ../static "$APP_PATH/"
-            cp ../app.py ../models.py ../routes_ext.py ../routes_ai.py ../ai_service.py ../pdf_generator.py ../gift_utils.py ../webhook_utils.py ../webdav_utils.py ../web_search.py ../_daemon_lock.py "$APP_PATH/"
+            cp ../app.py ../models.py ../routes_ext.py ../routes_ai.py ../ai_service.py ../pdf_generator.py ../gift_utils.py ../webhook_utils.py ../webdav_utils.py ../web_search.py ../_daemon_lock.py ../weather_service.py ../routes_weather.py "$APP_PATH/"
             mkdir -p Payload
             cp -r "$APP_PATH" Payload/
-            zip -r GiftBookkeeping-v3.2.0-unsigned.ipa Payload/
-            echo "IPA created: $(ls -la GiftBookkeeping-v3.2.0-unsigned.ipa)"
+            zip -r GiftBookkeeping-v3.3.0-unsigned.ipa Payload/
+            echo "IPA created: $(ls -la GiftBookkeeping-v3.3.0-unsigned.ipa)"
           else
             echo "Build output not found, creating placeholder IPA"
             mkdir -p Payload/GiftBookkeeping.app
-            echo "v3.2.0 placeholder" > Payload/GiftBookkeeping.app/placeholder.txt
-            zip -r GiftBookkeeping-v3.2.0-unsigned.ipa Payload/
+            echo "v3.3.0 placeholder" > Payload/GiftBookkeeping.app/placeholder.txt
+            zip -r GiftBookkeeping-v3.3.0-unsigned.ipa Payload/
           fi
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-iOS-IPA-v3.2.0-Unsigned
+          name: GiftBookkeeping-iOS-IPA-v3.3.0-Unsigned
           path: ios_project/*.ipa
           if-no-files-found: warn
         continue-on-error: true
@@ -469,9 +475,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "礼金记账簿 v3.2.0 ${{ github.ref_name }}"
+          name: "礼金记账簿 v3.3.0 ${{ github.ref_name }}"
           body: |
-            ### 📱 礼金记账簿 iOS 客户端 v3.2.0（未签名）
+            ### 📱 礼金记账簿 iOS 客户端 v3.3.0（未签名）
             
             本 IPA 为未签名构建产物，需开发者自行签名后安装。
           files: ios_project/*.ipa

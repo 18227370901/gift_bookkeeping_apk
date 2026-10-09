@@ -1,0 +1,537 @@
+{% extends "base.html" %}
+{% block title %}天气预报 - 人情礼金记账系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* V10.11.7 天气页改版样式（参考主流天气站首页式布局） */
+    .weather-hero-card {
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(13, 202, 240, 0.10));
+        border: 1px solid var(--app-border-soft);
+        transition: background 0.25s ease;
+    }
+    [data-bs-theme="dark"] .weather-hero-card {
+        background: linear-gradient(135deg, rgba(13, 110, 253, 0.16), rgba(13, 202, 240, 0.10));
+    }
+    .weather-hero-temp { font-size: 4rem; font-weight: 700; line-height: 1; }
+    .metric-item {
+        background: var(--app-card-bg);
+        border: 1px solid var(--app-border-soft);
+        border-radius: 10px;
+        padding: 0.75rem 0.9rem;
+        transition: background-color 0.25s ease, border-color 0.25s ease;
+    }
+    .metric-item .metric-icon { font-size: 1.05rem; width: 1.4rem; text-align: center; }
+    /* 指标文字不截断：标签与值均允许收缩换行，保证信息完整可读 */
+    .metric-item .metric-label, .metric-item .metric-value {
+        white-space: normal; word-break: break-word; overflow-wrap: anywhere;
+    }
+    .metric-item .metric-label { font-size: 0.75rem; }
+    .metric-item .metric-value { font-size: 0.8rem; line-height: 1.25; }
+    .day-card {
+        background: var(--app-card-bg);
+        border: 1px solid var(--app-border-soft);
+        border-radius: 10px;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .day-card:hover { transform: translateY(-2px); box-shadow: 0 0.35rem 0.6rem rgba(0,0,0,0.08); }
+    .day-card.today { border-color: #0d6efd; box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.25); }
+    .weather-chart-wrap {
+        background: var(--app-card-bg);
+        border: 1px solid var(--app-border-soft);
+        border-radius: 10px;
+        padding: 0.75rem;
+    }
+    #weatherTrendChart { width: 100%; height: 260px; }
+    .region-select { min-width: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <i class="fa-solid fa-cloud-sun me-2 text-primary"></i>天气预报
+            <span class="small text-muted ms-2">15 天预报 ｜ 数据来源：Open-Meteo（免费接口，无需密钥）</span>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- V10.11.7 查询区：级联选择 + 自由输入 两种方式并存 -->
+        <div class="row g-2 mb-3">
+            <div class="col-12">
+                <div class="d-flex align-items-center gap-1 mb-1">
+                    <i class="fa-solid fa-sitemap text-primary small"></i>
+                    <span class="fw-semibold small">行政区划级联查询</span>
+                    <span class="small text-muted">（中国 → 省 → 市 → 区县）</span>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6 col-md-3 region-select">
+                        <select class="form-select form-select-sm" id="provinceSelect" aria-label="选择省份"></select>
+                    </div>
+                    <div class="col-6 col-md-3 region-select">
+                        <select class="form-select form-select-sm" id="citySelect" aria-label="选择城市"></select>
+                    </div>
+                    <div class="col-6 col-md-3 region-select">
+                        <select class="form-select form-select-sm" id="districtSelect" aria-label="选择区县"></select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <button class="btn btn-primary btn-sm w-100" type="button" id="cascadeBtn">
+                            <i class="fa-solid fa-cloud-sun me-1"></i>查询级联所选地区
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="d-flex align-items-center gap-1 mb-1">
+                    <i class="fa-solid fa-keyboard text-secondary small"></i>
+                    <span class="fw-semibold small">城市名自由查询</span>
+                    <span class="small text-muted">（级联未覆盖时可手输，如：北京、成都）</span>
+                </div>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="text" class="form-control" id="cityInput" placeholder="输入城市名，如：北京" maxlength="30" autocomplete="off">
+                    <button class="btn btn-outline-primary" type="button" id="searchBtn">
+                        <i class="fa-solid fa-cloud-sun me-1"></i>查询天气
+                    </button>
+                </div>
+            </div>
+            <div class="col-12">
+                <div id="queryStatus" class="small text-muted"></div>
+            </div>
+        </div>
+
+        <!-- 查询结果区域 -->
+        <div id="weatherResult"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- V10.11.7：行政区划数据（本地内置，含坐标）+ ECharts（趋势图，本地化） -->
+<script src="{{ url_for('static', filename='js/china-regions.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/echarts/5.5.0/echarts.min.js') }}"></script>
+<script>
+(function () {
+    'use strict';
+
+    // ===== 元素引用 =====
+    var provinceSelect = document.getElementById('provinceSelect');
+    var citySelect = document.getElementById('citySelect');
+    var districtSelect = document.getElementById('districtSelect');
+    var cascadeBtn = document.getElementById('cascadeBtn');
+    var cityInput = document.getElementById('cityInput');
+    var searchBtn = document.getElementById('searchBtn');
+    var queryStatus = document.getElementById('queryStatus');
+    var weatherResult = document.getElementById('weatherResult');
+
+    // ===== 本地记忆键（V10.11.7：记住上次查询方式与地区） =====
+    var LS_MODE = 'gift_weather_mode';      // 'cascade' | 'text'
+    var LS_REGION = 'gift_weather_region';  // {p:省, c:市, d:区县}
+    var LS_CITY = 'gift_weather_city';      // 文本模式城市名
+
+    var REGIONS = window.CHINA_REGIONS || [];
+    var trendChart = null;
+
+    // ===== 工具函数 =====
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function getCsrfToken() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    // "2026-10-09" → "10月9日 周五"
+    function formatDate(dateStr) {
+        var parts = String(dateStr).split('-').map(Number);
+        if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+            return dateStr || '';
+        }
+        var d = new Date(parts[0], parts[1] - 1, parts[2]);
+        var weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        return parts[1] + '月' + parts[2] + '日 ' + weekdays[d.getDay()];
+    }
+
+    // "2026-10-09T06:12" → "06:12"
+    function formatTime(dtStr) {
+        if (!dtStr) return '--';
+        var t = String(dtStr).split('T')[1];
+        return t || '--';
+    }
+
+    // 数值显示兜底
+    function fmt(v, suffix) {
+        if (v === null || v === undefined || v === '') return '--';
+        return v + (suffix || '');
+    }
+
+    // 紫外线等级中文
+    function uvLevel(v) {
+        if (v === null || v === undefined) return '--';
+        v = Number(v);
+        if (isNaN(v)) return '--';
+        if (v < 3) return '弱';
+        if (v < 6) return '中等';
+        if (v < 8) return '强';
+        if (v < 11) return '很强';
+        return '极强';
+    }
+
+    function setStatus(html) { queryStatus.innerHTML = html; }
+
+    // ===== 级联选择初始化 =====
+    function fillSelect(sel, items, placeholder) {
+        sel.innerHTML = '';
+        var opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = placeholder;
+        sel.appendChild(opt);
+        items.forEach(function (it, i) {
+            var o = document.createElement('option');
+            o.value = String(i);
+            o.textContent = it.n;
+            sel.appendChild(o);
+        });
+    }
+
+    function initProvince() {
+        fillSelect(provinceSelect, REGIONS, '-- 选择省份 --');
+    }
+
+    function onProvinceChange() {
+        var p = REGIONS[Number(provinceSelect.value)];
+        citySelect.innerHTML = '';
+        districtSelect.innerHTML = '';
+        if (!p) {
+            fillSelect(citySelect, [], '-- 先选择省份 --');
+            fillSelect(districtSelect, [], '-- 先选择城市 --');
+            return;
+        }
+        fillSelect(citySelect, p.c, '-- 选择城市 --');
+        fillSelect(districtSelect, [], '-- 先选择城市 --');
+    }
+
+    function onCityChange() {
+        var p = REGIONS[Number(provinceSelect.value)];
+        districtSelect.innerHTML = '';
+        if (!p) { fillSelect(districtSelect, [], '-- 先选择城市 --'); return; }
+        var c = p.c[Number(citySelect.value)];
+        if (!c) { fillSelect(districtSelect, [], '-- 先选择城市 --'); return; }
+        fillSelect(districtSelect, c.c, '-- 选择区县 --');
+    }
+
+    // ===== 级联查询（坐标直查：区划数据内置坐标，GeoNames 缺中国区县级地名） =====
+    function doCascadeQuery(auto) {
+        var pIdx = provinceSelect.value;
+        var cIdx = citySelect.value;
+        var dIdx = districtSelect.value;
+        if (pIdx === '' || cIdx === '' || dIdx === '') {
+            if (!auto) { setStatus('<span class="text-danger"><i class="fa-solid fa-circle-exclamation me-1"></i>请依次选择省、市、区县</span>'); }
+            return false;
+        }
+        var p = REGIONS[Number(pIdx)];
+        var c = p.c[Number(cIdx)];
+        var d = c.c[Number(dIdx)];
+        // 直辖市省市同名（北京市→北京市）时拼接去重
+        var labelParts = [];
+        labelParts.push(p.n);
+        if (c.n !== p.n) labelParts.push(c.n);
+        labelParts.push(d.n);
+        var label = labelParts.join('');
+        // d.g = [lng, lat]（阿里云 DataV 坐标顺序）
+        var lng = d.g[0], lat = d.g[1];
+
+        // 记忆本次选择
+        try {
+            localStorage.setItem(LS_MODE, 'cascade');
+            localStorage.setItem(LS_REGION, JSON.stringify({ p: p.n, c: c.n, d: d.n }));
+        } catch (e) {}
+
+        setStatus('<i class="fa-solid fa-spinner fa-spin me-1"></i>正在查询「' + escapeHtml(label) + '」的天气…');
+        return fetchWeather('/api/weather/query?lat=' + encodeURIComponent(lat) +
+            '&lon=' + encodeURIComponent(lng) + '&label=' + encodeURIComponent(label) + '&days=15', label);
+    }
+
+    // ===== 文本查询 =====
+    function doTextQuery(city, auto) {
+        city = (city || cityInput.value).trim();
+        if (!city) {
+            if (!auto) {
+                weatherResult.innerHTML = '<div class="alert alert-warning shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>请输入城市名称</div>';
+                cityInput.focus();
+            }
+            return false;
+        }
+        // 记忆本次城市
+        try {
+            localStorage.setItem(LS_MODE, 'text');
+            localStorage.setItem(LS_CITY, city);
+        } catch (e) {}
+
+        setStatus('<i class="fa-solid fa-spinner fa-spin me-1"></i>正在查询「' + escapeHtml(city) + '」的天气…');
+        return fetchWeather('/api/weather/query?city=' + encodeURIComponent(city) + '&days=15', city);
+    }
+
+    function fetchWeather(url, displayName) {
+        setButtonsDisabled(true);
+        return fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': getCsrfToken()
+            }
+        })
+        .then(function (res) {
+            return res.json().catch(function () {
+                return { code: res.status, message: '服务响应异常' };
+            });
+        })
+        .then(function (data) {
+            if (data.code === 200 && data.data) {
+                setStatus('<span class="text-success"><i class="fa-solid fa-circle-check me-1"></i>' + escapeHtml(displayName) + ' 查询成功</span>');
+                renderResult(data.data);
+            } else {
+                weatherResult.innerHTML =
+                    '<div class="alert alert-warning shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>' +
+                    escapeHtml(data.message || '查询失败，请稍后重试') + '</div>';
+            }
+        })
+        .catch(function () {
+            weatherResult.innerHTML =
+                '<div class="alert alert-danger shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>网络请求失败，请稍后重试</div>';
+        })
+        .finally(function () { setButtonsDisabled(false); });
+    }
+
+    function setButtonsDisabled(disabled) {
+        cascadeBtn.disabled = disabled;
+        searchBtn.disabled = disabled;
+        if (disabled) {
+            cascadeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>查询中';
+            searchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>查询中';
+        } else {
+            cascadeBtn.innerHTML = '<i class="fa-solid fa-cloud-sun me-1"></i>查询级联所选地区';
+            searchBtn.innerHTML = '<i class="fa-solid fa-cloud-sun me-1"></i>查询天气';
+        }
+    }
+
+    // ===== 渲染：当前天气大卡片 =====
+    function renderHero(city, cur, firstDay) {
+        var cityName = [city.name].filter(Boolean).join('');
+        var isCascadeLabel = cityName.length > 6; // 级联 label 为「省市区县」长串
+        var heroName = isCascadeLabel ? city.name : ([city.name, city.admin1].filter(Boolean).join('，'));
+
+        var html = '';
+        html += '<div class="weather-hero-card p-3 p-md-4 mb-3">';
+        html += '  <div class="row align-items-center g-3">';
+        html += '    <div class="col-md-6 text-center text-md-start">';
+        html += '      <h5 class="mb-1"><i class="fa-solid fa-location-dot me-2 text-danger"></i>' + escapeHtml(heroName) + '</h5>';
+        html += '      <div class="small text-muted mb-2">' + escapeHtml(city.country || '中国') + (cur.time ? ' ｜ 更新：' + escapeHtml(cur.time) : '') + '</div>';
+        html += '      <div class="d-flex align-items-center justify-content-center justify-content-md-start gap-3">';
+        html += '        <i class="fa-solid ' + (cur.icon || 'fa-cloud') + ' fa-4x text-warning"></i>';
+        html += '        <div>';
+        html += '          <div class="weather-hero-temp">' + fmt(cur.temperature, '') + '<span class="fs-3 align-top">°C</span></div>';
+        html += '          <div class="text-muted">' + escapeHtml(cur.weather_text || '未知') + '</div>';
+        html += '        </div>';
+        html += '      </div>';
+        html += '    </div>';
+        html += '    <div class="col-md-6">';
+        html += '      <div class="row g-2">';
+        // 指标网格 2×4
+        html += metricItem('fa-temperature-half', 'text-danger', '体感温度', fmt(cur.apparent_temperature, '°C'));
+        html += metricItem('fa-droplet', 'text-info', '相对湿度', fmt(cur.humidity, '%'));
+        html += metricItem('fa-wind', 'text-success', '风况', fmt(cur.wind_speed, ' km/h') + (cur.wind_direction_text ? '（' + cur.wind_direction_text + '风）' : ''));
+        html += metricItem('fa-wind', 'text-secondary', '阵风', fmt(cur.wind_gusts, ' km/h'));
+        html += metricItem('fa-gauge-high', 'text-primary', '气压', fmt(cur.pressure, ' hPa'));
+        html += metricItem('fa-cloud', 'text-secondary', '云量', fmt(cur.cloud_cover, '%'));
+        html += metricItem('fa-sun', 'text-warning', '日出', formatTime(firstDay && firstDay.sunrise));
+        html += metricItem('fa-moon', 'text-primary', '日落', formatTime(firstDay && firstDay.sunset));
+        html += '      </div>';
+        html += '    </div>';
+        html += '  </div>';
+        html += '</div>';
+        return html;
+    }
+
+    function metricItem(icon, iconClass, label, value) {
+        return '<div class="col-6 col-md-6 col-lg-3"><div class="metric-item d-flex align-items-center gap-2">' +
+            '<i class="fa-solid ' + icon + ' metric-item-icon ' + iconClass + '"></i>' +
+            '<div style="min-width:0"><div class="metric-label text-muted">' + label + '</div>' +
+            '<div class="metric-value fw-semibold">' + value + '</div></div></div></div>';
+    }
+
+    // ===== 渲染：15 天预报卡片 =====
+    function renderDailyGrid(daily) {
+        if (!daily || daily.length === 0) return '';
+        var html = '';
+        html += '<h6 class="text-muted mb-2 mt-3"><i class="fa-solid fa-calendar-days me-2"></i>未来 ' + daily.length + ' 天预报</h6>';
+        html += '<div class="row row-cols-2 row-cols-sm-3 row-cols-md-5 g-2 mb-3">';
+        daily.forEach(function (d, i) {
+            var dateShort = String(d.date || '').slice(5).replace('-', '月') + '日';
+            html += '<div class="col">';
+            html += '  <div class="day-card text-center p-2 h-100' + (i === 0 ? ' today' : '') + '">';
+            html += '    <div class="small ' + (i === 0 ? 'text-primary fw-bold' : 'text-muted') + '">' + (i === 0 ? '今天' : escapeHtml(formatDate(d.date).split(' ')[1])) + '</div>';
+            html += '    <div class="small text-muted">' + escapeHtml(dateShort) + '</div>';
+            html += '    <i class="fa-solid ' + (d.icon || 'fa-cloud') + ' fa-2x text-warning my-2"></i>';
+            html += '    <div class="small fw-semibold text-truncate" title="' + escapeHtml(d.weather_text || '') + '">' + escapeHtml(d.weather_text || '未知') + '</div>';
+            html += '    <div class="mt-1">';
+            html += '      <span class="text-danger fw-bold">' + fmt(d.temp_max, '°') + '</span>';
+            html += '      <span class="text-muted mx-1">/</span>';
+            html += '      <span class="text-primary fw-bold">' + fmt(d.temp_min, '°') + '</span>';
+            html += '    </div>';
+            html += '    <div class="small text-muted mt-1"><i class="fa-solid fa-umbrella me-1"></i>' + fmt(d.precip_prob, '%') + '</div>';
+            html += '    <div class="small text-muted"><i class="fa-solid fa-sun me-1 text-warning opacity-75"></i>' + uvLevel(d.uv_index) + '</div>';
+            html += '  </div>';
+            html += '</div>';
+        });
+        html += '</div>';
+        return html;
+    }
+
+    // ===== 渲染：温度趋势图（复用本地化 ECharts，双主题适配） =====
+    function renderTrendChart(daily) {
+        if (!daily || daily.length === 0 || !window.echarts) return '';
+        var html = '';
+        html += '<div class="weather-chart-wrap mb-3">';
+        html += '  <div class="d-flex justify-content-between align-items-center px-2 pt-1">';
+        html += '    <span class="fw-semibold small text-muted"><i class="fa-solid fa-chart-line me-2 text-primary"></i>15 天温度趋势</span>';
+        html += '    <span class="small"><span class="text-danger fw-bold">● 最高温</span> <span class="ms-2 text-primary fw-bold">● 最低温</span></span>';
+        html += '  </div>';
+        html += '  <div id="weatherTrendChart"></div>';
+        html += '</div>';
+        // 先返回 HTML，图形容器渲染后初始化（调用方在 innerHTML 赋值后再调 initChart）
+        pendingDaily = daily;
+        return html;
+    }
+
+    var pendingDaily = null;
+
+    function initChartIfNeeded() {
+        var el = document.getElementById('weatherTrendChart');
+        if (!el || !pendingDaily || !window.echarts) return;
+        var daily = pendingDaily;
+        var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        var axisColor = isDark ? '#9aa5b1' : '#6c757d';
+        var splitColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
+        var dates = daily.map(function (d) { return String(d.date || '').slice(5).replace('-', '/'); });
+        var maxs = daily.map(function (d) { return d.temp_max; });
+        var mins = daily.map(function (d) { return d.temp_min; });
+
+        if (trendChart) { trendChart.dispose(); trendChart = null; }
+        trendChart = echarts.init(el);
+        trendChart.setOption({
+            grid: { left: 40, right: 16, top: 20, bottom: 26 },
+            tooltip: {
+                trigger: 'axis',
+                valueFormatter: function (v) { return v + '°C'; }
+            },
+            xAxis: {
+                type: 'category',
+                data: dates,
+                axisLine: { lineStyle: { color: axisColor } },
+                axisLabel: { color: axisColor, fontSize: 11 }
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: { color: axisColor, formatter: '{value}°' },
+                splitLine: { lineStyle: { color: splitColor } }
+            },
+            series: [
+                {
+                    name: '最高温', type: 'line', data: maxs, smooth: true,
+                    lineStyle: { color: '#e03131', width: 2 },
+                    itemStyle: { color: '#e03131' },
+                    areaStyle: { color: 'rgba(224, 49, 49, 0.08)' }
+                },
+                {
+                    name: '最低温', type: 'line', data: mins, smooth: true,
+                    lineStyle: { color: '#1c7ed6', width: 2 },
+                    itemStyle: { color: '#1c7ed6' },
+                    areaStyle: { color: 'rgba(28, 126, 214, 0.08)' }
+                }
+            ]
+        });
+        pendingDaily = null;
+        // 容器尺寸变化自适应（列宽拖拽/窗口缩放场景）
+        window.addEventListener('resize', function () {
+            if (trendChart) trendChart.resize();
+        });
+    }
+
+    // ===== 渲染主入口 =====
+    function renderResult(data) {
+        var city = data.city || {};
+        var cur = data.current || {};
+        var daily = data.daily || [];
+
+        var html = '';
+        html += renderHero(city, cur, daily[0]);
+        // 先总览趋势，再看每日明细（V10.11.7 布局：大卡片 → 趋势图 → 15 天卡片）
+        html += renderTrendChart(daily);
+        html += renderDailyGrid(daily);
+
+        weatherResult.innerHTML = html;
+        initChartIfNeeded();
+    }
+
+    // ===== 事件绑定 =====
+    cascadeBtn.addEventListener('click', function () { doCascadeQuery(false); });
+    searchBtn.addEventListener('click', function () { doTextQuery('', false); });
+    cityInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); doTextQuery('', false); }
+    });
+    provinceSelect.addEventListener('change', onProvinceChange);
+    citySelect.addEventListener('change', onCityChange);
+
+    // ===== 页面初始化：恢复上次查询方式并自动查询（无记录默认北京） =====
+    initProvince();
+
+    var savedMode = null, savedRegion = null, savedCity = null;
+    try {
+        savedMode = localStorage.getItem(LS_MODE);
+        savedRegion = JSON.parse(localStorage.getItem(LS_REGION) || 'null');
+        savedCity = localStorage.getItem(LS_CITY);
+    } catch (e) {}
+
+    var restored = false;
+    if (savedMode === 'cascade' && savedRegion && REGIONS.length) {
+        // 按名称匹配恢复级联选择（数据顺序变化也稳定）
+        REGIONS.forEach(function (p, pi) {
+            if (p.n !== savedRegion.p) return;
+            provinceSelect.value = String(pi);
+            onProvinceChange();
+            p.c.forEach(function (c, ci) {
+                if (c.n !== savedRegion.c) return;
+                citySelect.value = String(ci);
+                onCityChange();
+                c.c.forEach(function (d, di) {
+                    if (d.n !== savedRegion.d) return;
+                    districtSelect.value = String(di);
+                });
+            });
+        });
+        if (provinceSelect.value !== '' && citySelect.value !== '' && districtSelect.value !== '') {
+            restored = true;
+            doCascadeQuery(true);
+        }
+    } else if (savedMode === 'text' && savedCity) {
+        cityInput.value = savedCity;
+        restored = true;
+        doTextQuery(savedCity, true);
+    }
+    if (!restored) {
+        // 首次进入：默认北京
+        cityInput.value = '北京';
+        doTextQuery('北京', true);
+    }
+})();
+</script>
+{% endblock %}
