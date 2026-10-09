@@ -1300,11 +1300,37 @@ function handleOcrFileSelect(input) {
     if (!file) return;
     var reader = new FileReader();
     reader.onload = function(e) {
-        document.getElementById('ocrImagePreview').src = e.target.result;
-        document.getElementById('ocrImagePreview').style.display = 'block';
-        // 提取 base64（去掉 data:image/xxx;base64, 前缀）
-        ocrImageBase64 = e.target.result.split(',')[1];
-        document.getElementById('ocrRecognizeBtn').disabled = false;
+        // V3.2.1 修复：原图（手机拍照常为 3~10MB）直接 base64 提交会导致
+        // 网关/vision 模型拒绝（请求体过大或图片换算 token 超限），
+        // 与主流 AI 工具保持一致：先在 canvas 压缩（长边≤2048px、JPEG 0.85）。
+        var img = new Image();
+        img.onload = function() {
+            var MAX_EDGE = 2048;
+            var scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
+            var w = Math.round(img.width * scale);
+            var h = Math.round(img.height * scale);
+            var canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            var compressed = canvas.toDataURL('image/jpeg', 0.85);
+            document.getElementById('ocrImagePreview').src = compressed;
+            document.getElementById('ocrImagePreview').style.display = 'block';
+            // 提取 base64（去掉 data:image/xxx;base64, 前缀）
+            ocrImageBase64 = compressed.split(',')[1];
+            document.getElementById('ocrRecognizeBtn').disabled = false;
+        };
+        img.onerror = function() {
+            // 压缩失败时退回原图（保证功能可用）
+            document.getElementById('ocrImagePreview').src = e.target.result;
+            document.getElementById('ocrImagePreview').style.display = 'block';
+            ocrImageBase64 = e.target.result.split(',')[1];
+            document.getElementById('ocrRecognizeBtn').disabled = false;
+        };
+        img.src = e.target.result;
     };
     reader.readAsDataURL(file);
 }

@@ -532,7 +532,11 @@ def recognize_gift_image(image_base64, user=None):
 
         for target_model in candidate_models:
             try:
-                client = OpenAI(api_key=api_key, base_url=base_url if base_url else None)
+                # V3.2.1：显式设置超时（大图 + 慢网关场景；SDK 默认虽为 600s，
+                # 但部分网关/网络环境更早断连，明确超时便于错误信息定位）
+                client = OpenAI(api_key=api_key,
+                                base_url=base_url if base_url else None,
+                                timeout=120)
                 response = client.chat.completions.create(
                     model=target_model,
                     messages=[{
@@ -597,6 +601,8 @@ def recognize_gift_image(image_base64, user=None):
 
             except Exception as e:
                 error_msg = str(e)
+                # 连接类错误补充提示：base_url 未填写时 SDK 默认走官方域名，
+                # 自定义网关场景必然失败——错误透出即可见 "Connection error" 等
                 attempts_errors.append(
                     f"[{cfg.get('name', '未命名')} / {target_model}] {error_msg}")
                 # 该模型失败，继续尝试下一个候选模型
