@@ -25,21 +25,19 @@ source.exclude_dirs = tests, bin, .gradle, .buildozer, .git, .github, __pycache_
 source.exclude_exts = spec, pyc, pyd, pyo, db, bak, log, png_bak
 
 # (str) Application versioning
-# 【V3.1.1 版本区分】与 v3.1.0 安装包区分：AI OCR 直连修复 + greenlet 移除 + CI 缓存收窄
-version = 3.1.1
+# 【V3.2.0 版本区分】架构级重构：webview bootstrap 彻底移除 Kivy/SDL/GL 渲染链
+version = 3.2.0
 
 # (list) Application requirements
-# 【V3.1 关键修复】此前版本误将纯 Python 包写在无效的 python_depends 键中，
-# 该键被 buildozer 静默忽略，导致 flask_sqlalchemy/flask_wtf/flask_login 等
-# 根本没有打进 APK，import 即报 ModuleNotFoundError，Flask 起不来，页面空白。
-# 正确方式：p4a 对 requirements 中【有 recipe 的包】用 recipe 交叉编译，
-# 对【无 recipe 的纯 Python 包】自动转入 pip 安装（graph.py 分离 +
-# run_pymodules_install --only-binary 全 wheel 安装），因此全部写在 requirements 即可。
-# 【V3.1.1 注意】greenlet 已移除：它是唯一新增的需 C 交叉编译的 recipe
-#（V3.0 成功构建集不含它），且 SQLAlchemy 同步模式（Flask 侧）不依赖
-# greenlet——缺失时 SQLAlchemy 自动使用纯 Python 回退，零功能损失。
-# 注意：cryptography 需要 Rust 工具链，仍不打包（代码内 try/except 延迟导入自动降级）。
-requirements = python3,hostpython3,openssl,sqlite3,pyjnius,kivy,flask,sqlalchemy,markupsafe,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,requests,itsdangerous,click,blinker,jinja2,wtforms
+# 【V3.2 架构级修复】真机排查史：V1.x ~ V3.1.1 所有版本在实测机型（魅族20/Android 16）
+# 上均纯空白、连内嵌诊断页都无法显示——从未有任何版本验证过 Kivy/SDL/GL 渲染链。
+# V3.2 改用 p4a 官方 webview bootstrap：WebView 由 Java 层直接创建（PythonActivity），
+# Python 仅负责后台 Flask，彻底移除 Kivy；Java 层自带「启动图→Loading页→错误弹窗」
+# 三级兜底，任何故障都不会再出现无信息白屏。
+# 注意：kivy 已从 requirements 移除；port 固定 5000（p4a webview bootstrap 默认，
+# Java 侧 WebViewLoader 轮询 127.0.0.1:5000 后自动 loadUrl）。
+# cryptography 仍不打包（需 Rust 工具链，代码内 try/except 延迟导入自动降级）。
+requirements = python3,hostpython3,openssl,sqlite3,pyjnius,flask,sqlalchemy,markupsafe,flask_sqlalchemy,flask_wtf,flask_login,werkzeug,requests,itsdangerous,click,blinker,jinja2,wtforms
 
 # (str) Supported orientation
 orientation = portrait
@@ -79,7 +77,8 @@ android.archs = arm64-v8a
 android.allow_backup = True
 
 # (str) Bootstrap to use
-p4a.bootstrap = sdl2
+# 【V3.2 核心变更】sdl2 → webview：WebView 纯 Java 层创建，不依赖 Kivy/SDL/GL
+p4a.bootstrap = webview
 
 # (int) Log level
 log_level = 2
@@ -90,11 +89,14 @@ log_level = 2
 # (bool) Enable AndroidX
 android.enable_androidx = True
 
-# (str) 注入 <application> 标签的额外属性（V3.1 新增）
-# Android 9+(API 28+) targetSdk>=28 时 usesCleartextTraffic 默认 false，
-# WebView 加载 http://127.0.0.1 本地服务可能被拒（ERR_CLEARTEXT_NOT_PERMITTED）。
-# 通过此配置显式允许明文 HTTP，保障本地回环服务可用。
-android.extra_manifest_application_arguments = extra_manifest_args.txt
+# (str) webview bootstrap 说明（V3.2）
+# 1. WebView 由 org.kivy.android.PythonActivity 纯 Java 创建，先加载
+#    assets/_load.html（Loading 页），Java 侧 WebViewLoader 轮询
+#    127.0.0.1:5000，Flask 就绪后自动 loadUrl 跳转。
+# 2. Python 库加载失败时 Java 层直接弹 AlertDialog（绝不白屏）。
+# 3. manifest 模板自带 usesCleartextTraffic="true"，无需再注入
+#    （V3.1 的 android.extra_manifest_application_arguments 已移除，
+#     extra_manifest_args.txt 仅保留作历史参考）。
 
 [buildozer]
 

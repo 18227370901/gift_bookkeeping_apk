@@ -13,7 +13,9 @@ AIGC:
 
 本项目是将【礼金记账簿】(Gift Bookkeeping App) 完整移植为 Android/iOS 手机端原生可安装运行的应用。通过**本地嵌入式 Flask 服务 + 原生 WebView 容器**技术，用户可以在手机上脱机离线使用完整的礼金记账、亲友管理、统计分析、AI 助手、导入导出等所有功能。
 
-> **V3.1.1 更新**：修复自定义 AI 网关（NewApi/OneAPI）模型名被擅自替换导致「所有 AI 配置均无法识别图片」的误报，改为原始模型名优先直连 + 常见 vision 模型兑底 + 真实错误透出；修复 WEBP 图片 MIME 嗅探与 OCR 空字段显示 "None" 的问题；移除 greenlet 并收窄 CI 缓存，修复 V3.1 构建失败。
+> **V3.2.0 更新**：架构级重构——切换 p4a 官方 webview bootstrap，WebView 由 Java 层直接创建，**彻底移除 Kivy/SDL/GL 渲染链**（V1.x~V3.1.1 所有版本在实测机型上均纯空白、连内嵌诊断页都无法显示，最大嫌疑即该渲染链）；Java 层自带「启动图→Loading页→错误弹窗」三级兜底；Python 启动链路重写（外置 USB 可读日志 + 启动 marker + 自动重试 + Toast）；新增构建后 APK 解包自检（main.py/模板/Flask 全家桶逐项验证真实在包内）。
+>
+> **V3.1.1 更新**：修复自定义 AI 网关（NewApi/OneAPI）模型名被擅自替换导致「所有 AI 配置均无法识别图片」的误报，改为原始模型名优先直连 + 常见 vision 模型兑底 + 真实错误透出；修复 WEBP 图片 MIME 嗅探与 OCR 空字段显示 "None" 的问题；移除 greenlet 并收窄 CI 缓存，修复构建失败。
 >
 > **V3.1 更新**：根治 APK 安装后页面空白问题——修复 buildozer.spec 无效 `python_depends` 键（导致 Flask 扩展库未进包）、新增 WebView 内嵌启动诊断页（就绪自动跳转/失败展示报错）、注入 `usesCleartextTraffic` 保障本地 HTTP 可达。全量同步源项目最新功能（181条路由）。
 
@@ -87,8 +89,8 @@ gift_bookkeeping_apk/
 ├── webdav_utils.py                  # WebDAV 备份工具
 ├── web_search.py                    # AI 联网搜索
 ├── _daemon_lock.py                  # 守护线程单实例锁
-├── main.py                          # 移动端启动入口（Flask + WebView）
-├── buildozer.spec                   # Buildozer 打包配置 (v3.1.1)
+├── main.py                          # 移动端启动入口（webview bootstrap：后台 Flask + 诊断）
+├── buildozer.spec                   # Buildozer 打包配置 (v3.2.0, webview bootstrap)
 ├── requirements.txt                 # Python 依赖清单
 └── README.md
 ```
@@ -100,17 +102,17 @@ gift_bookkeeping_apk/
 ### 方式一：GitHub Releases 下载
 
 1. 访问本仓库的 **[Releases 页面](../../releases)**
-2. 下载 **v3.1.1** 版本中的：
-   - `GiftBookkeeping-Android-APK-v3.1.1/*.apk` → Android 安装包
-   - `GiftBookkeeping-iOS-IPA-v3.1.1-Unsigned/*.ipa` → iOS 未签名包
+2. 下载 **v3.2.0** 版本中的：
+   - `GiftBookkeeping-Android-APK-v3.2.0/*.apk` → Android 安装包
+   - `GiftBookkeeping-iOS-IPA-v3.2.0-Unsigned/*.ipa` → iOS 未签名包
 
 ### 方式二：GitHub Actions 构建产物下载
 
 1. 访问仓库的 **Actions** 标签页
 2. 点击最新的运行记录
 3. 在 **Artifacts** 中下载：
-   - `GiftBookkeeping-Android-APK-v3.1.1` → Android APK
-   - `GiftBookkeeping-iOS-IPA-v3.1.1-Unsigned` → iOS IPA
+   - `GiftBookkeeping-Android-APK-v3.2.0` → Android APK
+   - `GiftBookkeeping-iOS-IPA-v3.2.0-Unsigned` → iOS IPA
 
 ### 方式三：本地构建
 
@@ -144,9 +146,9 @@ pip install -r requirements.txt
 python app.py
 # 访问 http://127.0.0.1:11443
 
-# 方式二：运行 main.py（自动启动 Flask + 打开浏览器）
+# 方式二：运行 main.py（与 APK 同链路，自动启动 Flask 并打开浏览器）
 python main.py
-# 访问 http://127.0.0.1:8765
+# 访问 http://127.0.0.1:5000
 ```
 
 **默认管理员账号**：`admin` / **初始密码**：`admin123`
@@ -167,9 +169,29 @@ python main.py
 
 | Job | Runner | 产物 | Artifact名称 |
 |:---|:---|:---|:---|
-| `build-android` | ubuntu-22.04 | `bin/*.apk` | GiftBookkeeping-Android-APK-v3.1.1 |
-| `build-android` | ubuntu-22.04 | `bin/*.aab` | GiftBookkeeping-Android-AAB-v3.1.1 |
-| `build-ios` | macos-14 | `*.ipa`（未签名） | GiftBookkeeping-iOS-IPA-v3.1.1-Unsigned |
+| `build-android` | ubuntu-22.04 | `bin/*.apk` | GiftBookkeeping-Android-APK-v3.2.0 |
+| `build-android` | ubuntu-22.04 | `bin/*.aab` | GiftBookkeeping-Android-AAB-v3.2.0 |
+| `build-ios` | macos-14 | `*.ipa`（未签名） | GiftBookkeeping-iOS-IPA-v3.2.0-Unsigned |
+
+### V3.2.0 架构级重构：彻底移除 Kivy/SDL/GL（webview bootstrap）
+
+**背景**：V1.x~V3.1.1 所有版本在实测机型（魅族20/Android 16）上均为纯空白、连 V3.1 引入的内嵌诊断页都无法显示——从未有任何版本验证过 Kivy/SDL/GL 渲染链，该链路是最大嫌疑组件。
+
+| 维度 | V1.x~V3.1.1（sdl2 bootstrap） | **V3.2.0（webview bootstrap）** |
+|:---|:---|:---|
+| WebView 创建方 | Python(Kivy App/Clock/pyjnius) | **纯 Java 层（PythonActivity）** |
+| GL/SDL 依赖 | 需要（Kivy 渲染链） | **完全移除，requirements 已剔除 kivy** |
+| 启动呈现 | 依赖 Python 活着才可见 | **Java 层启动图 + Loading 页，Python 未活也可见** |
+| Python 库加载失败 | 白屏无提示 | **Java AlertDialog 直接报错** |
+| 服务就绪跳转 | Python 侧 JS 轮询 | **Java 侧 WebViewLoader 轮询 127.0.0.1:5000 自动跳转** |
+| 明文 HTTP | 需手工注入 manifest | **manifest 模板自带 usesCleartextTraffic=true** |
+| Python 诊断 | 仅 logcat/内置日志 | **外置日志(USB 直读) + 启动 marker + 失败重试3次 + Toast** |
+| 构建产物验证 | 无（黑盒） | **CI 解包自检：12 核心py + 模板 + Flask 12 依赖逐项验证** |
+
+**真机取证指引**：若仍异常，USB 连接电脑选「文件传输」，在手机存储 `Android/data/<包名>/files/` 下提取：
+- `app_debug.log` — 全程日志（启动到哪个阶段一目了然）
+- `startup_marker.txt` — Python 进程是否运行过的铁证
+- `last_error.txt` — Flask 启动失败的完整 traceback
 
 ### V3.1.1 AI 图片识别修复 + 构建失败修复
 

@@ -12,8 +12,8 @@ AIGC:
 # 礼金记账簿 移动端 APK — PSD 项目系统设计与重构决策文档
 
 > **项目路径**：`gift_bookkeeping_apk/`  
-> **文档版本**：V3.1.1（AI 图片识别直连修复与构建收窄版）  
-> **生成日期**：2026-10-08  
+> **文档版本**：V3.2.0（webview bootstrap 架构级重构：彻底移除 Kivy/SDL/GL）  
+> **生成日期**：2026-10-09  
 > **架构基线**：本地嵌入式 Flask 服务 + 原生 WebView 容器  
 > **代码规模**：12个Python文件 + 25个HTML模板 + 181条路由 + 22+数据模型
 
@@ -23,14 +23,14 @@ AIGC:
 
 1. **项目全局概览** — 业务定位 · 技术栈全景 · 架构拓扑
 2. **V3.0 核心变更** — 构建修复 · 版本区分 · 全量同步
-3. **V3.1 空白页面真实根因与修复** — python_depends 无效键 · 诊断页方案 · cleartext · V3.1.1 补丁（AI 图片识别直连修复 + 构建收窄）
+3. **V3.1 空白页面真实根因与修复** — python_depends 无效键 · 诊断页方案 · cleartext · V3.1.1 补丁 · **V3.2.0 架构级重构（webview bootstrap）**
 4. **功能模块全量清单** — 25页面 · 181条路由 · 22+数据模型
 5. **技术栈全景** — 后端 · 前端 · 移动端 · CI/CD
 6. **数据持久化设计** — ER关系 · 加密策略 · 迁移策略
 7. **移动端适配设计** — 响应式布局 · 安全区域 · 触控优化
 8. **构建与CI/CD** — Buildozer · GitHub Actions · Android+iOS双平台
 9. **工程与安全保障** — 环境变量 · 认证鉴权 · 安全清单
-10. **版本演进路线图** — V1.0 → V2.0 → V3.0 → V3.1 → V3.1.1
+10. **版本演进路线图** — V1.0 → V2.0 → V3.0 → V3.1 → V3.1.1 → V3.2.0
 
 ---
 
@@ -50,14 +50,14 @@ AIGC:
 
 ```mermaid
 graph TB
-    subgraph device["📱 移动设备 (Android/iOS)"]
-        APK["APK 应用 v3.1.1<br/>arm64-v8a<br/>API 21+"] --> WV["原生 WebView<br/>main.py 容器层<br/>jnius → WebView"]
-        APK --> FLASK_LOCAL["本地 Flask 服务<br/>127.0.0.1:8765<br/>app.py (3376行, 181路由)"]
-        FLASK_LOCAL --> DB_LOCAL["SQLite<br/>本地私有存储<br/>data/gift_bookkeeping.db"]
-        FLASK_LOCAL -->|"Jinja2 SSR"| TPL_LOCAL["templates/ 25个HTML<br/>Bootstrap5 + FA6 + ECharts<br/>本地化引用"]
+    subgraph device["📱 移动设备 (Android)"]
+        APK["APK v3.2.0<br/>arm64-v8a / API 21+<br/>webview bootstrap"] --> JV["Java 层 PythonActivity<br/>直接创建 WebView<br/>（不经 Kivy/SDL/GL）"]
+        JV --> LD["assets/_load.html<br/>Loading 页（Python 未活也可见）<br/>库加载失败弹 AlertDialog"]
+        APK --> PT["PythonThread 运行 main.py<br/>后台 Flask 127.0.0.1:5000<br/>app.py (181路由) + SQLite"]
+        JV -."WebViewLoader 轮询 5000 就绪".-> PT
     end
-    WV -->|"加载 http://127.0.0.1:8765"| FLASK_LOCAL
-    TPL_LOCAL -->|"HTML/CSS/JS"| WV
+    LD -- "就绪后 loadUrl 跳转" --> FLASKP["登录页/全部功能"]
+    PT --> FLASKP
 ```
 
 > **架构关键特征**：
@@ -252,7 +252,74 @@ sequenceDiagram
 - **版本区分**：version 3.1.1 / UA `GiftBookkeeping/3.1.1` / Artifact 名含 v3.1.1 / Release tag `v3.1.1-latest` / 页脚与诊断页 v3.1.1 / iOS CFBundleShortVersionString 3.1.1；
 - **OCR 逻辑回归测试**：11 组 37 项断言全部通过（MIME 嗅探×7、SDK 降级、未配置 403、原始模型直连、换行清理、兑底链路、全败错误透出、非 JSON 422、记录清洗、空 Key 跳过、多配置切换）；
 - **Flask 冒烟**：`/login` 200（页脚 v3.1.1 已生效）、`/api/ocr/recognize` 未登录鉴权拦截 403、静态资源 200；
-- **构建验证**：待提交推送后的 GitHub Actions 新一轮运行确认（V3.1 失败于 run 37746146665）。
+- **构建验证**：CI 构建成功（run 37752328606，约 12 分钟）；
+- **真机结果**：❌ 仍纯空白（连诊断页都未显示）——这一结果直接推动了 V3.2.0 架构级重构，见 3.8。
+
+### 3.8 V3.2.0 架构级重构：webview bootstrap，彻底移除 Kivy/SDL/GL（2026-10-09）
+
+#### 3.8.1 决定性线索：所有版本（含 V1.x）从未在真机上显示过内容
+
+用户反馈：**V1.x 旧版在手机上同样无法打开、全部空白无任何数据，白屏等待超 1 分钟**。
+
+这一事实重写了故障史：
+
+| 版本 | 架构 | 真机表现 |
+|:---|:---|:---|
+| V1.x | Kivy App + Clock + pyjnius addContentView WebView | ❌ 纯空白（曾被误认为"能用"） |
+| V3.0 / V3.0.1 | 同上 + 修复构建/静态资源/路径 | ❌ 纯空白 |
+| V3.1 / V3.1.1 | 同上 + 内嵌诊断页（不依赖 Flask 也能显示） | ❌ 纯空白（**连诊断页都无**） |
+
+推论：V3.1 诊断页的显示路径 = Kivy App.run() → GL 初始化 → Clock 回调 → pyjnius 建 WebView → loadDataWithBaseURL。诊断页都出不来 = 这条链在真机上断在 Kivy/GL 层或更早。所有版本共用的最大组件即 **Kivy + SDL/GL 渲染链**——从未被任何一次真机运行验证过。
+
+#### 3.8.2 方案：p4a 官方 webview bootstrap（源码级验证）
+
+对 p4a 2026.5.9（CI 实际使用版本）的 `bootstraps/webview` 源码逐项验证：
+
+| 验证项 | 源码依据 | 结论 |
+|:---|:---|:---|
+| WebView 创建方 | `PythonActivity.java`：纯 Java `new WebView(...)`、`setContentView` | ✅ 不经过 Python/Kivy/SDL/GL |
+| 启动展现链 | Java 层启动图 → assets/_load.html Loading 页 | ✅ Python 未运行也可见 |
+| Python 库加载失败 | `UnsatisfiedLinkError` → Java `AlertDialog` 直接报错 | ✅ 绝不无信息白屏 |
+| 服务就绪跳转 | `WebViewLoader.testConnection()` 轮询 127.0.0.1:5000 → `loadUrl` | ✅ 依赖 --port 默认值 5000 |
+| 明文 HTTP | manifest 模板自带 `usesCleartextTraffic="true"` | ✅ 无需再手工注入 |
+| Python 职责 | `PythonThread` 跑 main.py（后台 Flask + 保活） | ✅ 仅数据层 |
+| 兼容性 | `--port` 参数存在；p4a 2026.5.9 发行版完整带 webview bootstrap | ✅ CI 可直接构建 |
+
+打包结构（自检依据）：`assets/private.tar`（项目文件，main.py/app.py/templates/static）+ `lib/<abi>/libpybundle.so`（Python 解释器 + site-packages，实为 tar 伪装）+ `assets/_load.html`。
+
+#### 3.8.3 改动清单
+
+| 文件 | 改动 |
+|:---|:---|
+| `buildozer.spec` | `p4a.bootstrap = webview`；requirements **移除 kivy**；version 3.2.0；移除 manifest 注入（模板自带）；extra_manifest_args.txt 保留不再引用 |
+| `main.py` | 全量重写：环境设置（GIFT_DATA_DIR→内部私有目录）→ 后台线程 Flask:5000（失败重试 3 次）→ 主线程保活；三通道日志（logcat + 内置 files/ + 外置 USB 可读）+ 启动 marker（五阶段）+ last_error.txt + Toast 摘要 |
+| `.github/workflows/build.yml` | 全链路版本标识 v3.2.0；**新增 Verify APK Contents 步骤**：构建后解包验证 _load.html/private.tar/12 核心py/模板/静态资源/libpybundle 内 12 个 Flask 依赖 + aapt2 校验 versionName —— 任一缺失即构建失败 |
+| `templates/base.html` | 页脚 v3.2.0 |
+| iOS workflow | 版本串 3.2.0、端口 8765→5000 对齐 |
+
+#### 3.8.4 启动链路（新架构）
+
+```
+Java PythonActivity.onCreate
+  → 解包 private.tar + libpybundle → 加载库（失败弹 AlertDialog）
+  → WebView 创建 + 加载 _load.html（Loading 页，立即可见）
+  → PythonThread 启动 main.py
+  Python: 环境设置 → marker(dirs_ready) → 后台线程 Flask
+          → marker(app_imported → flask_running) → 端口 5000 监听
+  Java WvThread: 轮询 127.0.0.1:5000（每100ms）
+  → 连通 → loadUrl("http://127.0.0.1:5000/") → 登录页
+  Python: marker(flask_ready)，全程日志三通道落盘
+```
+
+失败分支：Flask 3 次重试全败 → last_error.txt（外置）+ Toast 摘要，进程保活以便 USB 取证；Java 侧 Loading 页保持等待。
+
+#### 3.8.5 验证结果
+
+- main.py 语法 + 结构检查通过（无任何 kivy 引用，函数清单正确）；
+- **启动链路模拟测试 15/15 全绿**：FLASK_PORT=5000、marker 生成、日志生成、Flask 就绪、/login 200（页脚 v3.2.0）、静态资源 200、app_imported/flask_ready marker、watch 返回成功；
+- buildozer.spec 精查通过（webview bootstrap、无 kivy、无 python_depends、无注入配置）；
+- build.yml YAML 校验通过（13 步骤含 Verify APK Contents Self Check）；
+- **待 CI 构建 + 真机验收**：预期「启动图 → Loading 页 → 自动跳登录页」；若 Loading 停留不动，USB 提取 `Android/data/<包名>/files/` 下 `app_debug.log` / `startup_marker.txt` / `last_error.txt` 三文件即可定位。
 
 ---
 
@@ -455,9 +522,10 @@ body {
 
 | 版本 | 架构 | 路由 | 构建 | 运行 | 状态 |
 |:---|:---|:---|:---|:---|:---|
-| V1.0 | 远程WebView壳 | 32 | ✅ | ✅ | 已废弃 |
-| V2.0 | 本地Flask+WebView | 179 | ❌失败 | — | 已被替代 |
-| V3.0 | 本地Flask+WebView | 181 | ✅ | ❌空白（缺Flask扩展库） | 已被替代 |
-| V3.0.1 | 本地Flask+WebView | 181 | ✅ | ❌空白（同V3.0根因） | 已被替代 |
-| V3.1 | 本地Flask+WebView+诊断页 | 181 | ❌失败（run 37746146665） | — | 已被替代 |
-| **V3.1.1** | **本地Flask+WebView+诊断页** | **181** | **✅修复（待CI验证）** | **✅根治** | **当前版本** |
+| V1.0 | 远程WebView壳（Kivy容器） | 32 | ✅ | ❌空白 | 已废弃 |
+| V2.0 | 本地Flask+WebView（Kivy容器） | 179 | ❌失败 | — | 已被替代 |
+| V3.0 | 本地Flask+WebView（Kivy容器） | 181 | ✅ | ❌空白（缺Flask扩展库） | 已被替代 |
+| V3.0.1 | 本地Flask+WebView（Kivy容器） | 181 | ✅ | ❌空白（同V3.0根因） | 已被替代 |
+| V3.1 | 本地Flask+WebView+诊断页（Kivy容器） | 181 | ❌失败（run 37746146665） | — | 已被替代 |
+| V3.1.1 | 同V3.1+OCR修复 | 181 | ✅ | ❌空白（连诊断页都无→Kivy链嫌疑） | 已被替代 |
+| **V3.2.0** | **webview bootstrap（纯Java WebView，无Kivy）** | **181** | **待CI验证** | **待真机验证** | **当前版本** |

@@ -13,7 +13,7 @@ permissions:
 jobs:
   # ==================== Android APK 构建 ====================
   build-android:
-    name: Build Android APK (v3.1.1)
+    name: Build Android APK (v3.2.0)
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -117,17 +117,88 @@ jobs:
           buildozer android release 2>&1 | tee build_aab_log.txt || true
         continue-on-error: true
 
+      # 【V3.2 新增】构建后 APK 解包自检：验证 webview bootstrap 关键资产
+      # （_load.html / private.tar / libpybundle.so）、项目文件与 Flask 依赖
+      # 是否真实在包内，以及 AndroidManifest 版本与 cleartext 配置——
+      # 把"包里到底有什么"从黑盒变为构建日志可查事实，杜绝"构建成功但缺文件"。
+      - name: Verify APK Contents (Self Check)
+        run: |
+          set -e
+          export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
+          APK=$(ls bin/*.apk | head -1)
+          echo "[check] APK: $APK ($(du -m "$APK" | cut -f1) MB)"
+
+          # 1) AndroidManifest：版本号与 cleartext 验证（aapt2 在 build-tools 内）
+          AAPT2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | head -1)
+          BADGING=$($AAPT2 dump badging "$APK")
+          echo "$BADGING" | head -3
+          echo "$BADGING" | grep -q "versionName='3.2.0'" \
+            || { echo "[check] FAIL: versionName 不是 3.2.0"; exit 1; }
+          echo "[check] versionName=3.2.0 OK"
+
+          # 2) APK 内部结构与 Python 包内容验证
+          python3 - <<'PYCHECK'
+          import glob, io, os, sys, tarfile, zipfile
+
+          apk = sorted(glob.glob('bin/*.apk'))[0]
+          z = zipfile.ZipFile(apk)
+          names = z.namelist()
+
+          # 2a) webview bootstrap 核心资产
+          for key in ('assets/_load.html', 'assets/private.tar'):
+              assert key in names, f'APK 缺少 {key}'
+          print('[check] assets/_load.html 与 assets/private.tar 存在 OK')
+
+          # 2b) Python 解析器/依赖捆绑包（libpybundle.so 实为 tar 伪装）
+          bundles = [n for n in names if n.startswith('lib/') and 'pybundle' in n and n.endswith('.so')]
+          assert bundles, 'APK 缺少 lib/<abi>/libpybundle.so'
+          print(f'[check] Python bundle: {bundles}')
+
+          # 2c) private.tar 内：项目 12 个核心 .py + templates + static
+          tar = tarfile.open(fileobj=io.BytesIO(z.read('assets/private.tar')))
+          tnames = tar.getnames()
+          required_py = ['main.py', 'app.py', 'models.py', 'routes_ext.py',
+                         'routes_ai.py', 'ai_service.py', 'pdf_generator.py',
+                         'gift_utils.py', 'webhook_utils.py', 'webdav_utils.py',
+                         'web_search.py', '_daemon_lock.py']
+          for f in required_py:
+              assert any(n == f or n.endswith('/' + f) for n in tnames), \
+                  f'private.tar 缺少 {f}'
+          tpl = [n for n in tnames if 'templates/' in n and n.endswith('.html')]
+          sta = [n for n in tnames if 'static/' in n]
+          assert len(tpl) >= 20, f'templates 模板数量异常: {len(tpl)}'
+          assert sta, 'static 资源缺失'
+          print(f'[check] private.tar: 12 核心py + {len(tpl)} 模板 + {len(sta)} 静态资源 OK')
+
+          # 2d) libpybundle 内：Flask 全家桶依赖包
+          tb = tarfile.open(fileobj=io.BytesIO(z.read(bundles[0])))
+          bnames = tb.getnames()
+          required_pkgs = ['flask', 'sqlalchemy', 'flask_sqlalchemy', 'flask_wtf',
+                           'flask_login', 'werkzeug', 'jinja2', 'wtforms', 'click',
+                           'itsdangerous', 'markupsafe', 'jnius']
+          for pkg in required_pkgs:
+              pat_pkg = pkg + '/'
+              found = any('site-packages' in n and (n.endswith('/' + pkg + '.py')
+                                                   or pat_pkg in n + '/'
+                                                   or n.endswith('/' + pat_pkg))
+                          for n in bnames)
+              assert found, f'libpybundle 中缺少依赖包 {pkg}'
+          print('[check] Flask 全家桶 12 个依赖包全部在包内 OK')
+
+          print('=== APK 自检全部通过 ===')
+          PYCHECK
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-Android-APK-v3.1.1
+          name: GiftBookkeeping-Android-APK-v3.2.0
           path: bin/*.apk
           if-no-files-found: error
 
       - name: Upload AAB Artifact (if available)
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-Android-AAB-v3.1.1
+          name: GiftBookkeeping-Android-AAB-v3.2.0
           path: bin/*.aab
           if-no-files-found: warn
         continue-on-error: true
@@ -136,7 +207,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-v3.1.1
+          name: build-log-v3.2.0
           path: |
             build_log.txt
             build_aab_log.txt
@@ -147,27 +218,27 @@ jobs:
         if: github.ref_type == 'tag' || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name == 'main' && 'v3.1.1-latest' || github.ref_name }}
-          name: "礼金记账簿 v3.1.1 ${{ github.ref_name == 'main' && '(Latest)' || github.ref_name }}"
+          tag_name: ${{ github.ref_name == 'main' && 'v3.2.0-latest' || github.ref_name }}
+          name: "礼金记账簿 v3.2.0 ${{ github.ref_name == 'main' && '(Latest)' || github.ref_name }}"
           body: |
-            ### 📱 礼金记账簿 Android 客户端 v3.1.1
+            ### 📱 礼金记账簿 Android 客户端 v3.2.0
             
             本版本由 GitHub Actions 自动化编译打包生成。
             
-            **v3.1.1 更新内容（AI 图片识别修复 + 构建修复）：**
-            - 修复自定义 AI 网关（NewApi/OneAPI）模型名被擅自替换导致「所有 AI 配置均无法识别图片」的误报，改为用户原始模型名优先直连 + 常见 vision 模型兑底
-            - 全部失败时透出真实错误信息（含配置名/模型名/错误详情），便于定位网关问题
-            - 修复 WEBP 图片 MIME 嗅探失效、OCR 识别结果空字段显示为 "None" 字符串的问题
-            - 移除 greenlet 依赖、收窄 CI 缓存，修复版本构建失败问题
+            **v3.2.0 更新内容（架构级重构：彻底移除 Kivy/SDL/GL 渲染链）：**
+            - 切换 p4a 官方 webview bootstrap：WebView 由 Java 层直接创建，Python 仅负责后台 Flask，不再依赖 Kivy/SDL/OpenGL
+            - Java 层自带「启动图 → Loading 页 → 错误弹窗」三级兜底，任何故障都不会再无信息白屏
+            - Python 启动链路重写：外部日志（USB 可直读）+ 启动 marker + 失败自动重试 + Toast 提示
+            - 新增构建后 APK 解包自检：验证 main.py/模板/Flask 全家桶真实在包内 + Manifest 版本校验
+            - Flask 端口固定 5000，与 Java 侧 WebViewLoader 自动跳转对齐
             
-            **v3.1 更新内容（修复安装后页面空白）：**
-            - 修复 V3.0 因无效 python_depends 配置导致 Flask 扩展库未打包进 APK 的致命问题
-            - 新增 WebView 内嵌启动诊断页，服务就绪自动跳转，彻底根治启动时序问题
-            - 启动失败时在页面直接展示错误详情，不再白屏盲调
-            - AndroidManifest 注入 usesCleartextTraffic，保障本地 HTTP 服务可达
+            **v3.1.1 更新内容（AI 图片识别修复）：**
+            - 修复自定义 AI 网关模型名被擅自替换导致「所有 AI 配置均无法识别图片」的误报，改为原始模型名优先直连 + vision 模型兑底
+            - 全部失败时透出真实错误信息；修复 WEBP MIME 嗅探与 OCR 空字段 "None" 问题
             
             **安装方式：**
             下载下方 `.apk` 文件传输到安卓手机安装即可。
+            首次启动若停留 Loading 页超 1 分钟，请 USB 连接电脑，在手机存储 `Android/data` 应用目录 `files/` 下提取 `app_debug.log` 与 `last_error.txt` 反馈。
           files: |
             bin/*.apk
             bin/*.aab
@@ -178,7 +249,7 @@ jobs:
 
   # ==================== iOS IPA 构建 ====================
   build-ios:
-    name: Build iOS IPA (v3.1.1)
+    name: Build iOS IPA (v3.2.0)
     runs-on: macos-14
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     steps:
@@ -193,7 +264,7 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          pip install --upgrade "cython" "kivy>=2.3.0" "buildozer>=1.5.2" virtualenv
+          pip install --upgrade "cython" "buildozer>=1.5.2" virtualenv
           pip install flask flask-sqlalchemy flask-wtf flask-login werkzeug requests
 
       - name: Set up Xcode
@@ -231,10 +302,10 @@ jobs:
                   webView.navigationDelegate = self
                   webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
                   view.addSubview(webView)
-                  DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                      let url = URL(string: "http://127.0.0.1:8765/")!
-                      self.webView.load(URLRequest(url: url))
-                  }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                   let url = URL(string: "http://127.0.0.1:5000/")!
+                   self.webView.load(URLRequest(url: url))
+               }
               }
           }
           SWIFT_EOF
@@ -248,7 +319,7 @@ jobs:
               <key>CFBundleDisplayName</key><string>礼金记账簿</string>
               <key>CFBundleIdentifier</key><string>org.giftbookkeeping.app</string>
               <key>CFBundleVersion</key><string>1</string>
-              <key>CFBundleShortVersionString</key><string>3.1.1</string>
+              <key>CFBundleShortVersionString</key><string>3.2.0</string>
               <key>CFBundlePackageType</key><string>APPL</string>
               <key>CFBundleExecutable</key><string>GiftBookkeeping</string>
               <key>LSRequiresIPhoneOS</key><true/>
@@ -309,19 +380,19 @@ jobs:
             cp ../app.py ../models.py ../routes_ext.py ../routes_ai.py ../ai_service.py ../pdf_generator.py ../gift_utils.py ../webhook_utils.py ../webdav_utils.py ../web_search.py ../_daemon_lock.py "$APP_PATH/"
             mkdir -p Payload
             cp -r "$APP_PATH" Payload/
-            zip -r GiftBookkeeping-v3.1.1-unsigned.ipa Payload/
-            echo "IPA created: $(ls -la GiftBookkeeping-v3.1.1-unsigned.ipa)"
+            zip -r GiftBookkeeping-v3.2.0-unsigned.ipa Payload/
+            echo "IPA created: $(ls -la GiftBookkeeping-v3.2.0-unsigned.ipa)"
           else
             echo "Build output not found, creating placeholder IPA"
             mkdir -p Payload/GiftBookkeeping.app
-            echo "v3.1.1 placeholder" > Payload/GiftBookkeeping.app/placeholder.txt
-            zip -r GiftBookkeeping-v3.1.1-unsigned.ipa Payload/
+            echo "v3.2.0 placeholder" > Payload/GiftBookkeeping.app/placeholder.txt
+            zip -r GiftBookkeeping-v3.2.0-unsigned.ipa Payload/
           fi
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GiftBookkeeping-iOS-IPA-v3.1.1-Unsigned
+          name: GiftBookkeeping-iOS-IPA-v3.2.0-Unsigned
           path: ios_project/*.ipa
           if-no-files-found: warn
         continue-on-error: true
@@ -331,9 +402,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "礼金记账簿 v3.1.1 ${{ github.ref_name }}"
+          name: "礼金记账簿 v3.2.0 ${{ github.ref_name }}"
           body: |
-            ### 📱 礼金记账簿 iOS 客户端 v3.1.1（未签名）
+            ### 📱 礼金记账簿 iOS 客户端 v3.2.0（未签名）
             
             本 IPA 为未签名构建产物，需开发者自行签名后安装。
           files: ios_project/*.ipa
