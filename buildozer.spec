@@ -26,6 +26,7 @@ source.exclude_exts = spec, pyc, pyd, pyo, db, bak, log, png_bak
 
 # (str) Application versioning
 # 【V3.2.0 版本区分】架构级重构：webview bootstrap 彻底移除 Kivy/SDL/GL 渲染链
+# （v3.2.0 增强：新增自定义 presplash 启动提示图，覆盖首次解压 1-3 分钟场景）
 version = 3.2.0
 
 # (list) Application requirements
@@ -88,6 +89,12 @@ log_level = 2
 
 # (bool) Enable AndroidX
 android.enable_androidx = True
+
+# (str) 启动画面（V3.2.1 新增）
+# presplash 由 Java 层显示（不依赖 Python），首次安装后解压数据阶段即展示
+# 提示图：说明「首次启动解压数据约需 1-3 分钟，请勿关闭」
+presplash.filename = presplash.jpg
+android.presplash_color = F4F6F9
 
 # (str) webview bootstrap 说明（V3.2）
 # 1. WebView 由 org.kivy.android.PythonActivity 纯 Java 创建，先加载
