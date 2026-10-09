@@ -78,6 +78,65 @@ def _write_file_safe(path, content):
         return False
 
 
+# 手机公共下载目录诊断快照文件名（用户任意文件管理器可见，便于直接取证）
+_DIAG_SNAP_FILENAME = 'giftbookkeeping_diag.txt'
+
+
+def _write_diag_snapshot():
+    """
+    V2.2 增强：Android 11+ 的 Android/data 目录被系统锁定（USB/文件管理器均不可见），
+    外置日志无法取证。此函数把诊断快照写入系统公共 Download 目录（MediaStore API，
+    无需权限），手机任意文件管理器/微信均可直接看到并转发。
+    内容：启动 marker 全文 + 最近日志尾部 + 版本信息。失败静默，不影响主流程。
+    """
+    if not IS_ANDROID:
+        return
+    try:
+        parts = []
+        parts.append(f"礼金记账簿诊断信息 v{APP_VERSION}")
+        parts.append(f"生成时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if _INTERNAL_FILES_DIR:
+            m = os.path.join(_INTERNAL_FILES_DIR, 'startup_marker.txt')
+            if os.path.exists(m):
+                parts.append('\n---- startup_marker.txt ----')
+                parts.append(open(m, encoding='utf-8').read())
+        if _INTERNAL_FILES_DIR:
+            le = os.path.join(_INTERNAL_FILES_DIR, 'last_error.txt')
+            if os.path.exists(le):
+                parts.append('\n---- last_error.txt ----')
+                parts.append(open(le, encoding='utf-8').read())
+        if _INTERNAL_FILES_DIR:
+            lg = os.path.join(_INTERNAL_FILES_DIR, 'app_debug.log')
+            if os.path.exists(lg):
+                lines = open(lg, encoding='utf-8', errors='ignore').read().splitlines()
+                parts.append('\n---- app_debug.log (尾部 60 行) ----')
+                parts.append('\n'.join(lines[-60:]))
+        parts.append('\n==== 结束 ====')
+        content = '\n'.join(parts)
+
+        from jnius import autoclass
+        ContentValues = autoclass('android.content.ContentValues')
+        MediaStore = autoclass('android.provider.MediaStore')
+        MediaColumns = autoclass('android.provider.MediaStore$MediaColumns')
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        ctx = PythonActivity.mActivity
+        resolver = ctx.getContentResolver()
+        values = ContentValues()
+        values.put(MediaColumns.DISPLAY_NAME, _DIAG_SNEXT_FILENAME)
+        values.put(MediaColumns.MIME_TYPE, 'text/plain')
+        values.put(MediaColumns.RELATIVE_PATH, 'Download/')
+        uri = resolver.insert(MediaStore.getContentUri('external'), values)
+        if uri is not None:
+            out = resolver.openOutputStream(uri)
+            out.write(content.encode('utf-8'))
+            out.close()
+            _log(f"诊断快照已写入系统下载目录: {_DIAG_SNEXT_FILENAME}")
+        else:
+            print('[Main] MediaStore insert 返回 null')
+    except Exception as e:
+        print(f"[Main] 写下载目录诊断快照失败(可忽略): {e}")
+
+
 def _log(msg):
     """三通道日志：print(logcat) + 内置 files 目录 + 外置 USB 可读目录"""
     line = f"[{time.strftime('%H:%M:%S')}] {msg}"
@@ -185,7 +244,9 @@ def _run_flask_with_retry(max_attempts=3, retry_delay=3.0):
 
     # 全部失败：外置错误详情 + Toast 摘要（Java Loading 页会一直停着等 5000）
     _write_last_error(last_err or 'unknown')
-    _android_toast('礼金记账簿启动失败：本地服务初始化异常，请连接电脑查看 app_debug.log')
+    _write_diag_snapshot()
+    _android_toast('礼金记账簿启动失败：本地服务初始化异常，请查看下载目录 giftbookkeeping_diag.txt')
+    # 不退出进程：保活以便用户随时取证
     # 不退出进程：保活以便用户随时 USB 取证
     while True:
         time.sleep(60)
@@ -264,6 +325,7 @@ def main():
         _log(f"外置目录: {_EXTERNAL_FILES_DIR}")
         _write_startup_marker('dirs_ready', detail=(
             f"internal={_INTERNAL_FILES_DIR}; external={_EXTERNAL_FILES_DIR}"))
+        _write_diag_snapshot()
         _android_toast(f'礼金记账簿 v{APP_VERSION} 启动中...')
 
         # 后台线程：Flask 启动 + 重试 + 失败兜底
