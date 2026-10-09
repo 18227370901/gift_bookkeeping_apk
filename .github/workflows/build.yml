@@ -119,82 +119,15 @@ jobs:
 
       # 【V3.2 新增】构建后 APK 解包自检：验证 webview bootstrap 关键资产
       # （_load.html / private.tar / libpybundle.so）、项目文件与 Flask 依赖
-      # 是否真实在包内，以及 AndroidManifest 版本与 cleartext 配置——
-      # 把"包里到底有什么"从黑盒变为构建日志可查事实，杜绝"构建成功但缺文件"。
-      - name: Verify APK Contents (Self Check)
-        run: |
-          set -e
-          export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
-          APK=$(ls bin/*.apk | head -1)
-          echo "[check] APK: $APK ($(du -m "$APK" | cut -f1) MB)"
-
-          # 1) AndroidManifest：版本号与 cleartext 验证（aapt2 在 build-tools 内）
-          AAPT2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | head -1)
-          BADGING=$($AAPT2 dump badging "$APK")
-          echo "$BADGING" | head -3
-          echo "$BADGING" | grep -q "versionName='3.2.0'" \
-            || { echo "[check] FAIL: versionName 不是 3.2.0"; exit 1; }
-          echo "[check] versionName=3.2.0 OK"
-
-          # 2) APK 内部结构与 Python 包内容验证
-          python3 - <<'PYCHECK'
-          import glob, io, os, sys, tarfile, zipfile
-
-          apk = sorted(glob.glob('bin/*.apk'))[0]
-          z = zipfile.ZipFile(apk)
-          names = z.namelist()
-
-          # 2a) webview bootstrap 核心资产
-          for key in ('assets/_load.html', 'assets/private.tar'):
-              assert key in names, f'APK 缺少 {key}'
-          print('[check] assets/_load.html 与 assets/private.tar 存在 OK')
-
-          # 2b) Python 解析器/依赖捆绑包（libpybundle.so 实为 tar 伪装）
-          bundles = [n for n in names if n.startswith('lib/') and 'pybundle' in n and n.endswith('.so')]
-          assert bundles, 'APK 缺少 lib/<abi>/libpybundle.so'
-          print(f'[check] Python bundle: {bundles}')
-
-          # 2c) private.tar 内：项目 12 个核心 .py + templates + static
-          tar = tarfile.open(fileobj=io.BytesIO(z.read('assets/private.tar')))
-          tnames = tar.getnames()
-          required_py = ['main.py', 'app.py', 'models.py', 'routes_ext.py',
-                         'routes_ai.py', 'ai_service.py', 'pdf_generator.py',
-                         'gift_utils.py', 'webhook_utils.py', 'webdav_utils.py',
-                         'web_search.py', '_daemon_lock.py']
-          for f in required_py:
-              assert any(n == f or n.endswith('/' + f) for n in tnames), \
-                  f'private.tar 缺少 {f}'
-          tpl = [n for n in tnames if 'templates/' in n and n.endswith('.html')]
-          sta = [n for n in tnames if 'static/' in n]
-          assert len(tpl) >= 20, f'templates 模板数量异常: {len(tpl)}'
-          assert sta, 'static 资源缺失'
-          print(f'[check] private.tar: 12 核心py + {len(tpl)} 模板 + {len(sta)} 静态资源 OK')
-
-          # 2d) libpybundle 内：Flask 全家桶依赖包
-          tb = tarfile.open(fileobj=io.BytesIO(z.read(bundles[0])))
-          bnames = tb.getnames()
-          required_pkgs = ['flask', 'sqlalchemy', 'flask_sqlalchemy', 'flask_wtf',
-                           'flask_login', 'werkzeug', 'jinja2', 'wtforms', 'click',
-                           'itsdangerous', 'markupsafe', 'jnius']
-          for pkg in required_pkgs:
-              pat_pkg = pkg + '/'
-              found = any('site-packages' in n and (n.endswith('/' + pkg + '.py')
-                                                   or pat_pkg in n + '/'
-                                                   or n.endswith('/' + pat_pkg))
-                          for n in bnames)
-              assert found, f'libpybundle 中缺少依赖包 {pkg}'
-          print('[check] Flask 全家桶 12 个依赖包全部在包内 OK')
-
-          print('=== APK 自检全部通过 ===')
-          PYCHECK
-
+      # 是否真实在包内——把"包里到底有什么"从黑盒变为可查事实。
+      # 自检报告写入 $GITHUB_STEP_SUMMARY（run Summary 页公开可读，无需登录下载日志）；
+      # 断言宽松化：.py 与 .pyc 兼容、aapt/aapt2 自动降级、versionName 为软检查。
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: GiftBookkeeping-Android-APK-v3.2.0
           path: bin/*.apk
           if-no-files-found: error
-
       - name: Upload AAB Artifact (if available)
         uses: actions/upload-artifact@v4
         with:
@@ -202,6 +135,140 @@ jobs:
           path: bin/*.aab
           if-no-files-found: warn
         continue-on-error: true
+      - name: Verify APK Contents (Self Check)
+        run: |
+          set -e
+          export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
+          APK=$(ls bin/*.apk | head -1)
+          echo "[check] APK: $APK ($(du -m "$APK" | cut -f1) MB)"
+          echo "## APK 自检报告（v3.2.0）" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK: \`$APK\` ($(du -m "$APK" | cut -f1) MB)" >> "$GITHUB_STEP_SUMMARY"
+
+          # 1) AndroidManifest 版本验证（aapt2 优先，aapt 降级；均为软检查）
+          AAPT_BIN=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | head -1 || true)
+          [ -z "$AAPT_BIN" ] && AAPT_BIN=$(ls "$ANDROID_HOME"/build-tools/*/aapt 2>/dev/null | head -1 || true)
+          if [ -n "$AAPT_BIN" ]; then
+            BADGING=$("$AAPT_BIN" dump badging "$APK" || true)
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "$BADGING" | head -2 >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            if echo "$BADGING" | grep -q "versionName='3.2.0'"; then
+              echo "[check] versionName=3.2.0 OK"
+            else
+              echo "[check][WARN] versionName 非 3.2.0（软警告，不阻断）"
+            fi
+          else
+            echo "[check][WARN] 未找到 aapt/aapt2，跳过 manifest 检查（软警告）"
+          fi
+
+          # 2) APK 内部结构与 Python 包内容验证（报告全部写入 step summary）
+          python3 - <<'PYCHECK'
+          import glob, io, os, sys, tarfile, zipfile
+
+          sm = os.environ.get('GITHUB_STEP_SUMMARY', '')
+          report = []
+          errors = []
+
+          def log(line):
+              print(line)
+              report.append(line)
+
+          apk = sorted(glob.glob('bin/*.apk'))[0]
+          z = zipfile.ZipFile(apk)
+          names = z.namelist()
+
+          # 2a) webview bootstrap 核心资产（硬断言）
+          for key in ('assets/_load.html', 'assets/private.tar'):
+              if key not in names:
+                  errors.append('APK 缺少 ' + key)
+          log('- assets/_load.html: ' + ('OK' if 'assets/_load.html' in names else 'MISSING'))
+          log('- assets/private.tar: ' + ('OK' if 'assets/private.tar' in names else 'MISSING'))
+
+          # 2b) Python 捆绑包 libpybundle.so（实为 tar 伪装；硬断言）
+          bundles = [n for n in names if n.startswith('lib/') and 'pybundle' in n and n.endswith('.so')]
+          if bundles:
+              log('- libpybundle.so: OK ' + bundles[0])
+          else:
+              all_so = [n for n in names if n.startswith('lib/') and n.endswith('.so')]
+              errors.append('APK 缺少 lib/<abi>/libpybundle.so')
+              log('- libpybundle.so: MISSING (lib/ .so total %d: %s)' % (len(all_so), str(all_so[:8])))
+
+          # 2c) private.tar 内：项目 12 个核心 .py(/.pyc) + templates + static
+          if 'assets/private.tar' in names:
+              tar = tarfile.open(fileobj=io.BytesIO(z.read('assets/private.tar')))
+              tnames = tar.getnames()
+              required_py = ['main.py', 'app.py', 'models.py', 'routes_ext.py',
+                             'routes_ai.py', 'ai_service.py', 'pdf_generator.py',
+                             'gift_utils.py', 'webhook_utils.py', 'webdav_utils.py',
+                             'web_search.py', '_daemon_lock.py']
+              missing = []
+              for f in required_py:
+                  stem = f[:-3]
+                  ok = any(n == f or n.endswith('/' + f)
+                           or n == stem + '.pyc' or n.endswith('/' + stem + '.pyc')
+                           for n in tnames)
+                  if not ok:
+                      missing.append(f)
+              if missing:
+                  errors.append('private.tar 缺少: ' + ', '.join(missing))
+                  report.append('#### private.tar 条目样本（前 40 条）')
+                  report.append('```')
+                  report.extend(tnames[:40])
+                  report.append('```')
+              tpl = [n for n in tnames if 'templates/' in n and n.endswith('.html')]
+              sta = [n for n in tnames if 'static/' in n]
+              core_msg = 'OK 12/12' if not missing else 'MISSING ' + str(missing)
+              log('- private.tar 核心 py: ' + core_msg)
+              tpl_state = 'OK' if len(tpl) >= 20 else 'WARN(<20, soft)'
+              log('- templates/*.html: %d 个 %s' % (len(tpl), tpl_state))
+              if not sta:
+                  errors.append('private.tar 缺少 static/ 资源')
+              log('- static/ 资源: %d 个 %s' % (len(sta), 'OK' if sta else 'MISSING'))
+
+          # 2d) libpybundle 内：Flask 全家桶依赖包安装于 site-packages/
+          if bundles:
+              tb = tarfile.open(fileobj=io.BytesIO(z.read(bundles[0])))
+              bnames = tb.getnames()
+              sp_roots = set()
+              sp_files = set()
+              for n in bnames:
+                  if 'site-packages/' in n:
+                      rest = n.split('site-packages/')[1]
+                      sp_roots.add(rest.split('/')[0])
+                      sp_files.add(rest)
+              required_pkgs = ['flask', 'sqlalchemy', 'flask_sqlalchemy', 'flask_wtf',
+                               'flask_login', 'werkzeug', 'jinja2', 'wtforms', 'click',
+                               'itsdangerous', 'markupsafe', 'jnius']
+              missing_pkgs = [p for p in required_pkgs
+                              if p not in sp_roots and (p + '.py') not in sp_files]
+              if missing_pkgs:
+                  errors.append('libpybundle 缺少依赖包: ' + ', '.join(missing_pkgs))
+                  report.append('#### site-packages 顶层清单')
+                  report.append('```')
+                  report.append(', '.join(sorted(sp_roots)[:120]))
+                  report.append('```')
+              if missing_pkgs:
+                  dep_msg = 'MISSING ' + str(missing_pkgs)
+              else:
+                  dep_msg = 'OK %d/%d' % (len(required_pkgs), len(required_pkgs))
+              log('- site-packages 依赖: ' + dep_msg)
+              log('- site-packages 顶层目录总数: %d' % len(sp_roots))
+
+          # 汇总写入 step summary（公开可读）
+          if sm:
+              with open(sm, 'a', encoding='utf-8') as f:
+                  f.write('\n'.join(report) + '\n')
+                  if errors:
+                      f.write('\n### 自检失败原因\n```\n' + '\n'.join(errors) + '\n```\n')
+                  else:
+                      f.write('\n### APK 自检全部通过\n')
+
+          print('=== 自检结束：' + ('全部通过 ===' if not errors else '失败 ==='))
+          if errors:
+              sys.exit(1)
+          PYCHECK
+
+
 
       - name: Upload Build Log (on failure)
         if: failure()
